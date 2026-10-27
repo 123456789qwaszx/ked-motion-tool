@@ -2,15 +2,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Mt.App.MainWindow"
         Title="ked-motion-tool"
-        Width="1280" Height="800"
+        Width="1400" Height="860"
+        MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen">
-    <!-- M0: 빈 창. M2에서 그래프 편집기, M3에서 뷰포트, M4에서 도프 시트가 이 자리에 들어온다 (PLAN §5). -->
+    <!-- 뼈대만 XAML이다. 내용은 MainWindow.axaml.cs가 코드로 채운다 — VnTool과 같은 방식. -->
     <DockPanel>
-        <TextBlock DockPanel.Dock="Top"
-                   x:Name="StatusText"
-                   Margin="12,8"
-                   Opacity="0.7"
-                   Text="ked-motion-tool — M0 뼈대. 아직 열 문서가 없다." />
-        <Border />
+        <StackPanel x:Name="Toolbar" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="8,6" />
+        <Border DockPanel.Dock="Bottom" Padding="8,4" BorderThickness="0,1,0,0" BorderBrush="#33888888">
+            <StackPanel Spacing="2">
+                <TextBlock x:Name="StatusText" FontSize="11" Opacity="0.8" Text="ked-motion-tool" />
+                <TextBlock x:Name="ProblemsText" FontSize="11" Foreground="OrangeRed" TextWrapping="Wrap" IsVisible="False" />
+            </StackPanel>
+        </Border>
+        <ScrollViewer DockPanel.Dock="Left" Width="280" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="LeftPanel" Margin="8" Spacing="6" />
+        </ScrollViewer>
+        <ScrollViewer DockPanel.Dock="Right" Width="280" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="RightPanel" Margin="8" Spacing="6" />
+        </ScrollViewer>
+        <Border x:Name="GraphHost" Margin="4" />
     </DockPanel>
 </Window>

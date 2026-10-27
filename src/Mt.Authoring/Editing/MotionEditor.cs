@@ -1,4 +1,5 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Serialization;
 
@@ -165,10 +166,178 @@ public sealed class MotionEditor
         MotionAsset motion = Require(name);
         ChannelAsset channel = RequireChannel(motion, node, kind);
 
-        List<KeyAsset> sorted = keys.Select(Clone).OrderBy(k => k.T).ToList();
-        ComponentCurve? curve = sorted.Count == 0 ? null : new ComponentCurve { Keys = sorted };
+        ComponentCurve? curve = Normalize(keys);
 
         Mutate(MotionChangeKind.Keys, () => channel.Set(axis, curve));
+    }
+
+    /// <summary>
+    /// 여러 성분의 키 목록을 한 번에 바꾼다 — 드래그 한 번이 여러 커브를 건드려도 되돌리기는 하나다.
+    /// 빈 목록은 "성분 없음". 가리킨 채널이 없으면 아무것도 바꾸지 않고 예외다.
+    /// </summary>
+    public void SetKeysMany(string name, IEnumerable<(CurveRef Curve, IEnumerable<KeyAsset> Keys)> edits)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        MotionAsset motion = Require(name);
+        var plan = new List<(ChannelAsset Channel, Axis Axis, ComponentCurve? Curve)>();
+
+        foreach ((CurveRef curveRef, IEnumerable<KeyAsset> keys) in edits)
+        {
+            ChannelAsset channel = RequireChannel(motion, curveRef.Node, curveRef.Kind);
+            plan.Add((channel, curveRef.Axis, Normalize(keys)));
+        }
+
+        if (plan.Count == 0)
+        {
+            return;
+        }
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            foreach ((ChannelAsset channel, Axis axis, ComponentCurve? curve) in plan)
+            {
+                channel.Set(axis, curve);
+            }
+        });
+    }
+
+    /// <summary>키들의 탄젠트 모드를 바꾼다. free가 아니면 탄젠트가 바로 다시 계산된다.</summary>
+    public void SetTangentMode(string name, IEnumerable<KeyRef> keys, TangentMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        List<(ComponentCurve Curve, int Index)> targets = ResolveKeys(motion, keys);
+
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            foreach ((ComponentCurve curve, int index) in targets)
+            {
+                curve.Keys[index].Tangent = mode;
+            }
+
+            foreach (ComponentCurve curve in targets.Select(t => t.Curve).Distinct())
+            {
+                TangentMath.Recompute(curve.Keys);
+            }
+        });
+    }
+
+    /// <summary>in·out 탄젠트를 따로 놀게(끊기) 하거나 다시 붙인다. 붙이면 out이 in을 따른다. 모드는 free가 된다.</summary>
+    public void SetBroken(string name, IEnumerable<KeyRef> keys, bool broken)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        List<(ComponentCurve Curve, int Index)> targets = ResolveKeys(motion, keys);
+
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            foreach ((ComponentCurve curve, int index) in targets)
+            {
+                KeyAsset key = curve.Keys[index];
+                key.Tangent = TangentMode.Free;
+                key.Broken = broken;
+
+                if (!broken)
+                {
+                    key.OutTangent = key.InTangent;
+                }
+            }
+        });
+    }
+
+    /// <summary>핸들을 끈 결과. 모드는 free가 된다. 끊기지 않은 키는 양쪽이 같이 돈다 — 호출부가 같은 값을 넣는다.</summary>
+    public void SetTangents(string name, KeyRef key, float inTangent, float outTangent)
+    {
+        MotionAsset motion = Require(name);
+        KeyAsset target = key.Resolve(motion) ?? throw new KeyNotFoundException($"키 {key}가 없다.");
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            target.Tangent = TangentMode.Free;
+            target.InTangent = inTangent;
+            target.OutTangent = outTangent;
+            target.Broken = inTangent != outTangent;
+        });
+    }
+
+    /// <summary>키들을 지운다. 성분이 비면 "성분 없음"이 된다. 한 번의 조작이다.</summary>
+    public void RemoveKeys(string name, IEnumerable<KeyRef> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        var byCurve = new Dictionary<CurveRef, List<int>>();
+
+        foreach (KeyRef key in keys)
+        {
+            if (key.Resolve(motion) is null)
+            {
+                continue;
+            }
+
+            if (!byCurve.TryGetValue(key.Curve, out List<int>? indices))
+            {
+                indices = new List<int>();
+                byCurve[key.Curve] = indices;
+            }
+
+            indices.Add(key.Index);
+        }
+
+        if (byCurve.Count == 0)
+        {
+            return;
+        }
+
+        var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
+
+        foreach ((CurveRef curveRef, List<int> indices) in byCurve)
+        {
+            ComponentCurve curve = curveRef.Resolve(motion)!;
+            var remaining = new HashSet<int>(indices);
+            edits.Add((curveRef, curve.Keys.Where((_, i) => !remaining.Contains(i)).ToList()));
+        }
+
+        SetKeysMany(name, edits);
+    }
+
+    private static ComponentCurve? Normalize(IEnumerable<KeyAsset> keys)
+    {
+        List<KeyAsset> sorted = keys.Select(Clone).OrderBy(k => k.T).ToList();
+
+        if (sorted.Count == 0)
+        {
+            return null;
+        }
+
+        TangentMath.Recompute(sorted);
+        return new ComponentCurve { Keys = sorted };
+    }
+
+    private static List<(ComponentCurve Curve, int Index)> ResolveKeys(MotionAsset motion, IEnumerable<KeyRef> keys)
+    {
+        var targets = new List<(ComponentCurve Curve, int Index)>();
+
+        foreach (KeyRef key in keys.Distinct())
+        {
+            ComponentCurve? curve = key.Curve.Resolve(motion);
+
+            if (curve is not null && key.Index >= 0 && key.Index < curve.Keys.Count)
+            {
+                targets.Add((curve, key.Index));
+            }
+        }
+
+        return targets;
     }
 
     /// <summary>키를 더한다. 같은 시각(허용 오차 안)에 키가 있으면 그 키를 대신한다 — 한 시각에 키는 하나다.</summary>
@@ -185,6 +354,7 @@ public sealed class MotionEditor
             curve.Keys.RemoveAll(k => Math.Abs(k.T - copy.T) <= MotionRules.Tolerance);
             curve.Keys.Add(copy);
             curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+            TangentMath.Recompute(curve.Keys);
             channel.Set(axis, curve);
         });
 
@@ -205,6 +375,10 @@ public sealed class MotionEditor
             {
                 channel.Set(axis, null);
             }
+            else
+            {
+                TangentMath.Recompute(curve.Keys);
+            }
         });
     }
 
@@ -221,6 +395,7 @@ public sealed class MotionEditor
         {
             curve.Keys[index] = copy;
             curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+            TangentMath.Recompute(curve.Keys);
         });
     }
 

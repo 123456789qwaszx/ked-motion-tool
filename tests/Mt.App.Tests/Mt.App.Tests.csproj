@@ -21,4 +21,9 @@
     <ProjectReference Include="..\..\src\Mt.App\Mt.App.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 견본은 Mt.Authoring.Tests의 것을 그대로 쓴다 — 사본을 두 벌 두지 않는다. -->
+    <None Include="..\Mt.Authoring.Tests\Fixtures\**" Link="Fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
