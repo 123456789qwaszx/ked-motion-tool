@@ -305,3 +305,41 @@ public class CycleSamplerTests
         Assert.Empty(CurveSampler.SampleCycled(keys, 0, 0, 1, 4));
     }
 }
+
+public class InfinitySamplerTests
+{
+    private static List<KeyAsset> Ramp() => new()
+    {
+        new() { T = 0, V = 0, InTangent = 1, OutTangent = 1, Tangent = TangentMode.Free },
+        new() { T = 1, V = 1, InTangent = 1, OutTangent = 1, Tangent = TangentMode.Free },
+    };
+
+    private static double At(InfinityMode pre, InfinityMode post, double t)
+    {
+        List<GraphPoint> points = CurveSampler.SampleInfinity(Ramp(), pre, post, t, t + 1, 1);
+        return points[0].V;
+    }
+
+    [Fact]
+    public void 뒤_무한은_상수_사이클_오프셋_왕복_직선이다()
+    {
+        Assert.Equal(1, At(InfinityMode.Constant, InfinityMode.Constant, 1.5), 3);
+        Assert.Equal(0.5, At(InfinityMode.Constant, InfinityMode.Cycle, 1.5), 3);
+        Assert.Equal(1.5, At(InfinityMode.Constant, InfinityMode.CycleOffset, 1.5), 3);
+        Assert.Equal(0.5, At(InfinityMode.Constant, InfinityMode.Oscillate, 1.5), 3);
+        Assert.Equal(0.25, At(InfinityMode.Constant, InfinityMode.Oscillate, 2.25), 3);
+        Assert.Equal(1.5, At(InfinityMode.Constant, InfinityMode.Linear, 1.5), 3);
+    }
+
+    [Fact]
+    public void 앞_무한도_같고_구간_안은_보통_평가다()
+    {
+        Assert.Equal(0, At(InfinityMode.Constant, InfinityMode.Constant, -0.5), 3);
+        Assert.Equal(0.5, At(InfinityMode.Cycle, InfinityMode.Constant, -0.5), 3);
+        Assert.Equal(-0.5, At(InfinityMode.CycleOffset, InfinityMode.Constant, -0.5), 3);
+        Assert.Equal(0.5, At(InfinityMode.Oscillate, InfinityMode.Constant, -0.5), 3);
+        Assert.Equal(-0.5, At(InfinityMode.Linear, InfinityMode.Constant, -0.5), 3);
+        Assert.Equal(0.5, At(InfinityMode.Cycle, InfinityMode.Cycle, 0.5), 3);
+        Assert.Empty(CurveSampler.SampleInfinity(new List<KeyAsset> { new() { T = 0, V = 1 } }, InfinityMode.Cycle, InfinityMode.Cycle, -1, 1, 4));
+    }
+}

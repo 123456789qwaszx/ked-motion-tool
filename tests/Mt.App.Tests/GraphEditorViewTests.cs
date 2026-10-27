@@ -337,6 +337,56 @@ public class GraphEditorViewTests
     });
 
     [Fact]
+    public void 리전_툴은_상자_모서리를_끌어_그_축만_스케일하고_값_스냅은_정수로_끈다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            view.Tool = GraphTool.Region;
+            view.SelectAll();
+            (double t0, double t1, double v0, double v1) = view.Region ?? throw new InvalidOperationException("리전이 없다");
+            Assert.Equal(0, t0, 6);
+            Assert.Equal(0.6, t1, 3);
+            Assert.Equal(-18, v0, 3);
+            Assert.Equal(0, v1, 3);
+
+            // 오른쪽 모서리를 왼쪽으로 — 왼쪽 끝(0) 기준 시간만 줄어든다.
+            Point last = At(view, 2);
+            Point middle = At(view, 1);
+            Point edge = InWindow(window, view, new Point(last.X + 8, (last.Y + middle.Y) / 2));
+            Point target = InWindow(window, view, new Point(last.X + 8 - (last.X - At(view, 0).X) / 2, (last.Y + middle.Y) / 2));
+            long before = editor.Revision;
+            window.MouseDown(edge, MouseButton.Left);
+            window.MouseMove(target, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(target, MouseButton.Left);
+
+            Assert.Equal(before + 1, editor.Revision);
+            List<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+            Assert.Equal(0f, keys[0].T);
+            Assert.InRange(keys[2].T, 0.25f, 0.35f);
+            Assert.InRange(keys[1].T, keys[2].T / 2 - 0.02f, keys[2].T / 2 + 0.02f);
+            Assert.Equal(-18f, keys[1].V, 3); // 시간 모서리는 값을 안 건드린다
+            Assert.NotNull(view.Region);
+
+            // 값 스냅: MMB로 조금 끌어도 값은 정수로.
+            view.Tool = GraphTool.Select;
+            view.ValueSnapEnabled = true;
+            view.Select(new[] { new KeyRef(Y, 1) }, additive: false);
+            Point mid = InWindow(window, view, At(view, 1));
+            window.MouseDown(mid, MouseButton.Middle);
+            window.MouseMove(new Point(mid.X, mid.Y - 7), RawInputModifiers.MiddleMouseButton);
+            window.MouseUp(new Point(mid.X, mid.Y - 7), MouseButton.Middle);
+            float v = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V;
+            Assert.Equal(MathF.Round(v), v, 5);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 박스_선택은_안에_든_키를_고른다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();

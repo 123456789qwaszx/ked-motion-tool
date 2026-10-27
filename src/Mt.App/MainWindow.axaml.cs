@@ -54,7 +54,6 @@ public partial class MainWindow : Window
     private readonly ComboBox _autoSaveCombo = new() { ItemsSource = new[] { "끔", "1분", "5분", "10분" }, SelectedIndex = 2, FontSize = 11 };
     private static readonly double[] SnapSteps = { 1.0 / 60.0, 1.0 / 24.0, 1.0 / 120.0 };
     private static readonly int[] AutoSaveMinutes = { 0, 1, 5, 10 };
-    private readonly CheckBox _showCycle = new() { Content = "사이클 미리보기(보기만)", FontSize = 11 };
 
     // 트랜스포트
     private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
@@ -78,7 +77,11 @@ public partial class MainWindow : Window
     private readonly CheckBox _autoKey = new() { Content = "Auto Key", FontSize = 11 };
     private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
     private readonly Button[] _manipulatorButtons = new Button[4];
-    private readonly Button[] _toolButtons = new Button[3];
+    private readonly Button[] _toolButtons = new Button[4];
+    private readonly CheckBox _valueSnap = new() { Content = "값 스냅", FontSize = 11 };
+    private static readonly string[] InfinityTokens = { "상수", "사이클", "사이클+오프셋", "왕복", "직선" };
+    private readonly ComboBox _preInfinity = new() { ItemsSource = InfinityTokens, SelectedIndex = 0, FontSize = 11 };
+    private readonly ComboBox _postInfinity = new() { ItemsSource = InfinityTokens, SelectedIndex = 0, FontSize = 11 };
     private static readonly TangentMode[] NewKeyTangentChoices = { TangentMode.Auto, TangentMode.Spline, TangentMode.Plateau, TangentMode.Flat, TangentMode.Linear };
     private readonly ComboBox _newKeyTangent = new() { ItemsSource = new[] { "auto", "spline", "plateau", "flat", "linear" }, SelectedIndex = 0, FontSize = 11 };
 
@@ -697,7 +700,30 @@ public partial class MainWindow : Window
     private Control BuildGraphToolbar()
     {
         _snap.Content = "시간 스냅";
-        _showCycle.Content = "사이클";
+        _valueSnap.IsCheckedChanged += (_, _) =>
+        {
+            _graph.ValueSnapEnabled = _valueSnap.IsChecked == true;
+        };
+        _preInfinity.SelectionChanged += (_, _) =>
+        {
+            if (_preInfinity.SelectedIndex >= 0)
+            {
+                _graph.PreInfinity = (InfinityMode)_preInfinity.SelectedIndex;
+                _graph.InvalidateVisual();
+            }
+        };
+        _postInfinity.SelectionChanged += (_, _) =>
+        {
+            if (_postInfinity.SelectedIndex >= 0)
+            {
+                _graph.PostInfinity = (InfinityMode)_postInfinity.SelectedIndex;
+                _graph.InvalidateVisual();
+            }
+        };
+        ToolTip.SetTip(_preInfinity, "Pre Infinity — 첫 키 앞을 어떻게 이어 보이나(보기만, 산출물의 끝은 restore/commit)");
+        ToolTip.SetTip(_postInfinity, "Post Infinity — 마지막 키 뒤를 어떻게 이어 보이나(보기만)");
+        ToolTip.SetTip(_valueSnap, "끌 때 키 값을 정수로(마야 Snap Values)");
+        ToolTip.SetTip(_toolButtons[3], "리전 툴 — 상자로 고르고, 안을 끌면 이동, 모서리를 끌면 그 축만 반대쪽 기준 스케일");
         _keyTime.Width = 64;
         _keyValue.Width = 64;
         ToolTip.SetTip(_keyTime, "선택 키의 시각(표시 단위). 여러 키면 +=3 · -=1 식 상대 입력");
@@ -715,7 +741,7 @@ public partial class MainWindow : Window
             }
         }
 
-        Add(_toolButtons[0], _toolButtons[1], _toolButtons[2], Separator());
+        Add(_toolButtons[0], _toolButtons[1], _toolButtons[2]);
         Add(SmallButton("끼우기 (I)", (_, _) => _graph.InsertKeyAtCurrentTime()),
             SmallButton("전체 (A)", (_, _) => _graph.FitAll()),
             SmallButton("선택 (F)", (_, _) => _graph.FitSelection()),
@@ -735,7 +761,9 @@ public partial class MainWindow : Window
             SmallButton("버퍼 바꾸기", (_, _) => _graph.SwapBuffer()),
             SmallButton("버퍼 지우기", (_, _) => _graph.ClearBuffer()),
             Separator());
-        Add(_snap, _viewMode, _showCycle, Separator());
+        Add(_toolButtons[3], Separator());
+        Add(_snap, _valueSnap, _viewMode, Separator());
+        Add(new TextBlock { Text = "무한", FontSize = 10, Opacity = 0.7 }, _preInfinity, _postInfinity, Separator());
         Add(new TextBlock { Text = "Stats", FontSize = 10, Opacity = 0.7 }, _keyTime, _keyValue);
         ToolTip.SetTip(bar, "탄젠트 Ctrl+1 auto · 2 flat · 3 linear · 4 free · 5 spline · 6 plateau · 버퍼 Ctrl+B / Ctrl+Shift+B");
         return bar;
@@ -991,7 +1019,7 @@ public partial class MainWindow : Window
         OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
 
         RightPanel.Children.Add(Header("키"));
-        string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)" };
+        string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)", "리전" };
 
         for (int i = 0; i < toolLabels.Length; i++)
         {
@@ -1151,11 +1179,6 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(Labeled("자동 저장", _autoSaveCombo));
         RightPanel.Children.Add(Labeled("시간 표시", _timeDisplayCombo));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
-        _showCycle.IsCheckedChanged += (_, _) =>
-        {
-            _graph.ShowCycle = _showCycle.IsChecked == true;
-            _graph.InvalidateVisual();
-        };
         _viewMode.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _viewMode.SelectedIndex >= 0)

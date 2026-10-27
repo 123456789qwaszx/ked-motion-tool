@@ -15,6 +15,9 @@ public enum GraphTool
     Select,
     Move,
     Scale,
+
+    /// <summary>마야 Region Tool — 상자로 고르고, 상자 안을 끌면 이동, 모서리를 끌면 그 축만 반대쪽 기준 스케일.</summary>
+    Region,
 }
 
 /// <summary>그래프에 올라가는 성분 커브 하나의 표시 상태. 색은 축(x·y·z)이 정하고 채널 순서가 색조를 조금 돌린다.</summary>
@@ -86,7 +89,11 @@ public sealed class GraphEditorView : Control
     private bool _cameraFitted;
     private double _currentTime;
 
-    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan, Scrub, Zoom, Scale, Lasso }
+    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan, Scrub, Zoom, Scale, Lasso, RegionLeft, RegionRight, RegionTop, RegionBottom }
+
+    /// <summary>리전 툴의 상자 — 선택 키의 시간·보기값 범위.</summary>
+    private (double T0, double T1, double V0, double V1)? _region;
+    private double _regionEdge;
 
     /// <summary>마야 그래프 에디터의 툴: 선택(Q)·이동(W)·스케일(R). MMB 드래그는 툴과 무관하게 이동이다.</summary>
     public GraphTool Tool { get; set; } = GraphTool.Select;
@@ -100,8 +107,20 @@ public sealed class GraphEditorView : Control
     /// <summary>복사/붙여넣기 자리 — 도프시트와 같은 객체를 꽂는다.</summary>
     public KeyClipboardSlot Clipboard { get; set; } = new();
 
-    /// <summary>길이로 감아 반복한 곡선을 양옆에 흐리게(마야 cycle infinity). 보기만이다.</summary>
+    /// <summary>길이로 감아 반복한 곡선을 양옆에 흐리게(마야 cycle infinity). 보기만이다. 켜면 앞뒤 무한이 cycle이다.</summary>
     public bool ShowCycle { get; set; }
+
+    /// <summary>마야 Pre Infinity(첫 키 앞) — 보기만.</summary>
+    public InfinityMode PreInfinity { get; set; } = InfinityMode.Constant;
+
+    /// <summary>마야 Post Infinity(마지막 키 뒤) — 보기만.</summary>
+    public InfinityMode PostInfinity { get; set; } = InfinityMode.Constant;
+
+    /// <summary>마야 값 스냅 — 끌 때 키 값을 정수로.</summary>
+    public bool ValueSnapEnabled { get; set; }
+
+    /// <summary>리전 툴의 상자(시간·보기값). 선택이 없으면 null.</summary>
+    public (double T0, double T1, double V0, double V1)? Region => _region;
 
     public bool HasBuffer => _buffer.Count > 0;
 
@@ -303,8 +322,53 @@ public sealed class GraphEditorView : Control
 
     private void OnSelectionChanged(object? sender, EventArgs e)
     {
+        UpdateRegion();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
+    }
+
+    /// <summary>리전 상자 = 선택 키의 (시간, 보기값) 범위. 점이면 조금 벌린다.</summary>
+    private void UpdateRegion()
+    {
+        MotionAsset? motion = Motion;
+
+        if (motion is null || _selection.Count == 0)
+        {
+            _region = null;
+            return;
+        }
+
+        double t0 = double.PositiveInfinity, t1 = double.NegativeInfinity, v0 = double.PositiveInfinity, v1 = double.NegativeInfinity;
+
+        foreach (KeyRef key in _selection)
+        {
+            if (key.Resolve(motion) is not { } k)
+            {
+                continue;
+            }
+
+            double v = ViewTransformOf(key.Curve).ToView(k.V);
+            t0 = Math.Min(t0, k.T);
+            t1 = Math.Max(t1, k.T);
+            v0 = Math.Min(v0, v);
+            v1 = Math.Max(v1, v);
+        }
+
+        if (double.IsInfinity(t0))
+        {
+            _region = null;
+            return;
+        }
+
+        _region = (t0, t1, v0, v1);
+    }
+
+    private Rect RegionScreenRect((double T0, double T1, double V0, double V1) region)
+    {
+        Point a = ToScreen(new GraphPoint(region.T0, region.V1));
+        Point b = ToScreen(new GraphPoint(region.T1, region.V0));
+        const double pad = 8;
+        return new Rect(a.X - pad, a.Y - pad, Math.Max(1, b.X - a.X) + pad * 2, Math.Max(1, b.Y - a.Y) + pad * 2);
     }
 
     public event EventHandler? SelectionChanged;
@@ -448,6 +512,7 @@ public sealed class GraphEditorView : Control
         ReloadCurves();
         RefreshViewTransforms();
         PruneSelection();
+        UpdateRegion();
         InvalidateVisual();
     }
 
@@ -858,12 +923,15 @@ public sealed class GraphEditorView : Control
                     continue;
                 }
 
-                if (ShowCycle && motion.Duration > 0)
+                InfinityMode pre = ShowCycle ? InfinityMode.Cycle : PreInfinity;
+                InfinityMode post = ShowCycle ? InfinityMode.Cycle : PostInfinity;
+
+                if ((pre != InfinityMode.Constant || post != InfinityMode.Constant) && keys.Count >= 2)
                 {
-                    CurveViewTransform cycleTransform = ViewTransformOf(slot.Curve);
-                    var cyclePen = new Pen(new SolidColorBrush(Color.FromArgb(80, slot.Color.R, slot.Color.G, slot.Color.B)), 1, DashStyle.Dash);
-                    List<GraphPoint> cycle = CurveSampler.SampleCycled(keys, motion.Duration, left.T, right.T, samples);
-                    context.DrawGeometry(null, cyclePen, new PolylineGeometry(cycle.Select(p => ToScreen(new GraphPoint(p.T, cycleTransform.ToView(p.V)))), false));
+                    CurveViewTransform infinityTransform = ViewTransformOf(slot.Curve);
+                    var infinityPen = new Pen(new SolidColorBrush(Color.FromArgb(90, slot.Color.R, slot.Color.G, slot.Color.B)), 1, DashStyle.Dash);
+                    List<GraphPoint> extended = CurveSampler.SampleInfinity(keys, pre, post, left.T, right.T, samples);
+                    context.DrawGeometry(null, infinityPen, new PolylineGeometry(extended.Select(p => ToScreen(new GraphPoint(p.T, infinityTransform.ToView(p.V)))), false));
                 }
 
                 List<GraphPoint> points = CurveSampler.Sample(keys, left.T, right.T, samples);
@@ -910,6 +978,17 @@ public sealed class GraphEditorView : Control
 
                     // 마야: 키는 작은 주황 점, 선택 키는 흰색으로 조금 크게.
                     context.FillRectangle(selected ? SelectedKeyBrush : keyBrush, selected ? new Rect(center.X - 3.5, center.Y - 3.5, 7, 7) : new Rect(center.X - 2.5, center.Y - 2.5, 5, 5));
+                }
+            }
+
+            if (Tool == GraphTool.Region && _region is { } region && _selection.Count > 0)
+            {
+                Rect rr = RegionScreenRect(region);
+                context.DrawRectangle(BoxPen, rr);
+
+                foreach (Point handle in new[] { new Point(rr.X, rr.Center.Y), new Point(rr.Right, rr.Center.Y), new Point(rr.Center.X, rr.Y), new Point(rr.Center.X, rr.Bottom) })
+                {
+                    context.FillRectangle(HandleBrush, new Rect(handle.X - 3, handle.Y - 3, 6, 6));
                 }
             }
 
@@ -1207,6 +1286,47 @@ public sealed class GraphEditorView : Control
             return;
         }
 
+        // 리전 툴: 상자 모서리 = 그 축만 반대쪽 기준 스케일, 상자 안 = 이동, 밖 = 새 상자 선택.
+        if (Tool == GraphTool.Region && !ctrl && _region is { } region && _selection.Count > 0)
+        {
+            Rect rr = RegionScreenRect(region);
+            const double edge = 7;
+
+            if (rr.Inflate(edge).Contains(position))
+            {
+                Drag regionDrag = Drag.None;
+
+                if (Math.Abs(position.X - rr.X) <= edge)
+                {
+                    regionDrag = Drag.RegionLeft;
+                    _scalePivot = new GraphPoint(region.T1, region.V0);
+                    _regionEdge = region.T0;
+                }
+                else if (Math.Abs(position.X - rr.Right) <= edge)
+                {
+                    regionDrag = Drag.RegionRight;
+                    _scalePivot = new GraphPoint(region.T0, region.V0);
+                    _regionEdge = region.T1;
+                }
+                else if (Math.Abs(position.Y - rr.Y) <= edge)
+                {
+                    regionDrag = Drag.RegionTop;
+                    _scalePivot = new GraphPoint(region.T0, region.V0);
+                    _regionEdge = region.V1;
+                }
+                else if (Math.Abs(position.Y - rr.Bottom) <= edge)
+                {
+                    regionDrag = Drag.RegionBottom;
+                    _scalePivot = new GraphPoint(region.T0, region.V1);
+                    _regionEdge = region.V0;
+                }
+
+                BeginPreview(motion, _selection.Select(k => k.Curve).Distinct());
+                StartDrag(regionDrag == Drag.None ? Drag.Keys : regionDrag, position, e);
+                return;
+            }
+        }
+
         // 스케일 툴(R): LMB 드래그 = 선택 키를 선택 중심 기준으로 값·시간 스케일.
         if (Tool == GraphTool.Scale && _selection.Count > 0 && !ctrl)
         {
@@ -1416,6 +1536,17 @@ public sealed class GraphEditorView : Control
 
                 break;
 
+            case Drag.RegionLeft:
+            case Drag.RegionRight:
+            case Drag.RegionTop:
+            case Drag.RegionBottom:
+                if (motion is not null)
+                {
+                    RegionScalePreview(motion, position);
+                }
+
+                break;
+
             case Drag.Keys:
                 if (motion is not null)
                 {
@@ -1465,7 +1596,41 @@ public sealed class GraphEditorView : Control
             }
 
             preview.T = (float)Math.Max(0, SnapTime(original.T + delta.T));
-            preview.V = (float)(original.V + delta.V / ViewTransformOf(keyRef.Curve).Scale);
+            preview.V = SnapValue((float)(original.V + delta.V / ViewTransformOf(keyRef.Curve).Scale));
+        }
+    }
+
+    private float SnapValue(float value) => ValueSnapEnabled ? MathF.Round(value) : value;
+
+    /// <summary>리전 모서리 드래그 — 한 축만, 반대쪽 모서리(<see cref="_scalePivot"/>, 보기값) 기준. 시간 축은 값을 안 건드린다.</summary>
+    private void RegionScalePreview(MotionAsset motion, Point position)
+    {
+        GraphPoint at = ToGraph(position);
+        double timeFactor = 1;
+        double valueFactor = 1;
+
+        if (_drag is Drag.RegionLeft or Drag.RegionRight)
+        {
+            double span = _regionEdge - _scalePivot.T;
+            timeFactor = Math.Abs(span) < 1e-9 ? 1 : Math.Max(0.01, (at.T - _scalePivot.T) / span);
+        }
+        else
+        {
+            double span = _regionEdge - _scalePivot.V;
+            valueFactor = Math.Abs(span) < 1e-9 ? 1 : (at.V - _scalePivot.V) / span;
+        }
+
+        foreach (KeyRef keyRef in _selection)
+        {
+            if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
+            {
+                continue;
+            }
+
+            CurveViewTransform transform = ViewTransformOf(keyRef.Curve);
+            preview.T = (float)Math.Max(0, SnapTime(_scalePivot.T + (original.T - _scalePivot.T) * timeFactor));
+            double view = _scalePivot.V + (transform.ToView(original.V) - _scalePivot.V) * valueFactor;
+            preview.V = SnapValue((float)transform.ToValue(view));
         }
     }
 
@@ -1495,7 +1660,7 @@ public sealed class GraphEditorView : Control
             }
 
             preview.T = (float)Math.Max(0, SnapTime(_scalePivot.T + (original.T - _scalePivot.T) * timeFactor));
-            preview.V = (float)(_scalePivot.V + (original.V - _scalePivot.V) * valueFactor);
+            preview.V = SnapValue((float)(_scalePivot.V + (original.V - _scalePivot.V) * valueFactor));
         }
     }
 
@@ -1547,6 +1712,10 @@ public sealed class GraphEditorView : Control
             {
                 case Drag.Keys:
                 case Drag.Scale:
+                case Drag.RegionLeft:
+                case Drag.RegionRight:
+                case Drag.RegionTop:
+                case Drag.RegionBottom:
                     if (_dragMoved && motion is not null)
                     {
                         CommitMove(motion);
@@ -1615,6 +1784,7 @@ public sealed class GraphEditorView : Control
         var edits = _preview.Select(pair => (pair.Key, (IEnumerable<KeyAsset>)pair.Value)).ToList();
         _editor.SetKeysMany(_motionName, edits);
         SelectByTime(moved);
+        UpdateRegion();
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
