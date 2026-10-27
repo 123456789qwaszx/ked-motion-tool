@@ -34,6 +34,9 @@ public sealed class ToolSettings
 
     public bool AutoKey { get; set; }
 
+    /// <summary>시간 표시 — 마야처럼 프레임이 기본.</summary>
+    public Graph.TimeDisplay TimeDisplay { get; set; } = Graph.TimeDisplay.Frames;
+
     /// <summary>분. 0이면 끈다.</summary>
     public int AutoSaveMinutes { get; set; } = 5;
 

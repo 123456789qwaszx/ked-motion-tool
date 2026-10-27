@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -85,7 +86,14 @@ public partial class MainWindow : Window
     private readonly ComboBox _newMotionRig = new() { FontSize = 11, MinWidth = 100 };
     private readonly TextBox _newMotionDuration = new() { Text = "1", Width = 56, FontSize = 11 };
     private readonly ComboBox _newMotionEnd = new() { ItemsSource = EndTokens, SelectedIndex = 0, FontSize = 11 };
-    private readonly StackPanel _channelRows = new() { Spacing = 2 };
+    private readonly StackPanel _channelRows = new() { Spacing = 0 };
+    private readonly TextBox _outlinerSearch = new() { PlaceholderText = "검색…", FontSize = 11, Margin = new Avalonia.Thickness(2) };
+    private static readonly IBrush OutlinerBackground = new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x2B));
+    private static readonly IBrush OutlinerRowSelected = new SolidColorBrush(Color.FromArgb(170, 0x4B, 0x6E, 0xAF));
+    private readonly ComboBox _timeDisplayCombo = new() { ItemsSource = new[] { "프레임 (24fps)", "초" }, SelectedIndex = 0, FontSize = 11 };
+
+    /// <summary>시간 글자 단위(설정) — 마야처럼 프레임이 기본.</summary>
+    private TimeDisplay Display => _settings.TimeDisplay;
     private readonly ComboBox _newChannelNode = new() { FontSize = 11, MinWidth = 180 };
     private readonly ComboBox _newChannelKind = new() { ItemsSource = KindTokens, SelectedIndex = 0, FontSize = 11 };
     private readonly ComboBox _newChannelMode = new() { ItemsSource = ChannelModeTokens, SelectedIndex = 0, FontSize = 11 };
@@ -147,7 +155,7 @@ public partial class MainWindow : Window
         };
         _graph.CurrentTimeChanged += (_, _) =>
         {
-            _currentTime.Text = _graph.CurrentTime.ToString("0.###", CultureInfo.InvariantCulture);
+            _currentTime.Text = TimeText.Format(_graph.CurrentTime, Display);
             SyncTime(() =>
             {
                 _viewport.ScrubTo(_graph.CurrentTime);
@@ -341,6 +349,7 @@ public partial class MainWindow : Window
             _autoKey.IsChecked = _settings.AutoKey;
             int autoSaveIndex = Array.IndexOf(AutoSaveMinutes, _settings.AutoSaveMinutes);
             _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
+            _timeDisplayCombo.SelectedIndex = (int)_settings.TimeDisplay;
         }
         finally
         {
@@ -362,6 +371,11 @@ public partial class MainWindow : Window
         _viewport.DefaultTangent = _settings.DefaultTangent;
         _viewport.OnionSkinFrames = _settings.OnionSkinFrames;
         _viewport.AutoKey = _settings.AutoKey;
+        _graph.TimeDisplay = _settings.TimeDisplay;
+        _dope.TimeDisplay = _settings.TimeDisplay;
+        _graph.InvalidateVisual();
+        _dope.InvalidateVisual();
+        RefreshTimeTexts();
         _autoSaveTimer.Stop();
 
         if (_settings.AutoSaveMinutes > 0)
@@ -503,8 +517,8 @@ public partial class MainWindow : Window
                 _viewport.Speed = new[] { 0.25, 0.5, 1, 2 }[_playSpeed.SelectedIndex];
             }
         };
-        OnCommit(_rangeStart, text => Guard("재생 범위", () => { if (TryFloat(text, out float v)) _viewport.SetRange(v, _viewport.Clock.RangeEnd); }));
-        OnCommit(_rangeEnd, text => Guard("재생 범위", () => { if (TryFloat(text, out float v)) _viewport.SetRange(_viewport.Clock.RangeStart, v); }));
+        OnCommit(_rangeStart, text => Guard("재생 범위", () => { if (TimeText.TryParse(text, Display, out double v)) _viewport.SetRange(v, _viewport.Clock.RangeEnd); }));
+        OnCommit(_rangeEnd, text => Guard("재생 범위", () => { if (TimeText.TryParse(text, Display, out double v)) _viewport.SetRange(_viewport.Clock.RangeStart, v); }));
         _viewport.RangeChanged += (_, _) => RefreshTransport();
         _onion.IsCheckedChanged += (_, _) =>
         {
@@ -546,13 +560,95 @@ public partial class MainWindow : Window
             Padding = new Avalonia.Thickness(0),
             ItemsSource = new[]
             {
-                new TabItem { Header = "그래프", Content = _graph, FontSize = 12 },
+                new TabItem { Header = "그래프", Content = BuildGraphTab(), FontSize = 12 },
                 new TabItem { Header = "도프 시트", Content = _dope, FontSize = 12 },
             },
         };
         Grid.SetRow(tabs, 3);
         grid.Children.Add(tabs);
         return grid;
+    }
+
+    /// <summary>마야 그래프 에디터 배치: 왼쪽 아웃라이너(검색 · 행 클릭 = 그 커브만) · 위 툴바 · 플롯.</summary>
+    private Control BuildGraphTab()
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("210,4,*") };
+
+        var outliner = new DockPanel { Background = OutlinerBackground };
+        DockPanel.SetDock(_outlinerSearch, Dock.Top);
+        outliner.Children.Add(_outlinerSearch);
+        outliner.Children.Add(new ScrollViewer { Content = _channelRows, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        _outlinerSearch.TextChanged += (_, _) => RefreshChannels();
+        Grid.SetColumn(outliner, 0);
+        grid.Children.Add(outliner);
+
+        var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Columns, Background = Brushes.Transparent };
+        Grid.SetColumn(splitter, 1);
+        grid.Children.Add(splitter);
+
+        var right = new DockPanel();
+        Control toolbar = BuildGraphToolbar();
+        DockPanel.SetDock(toolbar, Dock.Top);
+        right.Children.Add(toolbar);
+        right.Children.Add(_graph);
+        Grid.SetColumn(right, 2);
+        grid.Children.Add(right);
+        return grid;
+    }
+
+    /// <summary>마야 그래프 에디터 툴바: 툴 · 맞춤 · 탄젠트 · 버퍼 · 스냅/보기 · Stats.</summary>
+    private Control BuildGraphToolbar()
+    {
+        _snap.Content = "시간 스냅";
+        _showCycle.Content = "사이클";
+        _keyTime.Width = 64;
+        _keyValue.Width = 64;
+        ToolTip.SetTip(_keyTime, "선택 키의 시각(표시 단위). 여러 키면 +=3 · -=1 식 상대 입력");
+        ToolTip.SetTip(_keyValue, "선택 키의 값. 여러 키면 +=3 · *=2 식 상대 입력");
+
+        var bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Avalonia.Thickness(2, 2, 2, 4) };
+
+        void Add(params Control[] controls)
+        {
+            foreach (Control c in controls)
+            {
+                c.Margin = new Avalonia.Thickness(1, 1);
+                c.VerticalAlignment = VerticalAlignment.Center;
+                bar.Children.Add(c);
+            }
+        }
+
+        Add(_toolButtons[0], _toolButtons[1], _toolButtons[2], Separator());
+        Add(SmallButton("끼우기 (I)", (_, _) => _graph.InsertKeyAtCurrentTime()),
+            SmallButton("전체 (A)", (_, _) => _graph.FitAll()),
+            SmallButton("선택 (F)", (_, _) => _graph.FitSelection()),
+            SmallButton("재생 범위", (_, _) => _graph.FitRange()),
+            SmallButton("현재 시각 가운데", (_, _) => _graph.CenterCurrentTime()),
+            Separator());
+        Add(SmallButton("auto", (_, _) => _graph.SetTangentMode(TangentMode.Auto)),
+            SmallButton("spline", (_, _) => _graph.SetTangentMode(TangentMode.Spline)),
+            SmallButton("linear", (_, _) => _graph.SetTangentMode(TangentMode.Linear)),
+            SmallButton("flat", (_, _) => _graph.SetTangentMode(TangentMode.Flat)),
+            SmallButton("plateau", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
+            SmallButton("free", (_, _) => _graph.SetTangentMode(TangentMode.Free)),
+            SmallButton("끊기", (_, _) => _graph.SetBroken(true)),
+            SmallButton("붙이기", (_, _) => _graph.SetBroken(false)),
+            Separator());
+        Add(SmallButton("버퍼 찍기", (_, _) => _graph.SnapshotBuffer()),
+            SmallButton("버퍼 바꾸기", (_, _) => _graph.SwapBuffer()),
+            SmallButton("버퍼 지우기", (_, _) => _graph.ClearBuffer()),
+            Separator());
+        Add(_snap, _viewMode, _showCycle, Separator());
+        Add(new TextBlock { Text = "Stats", FontSize = 10, Opacity = 0.7 }, _keyTime, _keyValue);
+        ToolTip.SetTip(bar, "탄젠트 Ctrl+1 auto · 2 flat · 3 linear · 4 free · 5 spline · 6 plateau · 버퍼 Ctrl+B / Ctrl+Shift+B");
+        return bar;
+    }
+
+    private void RefreshTimeTexts()
+    {
+        _currentTime.Text = TimeText.Format(_graph.CurrentTime, Display);
+        RefreshTransport();
+        RefreshKeyInspector();
     }
 
     private void RefreshToolButtons()
@@ -608,8 +704,11 @@ public partial class MainWindow : Window
             double[] speeds = { 0.25, 0.5, 1, 2 };
             int speedIndex = Array.FindIndex(speeds, v => Math.Abs(v - _viewport.Speed) < 1e-9);
             _playSpeed.SelectedIndex = speedIndex < 0 ? 2 : speedIndex;
-            _rangeStart.Text = _viewport.Clock.RangeStart.ToString("0.###", CultureInfo.InvariantCulture);
-            _rangeEnd.Text = _viewport.Clock.RangeEnd.ToString("0.###", CultureInfo.InvariantCulture);
+            _rangeStart.Text = TimeText.Format(_viewport.Clock.RangeStart, Display);
+            _rangeEnd.Text = TimeText.Format(_viewport.Clock.RangeEnd, Display);
+            _graph.RangeStart = _viewport.Clock.RangeStart;
+            _graph.RangeEnd = _viewport.Clock.RangeEnd;
+            _graph.InvalidateVisual();
         }
         finally
         {
@@ -744,9 +843,7 @@ public partial class MainWindow : Window
         });
         LeftPanel.Children.Add(addMotion);
 
-        LeftPanel.Children.Add(Header("채널 (보이기: x · y · z)"));
-        LeftPanel.Children.Add(_channelRows);
-
+        LeftPanel.Children.Add(Header("채널 추가"));
         var addChannel = new StackPanel { Spacing = 4 };
         addChannel.Children.Add(_newChannelNode);
         addChannel.Children.Add(new StackPanel
@@ -793,7 +890,6 @@ public partial class MainWindow : Window
         OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
 
         RightPanel.Children.Add(Header("키"));
-        var tools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)" };
 
         for (int i = 0; i < toolLabels.Length; i++)
@@ -805,31 +901,12 @@ public partial class MainWindow : Window
                 RefreshToolButtons();
             });
             _toolButtons[i] = button;
-            tools.Children.Add(button);
         }
 
-        RightPanel.Children.Add(tools);
-        RightPanel.Children.Add(new TextBlock { Text = "그래프: LMB 선택 · MMB 드래그 이동 · Alt+MMB 팬 · Alt+RMB 줌 · Ctrl+드래그 라소. 칸에 +=3 · *=2 식 상대 입력.", FontSize = 10, Opacity = 0.6, TextWrapping = TextWrapping.Wrap });
         RightPanel.Children.Add(_selectionSummary);
-        RightPanel.Children.Add(Labeled("시각(초)", _keyTime));
-        RightPanel.Children.Add(Labeled("값", _keyValue));
         RightPanel.Children.Add(Labeled("in 기울기", _keyIn));
         RightPanel.Children.Add(Labeled("out 기울기", _keyOut));
         RightPanel.Children.Add(_keyBroken);
-        RightPanel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children =
-            {
-                SmallButton("auto (Ctrl+1)", (_, _) => _graph.SetTangentMode(TangentMode.Auto)),
-                SmallButton("flat (Ctrl+2)", (_, _) => _graph.SetTangentMode(TangentMode.Flat)),
-                SmallButton("linear (Ctrl+3)", (_, _) => _graph.SetTangentMode(TangentMode.Linear)),
-                SmallButton("free (Ctrl+4)", (_, _) => _graph.SetTangentMode(TangentMode.Free)),
-                SmallButton("spline (Ctrl+5)", (_, _) => _graph.SetTangentMode(TangentMode.Spline)),
-                SmallButton("plateau (Ctrl+6)", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
-            },
-        });
         RightPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -854,18 +931,6 @@ public partial class MainWindow : Window
                 SmallButton("지우기 (Shift+F)", (_, _) => Guard("키 지우기", ClearKeysAtCurrentTime)),
                 SmallButton("인비트윈 − (Shift+1)", (_, _) => Guard("인비트윈 빼기", RemoveInbetween)),
                 SmallButton("인비트윈 + (Shift+2)", (_, _) => Guard("인비트윈 넣기", AddInbetween)),
-            },
-        });
-        RightPanel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children =
-            {
-                new TextBlock { Text = "버퍼 커브", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 },
-                SmallButton("스냅샷 (Ctrl+B)", (_, _) => _graph.SnapshotBuffer()),
-                SmallButton("바꾸기 (Ctrl+Shift+B)", (_, _) => _graph.SwapBuffer()),
-                SmallButton("지우기", (_, _) => _graph.ClearBuffer()),
             },
         });
 
@@ -976,19 +1041,17 @@ public partial class MainWindow : Window
                 PushSettingsToViews();
             }
         };
-        RightPanel.Children.Add(_snap);
         RightPanel.Children.Add(Labeled("스냅 간격", _snapStepCombo));
         RightPanel.Children.Add(Labeled("어니언 프레임", _onionFrames));
         RightPanel.Children.Add(Labeled("자동 저장", _autoSaveCombo));
+        RightPanel.Children.Add(Labeled("시간 표시", _timeDisplayCombo));
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
-        RightPanel.Children.Add(Labeled("그래프 보기", _viewMode));
         _showCycle.IsCheckedChanged += (_, _) =>
         {
             _graph.ShowCycle = _showCycle.IsChecked == true;
             _graph.InvalidateVisual();
         };
-        RightPanel.Children.Add(_showCycle);
         _viewMode.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _viewMode.SelectedIndex >= 0)
@@ -1004,26 +1067,23 @@ public partial class MainWindow : Window
                 PushSettingsToViews();
             }
         };
-        OnCommit(_currentTime, text => { if (TryFloat(text, out float v)) _graph.CurrentTime = v; });
-        RightPanel.Children.Add(new StackPanel
+        OnCommit(_currentTime, text => { if (TimeText.TryParse(text, Display, out double v)) _graph.CurrentTime = v; });
+        _timeDisplayCombo.SelectionChanged += (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children =
+            if (!_refreshing && _timeDisplayCombo.SelectedIndex >= 0)
             {
-                SmallButton("전체 (A)", (_, _) => _graph.FitAll()),
-                SmallButton("선택 (F)", (_, _) => _graph.FitSelection()),
-                SmallButton("키 끼우기 (I)", (_, _) => _graph.InsertKeyAtCurrentTime()),
-            },
-        });
+                _settings.TimeDisplay = (TimeDisplay)_timeDisplayCombo.SelectedIndex;
+                PushSettingsToViews();
+            }
+        };
         RightPanel.Children.Add(new TextBlock
         {
             FontSize = 10,
             Opacity = 0.6,
             TextWrapping = TextWrapping.Wrap,
-            Text = "그래프: 클릭 선택 · Shift 추가 · 박스 선택 · 드래그(Shift=축 잠금) · 더블클릭=커브 위에 키 · 핸들 드래그=기울기 · " +
-                   "휠 줌(Ctrl=시간만·Shift=값만) · 가운데 버튼/Alt+드래그 팬 · Ctrl+Z/Y\n" +
-                   "도프 시트: 블록 드래그=시간 이동 · Alt+드래그=복제 · 범위 띠 양끝=시간 스케일 · 더블클릭=키 · 눈금자=스크럽 · 노드 행=접기",
+            Text = "그래프(마야): 아웃라이너 행 클릭 = 그 커브만, Shift/Ctrl = 더하기 · LMB 선택 · MMB 이동 · Alt+MMB 팬 · Alt+RMB 줌 · 위 눈금자 = 스크럽 · " +
+                   "더블클릭 = 커브 위에 키 · 핸들 드래그 = 기울기 · Stats 칸 +=3 · Ctrl+Z/Y\n" +
+                   "도프 시트: 블록 드래그 = 시간 이동 · Alt+드래그 = 복제 · 범위 띠 양끝 = 시간 스케일 · 더블클릭 = 키 · 눈금자 = 스크럽 · 노드 행 = 접기",
         });
     }
 
@@ -1097,6 +1157,10 @@ public partial class MainWindow : Window
         RefreshNewForms();
     }
 
+    /// <summary>
+    /// 마야 그래프 에디터 아웃라이너 — 노드 › 채널 › 성분. 행 클릭 = 그 커브만 보인다, Shift/Ctrl+클릭 = 더하기/빼기.
+    /// 없는 성분은 흐리고, 클릭하면 현재 시각의 중립값 키 하나로 생긴다.
+    /// </summary>
     private void RefreshChannels()
     {
         _channelRows.Children.Clear();
@@ -1104,90 +1168,31 @@ public partial class MainWindow : Window
 
         if (motion is null)
         {
-            _channelRows.Children.Add(new TextBlock { Text = "(모션 없음)", FontSize = 11, Opacity = 0.6 });
+            _channelRows.Children.Add(new TextBlock { Text = "(모션 없음)", FontSize = 11, Opacity = 0.6, Margin = new Avalonia.Thickness(6, 4) });
             return;
         }
 
         MotionAsset current = motion;
+        string query = (_outlinerSearch.Text ?? "").Trim();
 
         foreach (ChannelAsset channel in current.Channels)
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
             string node = channel.Node;
             MotionChannelKind kind = channel.Kind;
 
-            foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
+            if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !kind.ToString().Contains(query, StringComparison.OrdinalIgnoreCase))
             {
-                var curveRef = new CurveRef(node, kind, axis);
-                CurveSlot? slot = _graph.Curves.FirstOrDefault(s => s.Curve == curveRef);
-                // Position·Scale에는 z가 없다(규칙) — 아예 두지 않는다.
-                if (axis == Axis.Z && kind != MotionChannelKind.Euler)
-                {
-                    continue;
-                }
-
-                var toggle = new CheckBox
-                {
-                    Content = axis.ToString().ToLowerInvariant(),
-                    FontSize = 10,
-                    IsChecked = slot?.Visible ?? false,
-                    MinWidth = 0,
-                    Padding = new Avalonia.Thickness(2, 0),
-                    Opacity = slot is null ? 0.55 : 1,
-                };
-
-                if (slot is not null)
-                {
-                    Color c = slot.Color;
-                    toggle.Foreground = new SolidColorBrush(c);
-                }
-
-                ToolTip.SetTip(toggle, slot is null
-                    ? "성분이 없다 — 켜면 현재 시각에 중립값 키 하나로 성분이 생긴다 (성분은 키가 생기면 생긴다)"
-                    : "그래프에 보이기");
-
-                toggle.IsCheckedChanged += (_, _) =>
-                {
-                    if (_refreshing)
-                    {
-                        return;
-                    }
-
-                    if (slot is null)
-                    {
-                        if (toggle.IsChecked == true)
-                        {
-                            Guard("성분 추가", () => _session.Editor.AddKey(current.Name, node, kind, axis, new KeyAsset
-                            {
-                                T = (float)_graph.CurrentTime,
-                                V = MotionMath.Neutral(kind),
-                                Tangent = DefaultTangent,
-                            }));
-                        }
-
-                        return;
-                    }
-
-                    _graph.SetVisible(curveRef, toggle.IsChecked == true);
-                };
-                row.Children.Add(toggle);
+                continue;
             }
 
-            string modeToken = channel.Mode == MotionChannelMode.Relative ? "rel" : "abs";
-            var label = new TextBlock
-            {
-                Text = $"{node} · {kind.ToString().ToLowerInvariant()} · {modeToken}",
-                FontSize = 10,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 150,
-            };
-            ToolTip.SetTip(label, $"{node}\n{kind} · {channel.Mode}\n클릭: mode 바꾸기");
-            CurveRef[] axesOfChannel = new[] { Axis.X, Axis.Y, Axis.Z }
-                .Where(a => a != Axis.Z || kind == MotionChannelKind.Euler)
-                .Select(a => new CurveRef(node, kind, a)).ToArray();
+            Axis[] possibleAxes = kind == MotionChannelKind.Euler ? new[] { Axis.X, Axis.Y, Axis.Z } : new[] { Axis.X, Axis.Y };
+            CurveRef[] axesOfChannel = possibleAxes.Select(a => new CurveRef(node, kind, a)).ToArray();
             bool anyLocked = axesOfChannel.Any(_flags.IsLocked);
             bool anyMuted = axesOfChannel.Any(_flags.IsMuted);
+
+            // 채널 행: node · kind · mode + 잠금 · 뮤트 · 삭제. 글자 클릭 = 이 채널의 커브만.
+            var header = new DockPanel { Margin = new Avalonia.Thickness(2, 3, 2, 0) };
+            Button remove = SmallButton("×", (_, _) => Guard("채널 삭제", () => _session.Editor.RemoveChannel(current.Name, node, kind)));
             Button lockButton = SmallButton(anyLocked ? "🔒" : "🔓", (_, _) =>
             {
                 foreach (CurveRef c in axesOfChannel)
@@ -1204,19 +1209,124 @@ public partial class MainWindow : Window
                 }
             });
             ToolTip.SetTip(muteButton, anyMuted ? "뮤트 풀기" : "뮤트 — 뷰포트 재생에서 이 채널을 뺀다(저장되지 않는다)");
-            row.Children.Add(lockButton);
-            row.Children.Add(muteButton);
-            MotionChannelMode flipped = channel.Mode == MotionChannelMode.Relative ? MotionChannelMode.Absolute : MotionChannelMode.Relative;
-            label.PointerPressed += (_, _) => Guard("채널 mode", () => _session.Editor.SetChannelMode(current.Name, node, kind, flipped));
-            row.Children.Add(label);
-            row.Children.Add(SmallButton("×", (_, _) => Guard("채널 삭제", () => _session.Editor.RemoveChannel(current.Name, node, kind))));
-            _channelRows.Children.Add(row);
+            Button modeButton = SmallButton(channel.Mode == MotionChannelMode.Relative ? "rel" : "abs", (_, _) => Guard("채널 mode", () =>
+                _session.Editor.SetChannelMode(current.Name, node, kind, channel.Mode == MotionChannelMode.Relative ? MotionChannelMode.Absolute : MotionChannelMode.Relative)));
+            ToolTip.SetTip(modeButton, "클릭: relative ↔ absolute");
+
+            foreach (Button b in new[] { remove, muteButton, lockButton, modeButton })
+            {
+                DockPanel.SetDock(b, Dock.Right);
+                header.Children.Add(b);
+            }
+
+            var title = new TextBlock
+            {
+                Text = $"{node} · {kind.ToString().ToLowerInvariant()}",
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Cursor = new Cursor(StandardCursorType.Hand),
+            };
+            ToolTip.SetTip(title, $"{node}\n{kind} · {channel.Mode}\n클릭: 이 채널의 커브만 · Shift/Ctrl: 더하기");
+            title.PointerPressed += (_, e) => ShowCurves(axesOfChannel, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            header.Children.Add(title);
+            _channelRows.Children.Add(header);
+
+            // 성분 행: 색 네모 + 이름. 보이는 행은 파랗게(마야 선택).
+            foreach (Axis axis in possibleAxes)
+            {
+                var curveRef = new CurveRef(node, kind, axis);
+                CurveSlot? slot = _graph.Curves.FirstOrDefault(s => s.Curve == curveRef);
+                bool visible = slot?.Visible == true;
+                Color color = slot?.Color ?? Color.FromRgb(0x80, 0x80, 0x80);
+                var row = new Border
+                {
+                    Padding = new Avalonia.Thickness(18, 1, 4, 1),
+                    Background = visible ? OutlinerRowSelected : Brushes.Transparent,
+                    Cursor = new Cursor(StandardCursorType.Hand),
+                    Tag = curveRef,
+                    Child = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Spacing = 6,
+                        Opacity = slot is null ? 0.45 : 1,
+                        Children =
+                        {
+                            new Border { Width = 8, Height = 8, Background = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
+                            new TextBlock { Text = $"{kind.ToString().ToLowerInvariant()} {axis.ToString().ToUpperInvariant()}", FontSize = 11, Foreground = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
+                        },
+                    },
+                };
+                ToolTip.SetTip(row, slot is null
+                    ? "성분이 없다 — 클릭하면 현재 시각에 중립값 키 하나로 생긴다"
+                    : "클릭: 이 커브만 · Shift/Ctrl+클릭: 더하기/빼기");
+                row.PointerPressed += (_, e) =>
+                {
+                    bool additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+                    OutlinerClick(curveRef, additive);
+                    e.Handled = true;
+                };
+                _channelRows.Children.Add(row);
+            }
         }
 
         if (current.Channels.Count == 0)
         {
-            _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 아래에서 노드를 골라 추가)", FontSize = 11, Opacity = 0.6 });
+            _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 왼쪽 '채널 추가'에서 노드를 골라 추가)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
         }
+    }
+
+    /// <summary>아웃라이너 성분 행 클릭 — 없는 성분은 만들고, 있는 성분은 그 커브만(additive면 토글).</summary>
+    internal void OutlinerClick(CurveRef curve, bool additive)
+    {
+        MotionAsset? motion = _graph.Motion;
+
+        if (motion is null)
+        {
+            return;
+        }
+
+        if (curve.Resolve(motion) is null)
+        {
+            Guard("성분 추가", () => _session.Editor.AddKey(motion.Name, curve.Node, curve.Kind, curve.Axis, new KeyAsset
+            {
+                T = (float)_graph.CurrentTime,
+                V = MotionMath.Neutral(curve.Kind),
+                Tangent = DefaultTangent,
+            }));
+            return;
+        }
+
+        if (additive)
+        {
+            bool wasVisible = _graph.Curves.FirstOrDefault(s => s.Curve == curve)?.Visible == true;
+            _graph.SetVisible(curve, !wasVisible);
+            return;
+        }
+
+        _graph.SetVisibleAll(c => c == curve);
+    }
+
+    private void ShowCurves(IReadOnlyCollection<CurveRef> curves, bool additive)
+    {
+        if (additive)
+        {
+            _graph.SetVisibleAll(c => curves.Contains(c) || (_graph.Curves.FirstOrDefault(s => s.Curve == c)?.Visible == true));
+            return;
+        }
+
+        _graph.SetVisibleAll(curves.Contains);
+    }
+
+    internal int OutlinerRowCount => _channelRows.Children.Count;
+
+    internal string CurrentTimeText => _currentTime.Text ?? "";
+
+    internal string OutlinerQuery
+    {
+        get => _outlinerSearch.Text ?? "";
+        set => _outlinerSearch.Text = value;
     }
 
     private void RefreshMotionInspector()
@@ -1263,7 +1373,7 @@ public partial class MainWindow : Window
             _keyOut.IsEnabled = editable;
             _keyBroken.IsEnabled = count > 0;
 
-            _keyTime.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.T);
+            _keyTime.Text = single is null ? (count > 0 ? "+=0" : "") : TimeText.Format(single.T, Display);
             _keyValue.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.V);
             _keyIn.Text = single is null ? "" : F(single.InTangent);
             _keyOut.Text = single is null ? "" : F(single.OutTangent);
@@ -1408,7 +1518,7 @@ public partial class MainWindow : Window
             if (relative)
             {
                 float probe = 1f;
-                float delta = apply(probe) - probe; // +=·-=는 상수 변위; *=·/=는 시각에 쓰지 않는다
+                float delta = (float)TimeText.ToSeconds(apply(probe) - probe, Display); // +=·-=는 표시 단위의 상수 변위; *=·/=는 시각에 쓰지 않는다
                 _graph.Select(_session.Editor.MoveKeys(motion.Name, keys, delta, _graph.SnapEnabled ? t => (float)TimeSnap.Snap(t, _graph.SnapStep) : null)
                     .Select(m => new KeyRef(m.Curve, m.Curve.Resolve(_session.Editor.Document.Find(motion.Name)!)!.Keys.FindIndex(k => Math.Abs(k.T - m.T) <= MotionRules.Tolerance)))
                     .Where(k => k.Index >= 0), additive: false);
@@ -1417,9 +1527,9 @@ public partial class MainWindow : Window
 
             if (keys.Count == 1 && keys[0].Resolve(motion) is { } single)
             {
-                float t = apply(single.T);
+                float t = (float)TimeText.ToSeconds(apply((float)TimeText.FromSeconds(single.T, Display)), Display);
 
-                if (t != single.T)
+                if (Math.Abs(t - single.T) > 1e-7f)
                 {
                     UpdateKey(keys[0], single, t: t);
                 }

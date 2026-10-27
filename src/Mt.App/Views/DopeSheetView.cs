@@ -131,6 +131,9 @@ public sealed class DopeSheetView : Control
 
     public bool SnapEnabled { get; set; } = true;
 
+    /// <summary>눈금 단위(마야처럼 프레임이 기본).</summary>
+    public TimeDisplay TimeDisplay { get; set; } = TimeDisplay.Frames;
+
     public double SnapStep { get; set; } = TimeSnap.DefaultStep;
 
     /// <summary>복사/붙여넣기 자리 — 그래프와 같은 객체를 꽂는다.</summary>
@@ -543,7 +546,7 @@ public sealed class DopeSheetView : Control
         {
             double x = XAtTime(t);
             context.DrawLine(GridPen, new Point(x, ruler.Y + 14), new Point(x, Bounds.Height));
-            DrawLabel(context, Math.Abs(t) < 1e-9 ? "0" : $"{t:0.###}s · {TimeSnap.ToFrames(t):0.#}f", new Point(x + 3, ruler.Y + 2), DimLabelBrush);
+            DrawLabel(context, TimeText.Format(t, TimeDisplay), new Point(x + 3, ruler.Y + 2), DimLabelBrush);
         }
 
         if (Motion is { } motion)

@@ -263,6 +263,53 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 아웃라이너_행_클릭은_그_커브만_보이고_없는_성분은_만들고_검색은_거른다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+                var x = y with { Axis = Axis.X };
+                window.AddChannelFromForm(y.Node, y.Kind);
+                window.Session.Editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
+
+                Assert.Equal(3, window.OutlinerRowCount); // 채널 행 + x · y 성분 행
+                Assert.Single(window.Graph.Curves);
+
+                window.OutlinerClick(x, additive: false); // 없는 성분 → 중립값 키로 생긴다
+                Assert.Equal(2, window.Graph.Curves.Count);
+                Assert.All(window.Graph.Curves, c => Assert.True(c.Visible));
+
+                window.OutlinerClick(y, additive: false); // 그 커브만
+                Assert.True(window.Graph.Curves.Single(c => c.Curve == y).Visible);
+                Assert.False(window.Graph.Curves.Single(c => c.Curve == x).Visible);
+
+                window.OutlinerClick(x, additive: true); // 더하기
+                Assert.All(window.Graph.Curves, c => Assert.True(c.Visible));
+
+                window.OutlinerQuery = "없는노드";
+                Assert.Equal(0, window.OutlinerRowCount);
+                window.OutlinerQuery = "move_y";
+                Assert.Equal(3, window.OutlinerRowCount);
+
+                // 시간 표시는 프레임이 기본: 0.3초 = 7.2프레임.
+                window.Viewport.ScrubTo(0.5);
+                Assert.Equal("12", window.CurrentTimeText);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 전역_단축키_이전_다음_키_프레임_복사_붙여넣기_지우기_인비트윈()
     {
         HeadlessUi.Run(() =>

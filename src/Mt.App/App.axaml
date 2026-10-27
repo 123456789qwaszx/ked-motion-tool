@@ -1,8 +1,8 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Mt.App.App"
-             RequestedThemeVariant="Default">
-    <!-- "Default"는 시스템 테마를 따른다. -->
+             RequestedThemeVariant="Dark">
+    <!-- 마야처럼 어두운 테마로 고정한다. -->
 
     <Application.Styles>
         <FluentTheme />

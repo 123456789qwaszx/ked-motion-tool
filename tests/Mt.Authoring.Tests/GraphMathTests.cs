@@ -376,3 +376,40 @@ public class CurveFlagsTests
         Assert.Equal(4, changes);
     }
 }
+
+public class TimeTextTests
+{
+    [Fact]
+    public void 프레임_표시는_정수면_정수로_아니면_소수_둘로_초는_s_꼬리다()
+    {
+        Assert.Equal("12", TimeText.Format(0.5, TimeDisplay.Frames));
+        Assert.Equal("7.2", TimeText.Format(0.3, TimeDisplay.Frames));
+        Assert.Equal("0.3s", TimeText.Format(0.3, TimeDisplay.Seconds));
+        Assert.Equal("0", TimeText.Format(0, TimeDisplay.Frames));
+    }
+
+    [Fact]
+    public void 읽기는_꼬리_단위가_우선이고_없으면_표시_단위다()
+    {
+        Assert.True(TimeText.TryParse("12", TimeDisplay.Frames, out double a));
+        Assert.Equal(0.5, a, 9);
+        Assert.True(TimeText.TryParse("12", TimeDisplay.Seconds, out double b));
+        Assert.Equal(12, b, 9);
+        Assert.True(TimeText.TryParse("0.5s", TimeDisplay.Frames, out double c));
+        Assert.Equal(0.5, c, 9);
+        Assert.True(TimeText.TryParse(" 24f ", TimeDisplay.Seconds, out double d));
+        Assert.Equal(1, d, 9);
+        Assert.False(TimeText.TryParse("", TimeDisplay.Frames, out _));
+        Assert.False(TimeText.TryParse("abc", TimeDisplay.Frames, out _));
+    }
+
+    [Fact]
+    public void 프레임_눈금은_라벨이_겹치지_않는_첫_단계다()
+    {
+        Assert.Equal(1, TimeText.FrameTickStep(40));
+        Assert.Equal(2, TimeText.FrameTickStep(20));
+        Assert.Equal(5, TimeText.FrameTickStep(10));
+        Assert.Equal(10, TimeText.FrameTickStep(4));
+        Assert.Equal(100, TimeText.FrameTickStep(0.4));
+    }
+}

@@ -47,27 +47,35 @@ public sealed class CurveSlot
 /// </summary>
 public sealed class GraphEditorView : Control
 {
-    private const double PadLeft = 52;
-    private const double PadRight = 10;
-    private const double PadTop = 10;
-    private const double PadBottom = 24;
+    /// <summary>값 라벨 칸(왼쪽). 마야처럼 값은 왼쪽, 프레임은 위쪽 눈금자다.</summary>
+    public const double PadLeft = 46;
+    private const double PadRight = 6;
+    /// <summary>위 눈금자(프레임 숫자 + 현재 시각 마커). 여기를 누르면 스크럽이다.</summary>
+    public const double PadTop = 18;
+    private const double PadBottom = 4;
     private const double DragThreshold = 3;
 
-    private static readonly IBrush Background = new SolidColorBrush(Color.FromArgb(255, 20, 20, 28));
-    private static readonly IBrush PlotBackground = new SolidColorBrush(Color.FromArgb(255, 26, 26, 36));
-    private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromArgb(40, 148, 163, 184)), 1);
-    private static readonly Pen AxisPen = new(new SolidColorBrush(Color.FromArgb(130, 148, 163, 184)), 1);
-    private static readonly Pen DurationPen = new(new SolidColorBrush(Color.FromArgb(180, 251, 146, 60)), 1);
-    private static readonly Pen CurrentTimePen = new(new SolidColorBrush(Color.FromArgb(200, 34, 211, 238)), 1);
-    private static readonly Pen BoxPen = new(new SolidColorBrush(Color.FromArgb(200, 125, 211, 252)), 1, DashStyle.Dash);
-    private static readonly IBrush BoxFill = new SolidColorBrush(Color.FromArgb(30, 125, 211, 252));
-    private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromArgb(170, 203, 213, 225));
-    private static readonly IBrush SelectedKeyBrush = new SolidColorBrush(Color.FromArgb(255, 250, 204, 21));
-    private static readonly Pen HandlePen = new(new SolidColorBrush(Color.FromArgb(210, 125, 211, 252)), 1);
-    private static readonly IBrush HandleBrush = new SolidColorBrush(Color.FromArgb(235, 125, 211, 252));
-    private static readonly IBrush ValueLabelBrush = new SolidColorBrush(Color.FromArgb(230, 250, 204, 21));
-    private static readonly Pen BufferPen = new(new SolidColorBrush(Color.FromArgb(120, 203, 213, 225)), 1.5, DashStyle.Dash);
-    private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromArgb(230, 251, 146, 60));
+    // 마야 그래프 에디터 팔레트: 회색 패널, 재생 범위 안은 조금 밝게, 격자는 어둡게, 현재 시각은 노랑, 키는 주황·선택은 흰색.
+    private static readonly IBrush Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A));
+    private static readonly IBrush PlotBackground = new SolidColorBrush(Color.FromRgb(0x3D, 0x3D, 0x3D));
+    private static readonly IBrush RangeBackground = new SolidColorBrush(Color.FromRgb(0x4A, 0x4A, 0x4A));
+    private static readonly IBrush RulerBackground = new SolidColorBrush(Color.FromRgb(0x2E, 0x2E, 0x2E));
+    private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromRgb(0x2F, 0x2F, 0x2F)), 1);
+    private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.FromRgb(0x36, 0x36, 0x36)), 1);
+    private static readonly Pen AxisPen = new(new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24)), 1);
+    private static readonly Pen DurationPen = new(new SolidColorBrush(Color.FromArgb(150, 0xF0, 0xA0, 0x50)), 1, DashStyle.Dash);
+    private static readonly Pen CurrentTimePen = new(new SolidColorBrush(Color.FromRgb(0xF9, 0xD7, 0x1C)), 1);
+    private static readonly IBrush CurrentTimeBrush = new SolidColorBrush(Color.FromRgb(0xF9, 0xD7, 0x1C));
+    private static readonly Pen BoxPen = new(new SolidColorBrush(Color.FromArgb(220, 0xE8, 0xE8, 0xE8)), 1, DashStyle.Dash);
+    private static readonly IBrush BoxFill = new SolidColorBrush(Color.FromArgb(24, 0xFF, 0xFF, 0xFF));
+    private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    private static readonly IBrush KeyBrush = new SolidColorBrush(Color.FromRgb(0xF2, 0xA3, 0x3A));
+    private static readonly IBrush SelectedKeyBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
+    private static readonly Pen HandlePen = new(new SolidColorBrush(Color.FromRgb(0xDC, 0xDC, 0xDC)), 1);
+    private static readonly IBrush HandleBrush = new SolidColorBrush(Color.FromRgb(0xE6, 0xE6, 0xE6));
+    private static readonly IBrush ValueLabelBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
+    private static readonly Pen BufferPen = new(new SolidColorBrush(Color.FromArgb(150, 0x9A, 0x9A, 0x9A)), 1.5, DashStyle.Dash);
+    private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromRgb(0xF9, 0xD7, 0x1C));
 
     private readonly List<CurveSlot> _curves = new();
     private KeySelection _selection = new();
@@ -339,6 +347,14 @@ public sealed class GraphEditorView : Control
 
     public double SnapStep { get; set; } = TimeSnap.DefaultStep;
 
+    /// <summary>눈금·라벨 단위. 마야처럼 프레임이 기본이다.</summary>
+    public TimeDisplay TimeDisplay { get; set; } = TimeDisplay.Frames;
+
+    /// <summary>재생 범위(초) — 안쪽을 밝게 칠한다(마야). 끝 ≤ 시작이면 안 칠한다. 셸이 뷰포트 시계에서 넣는다.</summary>
+    public double RangeStart { get; set; }
+
+    public double RangeEnd { get; set; } = -1;
+
     /// <summary>현재 시각(초). I가 여기에 키를 끼운다. 뷰포트의 스크럽도 여기로 온다(M3).</summary>
     public double CurrentTime
     {
@@ -381,6 +397,32 @@ public sealed class GraphEditorView : Control
         ReloadCurves();
         RefreshViewTransforms();
         FitAll();
+    }
+
+    /// <summary>보이는 커브를 한 번에 정한다(아웃라이너 행 클릭 = 그 커브만). 이벤트는 한 번.</summary>
+    public void SetVisibleAll(Func<CurveRef, bool> visible)
+    {
+        ArgumentNullException.ThrowIfNull(visible);
+        bool changed = false;
+
+        foreach (CurveSlot slot in _curves)
+        {
+            bool next = visible(slot.Curve);
+
+            if (slot.Visible != next)
+            {
+                slot.Visible = next;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _selection.RemoveWhere(k => _curves.Any(c => c.Curve == k.Curve && !c.Visible));
+            RefreshViewTransforms();
+            CurvesChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+        }
     }
 
     public void SetVisible(CurveRef curve, bool visible)
@@ -459,9 +501,9 @@ public sealed class GraphEditorView : Control
     /// <summary>축이 색을 정한다(x 빨강·y 초록·z 파랑). 채널 순서가 색조를 조금씩 돌려 같은 축 둘을 가른다.</summary>
     public static Color ColorFor(Axis axis, int channelIndex)
     {
-        double baseHue = axis switch { Axis.X => 4, Axis.Y => 130, _ => 212 };
+        double baseHue = axis switch { Axis.X => 3, Axis.Y => 118, _ => 218 };
         double hue = (baseHue + channelIndex * 22) % 360;
-        return new HsvColor(1.0, hue, 0.72, 0.95).ToRgb();
+        return new HsvColor(1.0, hue, axis == Axis.Y ? 0.55 : 0.72, axis == Axis.Z ? 1.0 : 0.9).ToRgb();
     }
 
     // ── 좌표 ──────────────────────────────────────────────────────────
@@ -544,6 +586,37 @@ public sealed class GraphEditorView : Control
         }
 
         FitTo(keys, null, null);
+    }
+
+    /// <summary>마야 "Frame Playback Range" — 시간은 재생 범위, 값은 그 안의 키.</summary>
+    public void FitRange()
+    {
+        MotionAsset? motion = Motion;
+        double start = RangeStart;
+        double end = RangeEnd > RangeStart ? RangeEnd : (motion?.Duration ?? 1f);
+        var keys = new List<KeyAsset>();
+
+        if (motion is not null)
+        {
+            foreach (CurveSlot slot in _curves)
+            {
+                if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
+                {
+                    CurveViewTransform transform = ViewTransformOf(slot.Curve);
+                    keys.AddRange(curve.Keys.Where(k => k.T >= start - 1e-6 && k.T <= end + 1e-6).Select(k => new KeyAsset { T = k.T, V = (float)transform.ToView(k.V) }));
+                }
+            }
+        }
+
+        FitTo(keys, start, Math.Max(end, start + 0.1));
+    }
+
+    /// <summary>마야 "Center Current Time" — 배율은 두고 현재 시각이 플롯 가운데 오게 민다.</summary>
+    public void CenterCurrentTime()
+    {
+        double half = Plot.Width / 2 / _camera.PixelsPerSecond;
+        _camera = _camera with { TimeOrigin = _currentTime - half };
+        InvalidateVisual();
     }
 
     private void FitTo(List<KeyAsset> keys, double? tMinAtLeast, double? tMaxAtLeast)
@@ -820,7 +893,7 @@ public sealed class GraphEditorView : Control
 
                 List<KeyAsset> keys = KeysForRender(slot.Curve, motion);
                 bool locked = _flags.IsLocked(slot.Curve);
-                var keyBrush = new SolidColorBrush(locked ? Color.FromArgb(120, slot.Color.R, slot.Color.G, slot.Color.B) : slot.Color);
+                IBrush keyBrush = locked ? new SolidColorBrush(Color.FromArgb(110, 0xF2, 0xA3, 0x3A)) : KeyBrush;
                 double valueScale = ViewTransformOf(slot.Curve).Scale;
 
                 for (int i = 0; i < keys.Count; i++)
@@ -832,10 +905,11 @@ public sealed class GraphEditorView : Control
                     if (selected)
                     {
                         DrawHandles(context, keys, i, center, valueScale);
-                        DrawLabel(context, $"{keys[i].T:0.###}s  {keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10);
+                        DrawLabel(context, $"{TimeText.Format(keys[i].T, TimeDisplay)}  {keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10);
                     }
 
-                    context.FillRectangle(selected ? SelectedKeyBrush : keyBrush, new Rect(center.X - 4, center.Y - 4, 8, 8));
+                    // 마야: 키는 작은 주황 점, 선택 키는 흰색으로 조금 크게.
+                    context.FillRectangle(selected ? SelectedKeyBrush : keyBrush, selected ? new Rect(center.X - 3.5, center.Y - 3.5, 7, 7) : new Rect(center.X - 2.5, center.Y - 2.5, 5, 5));
                 }
             }
 
@@ -878,14 +952,14 @@ public sealed class GraphEditorView : Control
         {
             Point inEnd = ToPoint(HandleMath.HandleEnd(origin, key.InTangent * valueScale, inward: true, _camera));
             context.DrawLine(HandlePen, center, inEnd);
-            context.DrawEllipse(HandleBrush, null, inEnd, 3.5, 3.5);
+            context.FillRectangle(HandleBrush, new Rect(inEnd.X - 2.5, inEnd.Y - 2.5, 5, 5));
         }
 
         if (index < keys.Count - 1)
         {
             Point outEnd = ToPoint(HandleMath.HandleEnd(origin, key.OutTangent * valueScale, inward: false, _camera));
             context.DrawLine(HandlePen, center, outEnd);
-            context.DrawEllipse(HandleBrush, null, outEnd, 3.5, 3.5);
+            context.FillRectangle(HandleBrush, new Rect(outEnd.X - 2.5, outEnd.Y - 2.5, 5, 5));
         }
     }
 
@@ -894,16 +968,64 @@ public sealed class GraphEditorView : Control
         GraphPoint bottomLeft = ToGraph(new Point(plot.X, plot.Bottom));
         GraphPoint topRight = ToGraph(new Point(plot.Right, plot.Y));
 
-        // 시간 눈금 — 프레임 친화 단계. 라벨은 초와 24fps 프레임.
-        double tStep = TimeSnap.TickStep(_camera.PixelsPerSecond);
-        double tStart = Math.Floor(bottomLeft.T / tStep) * tStep;
+        // 재생 범위 안은 밝게(마야).
+        double rangeEnd = RangeEnd > RangeStart ? RangeEnd : (motion?.Duration ?? -1);
 
-        for (double t = tStart; t <= topRight.T; t += tStep)
+        if (rangeEnd > RangeStart)
         {
-            Point x = ToScreen(new GraphPoint(t, 0));
-            context.DrawLine(GridPen, new Point(x.X, plot.Y), new Point(x.X, plot.Bottom));
-            string label = Math.Abs(t) < 1e-9 ? "0" : $"{t:0.###}s · {TimeSnap.ToFrames(t):0.#}f";
-            DrawLabel(context, label, new Point(x.X + 3, plot.Bottom + 4), LabelBrush, 10);
+            double x0 = Math.Max(plot.X, ToScreen(new GraphPoint(RangeStart, 0)).X);
+            double x1 = Math.Min(plot.Right, ToScreen(new GraphPoint(rangeEnd, 0)).X);
+
+            if (x1 > x0)
+            {
+                context.FillRectangle(RangeBackground, new Rect(x0, plot.Y, x1 - x0, plot.Height));
+            }
+        }
+
+        // 위 눈금자.
+        var ruler = new Rect(plot.X, 0, plot.Width, PadTop);
+        context.FillRectangle(RulerBackground, ruler);
+
+        if (TimeDisplay == TimeDisplay.Frames)
+        {
+            double pixelsPerFrame = _camera.PixelsPerSecond / TimeSnap.FramesPerSecond;
+            int step = TimeText.FrameTickStep(pixelsPerFrame);
+            long firstFrame = (long)Math.Floor(TimeSnap.ToFrames(bottomLeft.T));
+            long lastFrame = (long)Math.Ceiling(TimeSnap.ToFrames(topRight.T));
+
+            if (pixelsPerFrame >= 6)
+            {
+                for (long f = firstFrame; f <= lastFrame; f++)
+                {
+                    if (f % step != 0)
+                    {
+                        double mx = ToScreen(new GraphPoint(f / TimeSnap.FramesPerSecond, 0)).X;
+                        context.DrawLine(MinorGridPen, new Point(mx, plot.Y), new Point(mx, plot.Bottom));
+                    }
+                }
+            }
+
+            long firstMajor = (long)Math.Floor(firstFrame / (double)step) * step;
+
+            for (long f = firstMajor; f <= lastFrame; f += step)
+            {
+                double x = ToScreen(new GraphPoint(f / TimeSnap.FramesPerSecond, 0)).X;
+                context.DrawLine(GridPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
+                context.DrawLine(GridPen, new Point(x, ruler.Bottom - 4), new Point(x, ruler.Bottom));
+                DrawLabel(context, f.ToString(CultureInfo.InvariantCulture), new Point(x + 3, 2), LabelBrush, 10);
+            }
+        }
+        else
+        {
+            double tStep = TimeSnap.TickStep(_camera.PixelsPerSecond);
+            double tStart = Math.Floor(bottomLeft.T / tStep) * tStep;
+
+            for (double t = tStart; t <= topRight.T; t += tStep)
+            {
+                double x = ToScreen(new GraphPoint(t, 0)).X;
+                context.DrawLine(GridPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
+                DrawLabel(context, Math.Abs(t) < 1e-9 ? "0" : $"{t:0.###}s", new Point(x + 3, 2), LabelBrush, 10);
+            }
         }
 
         double vStep = TimeSnap.ValueTickStep(_camera.PixelsPerValue);
@@ -916,7 +1038,7 @@ public sealed class GraphEditorView : Control
             DrawLabel(context, _viewMode == GraphViewMode.Absolute ? $"{v:0.###}" : $"{v:0.##}n", new Point(4, y.Y - 7), LabelBrush, 10);
         }
 
-        // 기준선: 값 0 · 시각 0 · 길이 · 현재 시각.
+        // 기준선: 값 0 · 시각 0 · 길이 · 현재 시각(노랑, 위 눈금자에 마커).
         Point zero = ToScreen(new GraphPoint(0, 0));
         context.DrawLine(AxisPen, new Point(plot.X, zero.Y), new Point(plot.Right, zero.Y));
         context.DrawLine(AxisPen, new Point(zero.X, plot.Y), new Point(zero.X, plot.Bottom));
@@ -929,6 +1051,11 @@ public sealed class GraphEditorView : Control
 
         Point now = ToScreen(new GraphPoint(_currentTime, 0));
         context.DrawLine(CurrentTimePen, new Point(now.X, plot.Y), new Point(now.X, plot.Bottom));
+        var marker = new PolylineGeometry(new[]
+        {
+            new Point(now.X - 5, 1), new Point(now.X + 5, 1), new Point(now.X + 5, PadTop - 6), new Point(now.X, PadTop - 1), new Point(now.X - 5, PadTop - 6),
+        }, true);
+        context.DrawGeometry(CurrentTimeBrush, null, marker);
     }
 
     private static void DrawLabel(DrawingContext context, string text, Point at, IBrush brush, double size)
@@ -1042,8 +1169,8 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        // 아래 눈금자: 스크럽(마야 타임 슬라이더와 같다).
-        if (position.Y >= Plot.Bottom)
+        // 위 눈금자: 스크럽(마야 — 프레임 눈금자를 누르면 현재 시각이 간다).
+        if (position.Y < Plot.Y)
         {
             _drag = Drag.Scrub;
             CurrentTime = Math.Max(0, SnapTime(ToGraph(position).T));

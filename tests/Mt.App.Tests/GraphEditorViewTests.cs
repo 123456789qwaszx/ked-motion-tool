@@ -397,14 +397,14 @@ public class GraphEditorViewTests
     });
 
     [Fact]
-    public void 아래_눈금자_클릭은_스크럽이고_점은_키로_점프한다() => HeadlessUi.Run(() =>
+    public void 위_눈금자_클릭은_스크럽이고_점은_키로_점프한다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();
 
         try
         {
             Point middle = At(view, 1);
-            Point ruler = InWindow(window, view, new Point(middle.X, view.Bounds.Height - 6));
+            Point ruler = InWindow(window, view, new Point(middle.X, GraphEditorView.PadTop / 2));
             window.MouseDown(ruler, MouseButton.Left);
             window.MouseUp(ruler, MouseButton.Left);
             Assert.Equal(0.3, view.CurrentTime, 2);
