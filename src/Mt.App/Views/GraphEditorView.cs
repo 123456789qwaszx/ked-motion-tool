@@ -60,7 +60,7 @@ public sealed class GraphEditorView : Control
     private static readonly IBrush HandleBrush = new SolidColorBrush(Color.FromArgb(235, 125, 211, 252));
 
     private readonly List<CurveSlot> _curves = new();
-    private readonly HashSet<KeyRef> _selection = new();
+    private KeySelection _selection = new();
 
     private MotionEditor? _editor;
     private string? _motionName;
@@ -86,6 +86,13 @@ public sealed class GraphEditorView : Control
         ClipToBounds = true;
         Focusable = true;
         Cursor = new Cursor(StandardCursorType.Cross);
+        _selection.Changed += OnSelectionChanged;
+    }
+
+    private void OnSelectionChanged(object? sender, EventArgs e)
+    {
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
     }
 
     public event EventHandler? SelectionChanged;
@@ -102,7 +109,25 @@ public sealed class GraphEditorView : Control
 
     public IReadOnlyList<CurveSlot> Curves => _curves;
 
-    public IReadOnlyCollection<KeyRef> Selection => _selection;
+    /// <summary>선택 모델. 도프시트와 같은 객체를 꽂으면 두 뷰의 선택이 하나다.</summary>
+    public KeySelection Selection
+    {
+        get => _selection;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (ReferenceEquals(_selection, value))
+            {
+                return;
+            }
+
+            _selection.Changed -= OnSelectionChanged;
+            _selection = value;
+            _selection.Changed += OnSelectionChanged;
+            InvalidateVisual();
+        }
+    }
 
     public GraphCamera Camera => _camera;
 
@@ -149,7 +174,6 @@ public sealed class GraphEditorView : Control
         _curves.Clear();
         _cameraFitted = false;
         ReloadCurves();
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
         FitAll();
     }
 
@@ -166,7 +190,6 @@ public sealed class GraphEditorView : Control
         if (!visible)
         {
             _selection.RemoveWhere(k => k.Curve == curve);
-            SelectionChanged?.Invoke(this, EventArgs.Empty);
         }
 
         InvalidateVisual();
@@ -224,17 +247,7 @@ public sealed class GraphEditorView : Control
         CurvesChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void PruneSelection()
-    {
-        MotionAsset? motion = Motion;
-        int before = _selection.Count;
-        _selection.RemoveWhere(k => motion is null || k.Resolve(motion) is null);
-
-        if (_selection.Count != before)
-        {
-            SelectionChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void PruneSelection() => _selection.Prune(Motion);
 
     /// <summary>축이 색을 정한다(x 빨강·y 초록·z 파랑). 채널 순서가 색조를 조금씩 돌려 같은 축 둘을 가른다.</summary>
     public static Color ColorFor(Axis axis, int channelIndex)
@@ -374,7 +387,7 @@ public sealed class GraphEditorView : Control
     public void SelectAll()
     {
         MotionAsset? motion = Motion;
-        _selection.Clear();
+        var all = new List<KeyRef>();
 
         if (motion is not null)
         {
@@ -384,42 +397,27 @@ public sealed class GraphEditorView : Control
                 {
                     for (int i = 0; i < curve.Keys.Count; i++)
                     {
-                        _selection.Add(new KeyRef(slot.Curve, i));
+                        all.Add(new KeyRef(slot.Curve, i));
                     }
                 }
             }
         }
 
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-        InvalidateVisual();
+        _selection.Set(all);
     }
 
-    public void ClearSelection()
-    {
-        if (_selection.Count == 0)
-        {
-            return;
-        }
-
-        _selection.Clear();
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-        InvalidateVisual();
-    }
+    public void ClearSelection() => _selection.Clear();
 
     public void Select(IEnumerable<KeyRef> keys, bool additive)
     {
-        if (!additive)
+        if (additive)
         {
-            _selection.Clear();
+            _selection.AddRange(keys);
         }
-
-        foreach (KeyRef key in keys)
+        else
         {
-            _selection.Add(key);
+            _selection.Set(keys);
         }
-
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-        InvalidateVisual();
     }
 
     public void DeleteSelection()
@@ -432,7 +430,6 @@ public sealed class GraphEditorView : Control
         List<KeyRef> doomed = _selection.ToList();
         _selection.Clear();
         _editor.RemoveKeys(_motionName, doomed);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>보이는 커브 전부에 현재 시각의 키를 끼운다(값은 곡선 위). 선택이 있으면 선택된 키의 커브에만.</summary>
@@ -460,7 +457,7 @@ public sealed class GraphEditorView : Control
                 continue;
             }
 
-            edits.Add((curveRef, WithKeyOnCurve(curve.Keys, t)));
+            edits.Add((curveRef, KeyOps.WithKeyOnCurve(curve.Keys, t)));
             inserted.Add((curveRef, t));
         }
 
@@ -489,28 +486,10 @@ public sealed class GraphEditorView : Control
         }
     }
 
-    /// <summary>곡선 위의 값·접선으로 키를 끼운 목록. 같은 시각에 키가 있으면 그 키를 대신한다.</summary>
-    private static List<KeyAsset> WithKeyOnCurve(List<KeyAsset> keys, float t)
-    {
-        (float value, float slope) = TangentMath.OnCurve(keys, t);
-        List<KeyAsset> result = keys.Where(k => Math.Abs(k.T - t) > MotionRules.Tolerance).ToList();
-
-        result.Add(new KeyAsset
-        {
-            T = t,
-            V = value,
-            InTangent = slope,
-            OutTangent = slope,
-            Tangent = keys.Count == 0 ? TangentMode.Auto : TangentMode.Free,
-        });
-
-        return result;
-    }
-
     private void SelectByTime(IEnumerable<(CurveRef Curve, float T)> targets)
     {
         MotionAsset? motion = Motion;
-        _selection.Clear();
+        var next = new List<KeyRef>();
 
         if (motion is not null)
         {
@@ -525,12 +504,12 @@ public sealed class GraphEditorView : Control
 
                 if (index >= 0)
                 {
-                    _selection.Add(new KeyRef(curveRef, index));
+                    next.Add(new KeyRef(curveRef, index));
                 }
             }
         }
 
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        _selection.Set(next);
         InvalidateVisual();
     }
 
@@ -805,18 +784,12 @@ public sealed class GraphEditorView : Control
         {
             if (shift)
             {
-                if (!_selection.Remove(hit))
-                {
-                    _selection.Add(hit);
-                }
+                _selection.Toggle(hit);
             }
             else if (!_selection.Contains(hit))
             {
-                _selection.Clear();
-                _selection.Add(hit);
+                _selection.Set(new[] { hit });
             }
-
-            SelectionChanged?.Invoke(this, EventArgs.Empty);
 
             if (_selection.Contains(hit))
             {
@@ -833,10 +806,9 @@ public sealed class GraphEditorView : Control
         }
 
         // 빈 자리: 박스 선택. Shift가 아니면 선택을 비운다.
-        if (!shift && _selection.Count > 0)
+        if (!shift)
         {
             _selection.Clear();
-            SelectionChanged?.Invoke(this, EventArgs.Empty);
         }
 
         _drag = Drag.Box;
@@ -879,7 +851,7 @@ public sealed class GraphEditorView : Control
         }
 
         float t = (float)SnapTime(ToGraph(position).T);
-        _editor.SetKeysMany(_motionName, new[] { (target, (IEnumerable<KeyAsset>)WithKeyOnCurve(targetCurve.Keys, t)) });
+        _editor.SetKeysMany(_motionName, new[] { (target, (IEnumerable<KeyAsset>)KeyOps.WithKeyOnCurve(targetCurve.Keys, t)) });
         SelectByTime(new[] { (target, t) });
     }
 
@@ -1061,13 +1033,7 @@ public sealed class GraphEditorView : Control
                     if (motion is not null)
                     {
                         List<KeyRef> inBox = GraphHitTest.InBox(KeyCandidates(motion), ToPixel(_dragStart), ToPixel(_dragNow));
-
-                        foreach (KeyRef key in inBox)
-                        {
-                            _selection.Add(key);
-                        }
-
-                        SelectionChanged?.Invoke(this, EventArgs.Empty);
+                        _selection.AddRange(inBox);
                     }
 
                     break;

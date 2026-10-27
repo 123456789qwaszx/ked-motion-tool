@@ -270,6 +270,39 @@ public sealed class MotionEditor
         });
     }
 
+    /// <summary>선택 키를 delta초 옮긴다(한 번의 조작). 돌려주는 것은 옮긴 뒤의 (커브, 시각) — 선택을 다시 푸는 데 쓴다.</summary>
+    public List<(CurveRef Curve, float T)> MoveKeys(string name, IEnumerable<KeyRef> keys, float deltaSeconds, Func<float, float>? snap = null)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        List<KeyRef> list = keys.ToList();
+        var result = KeyOps.ResultingTimes(motion, list, t => t + deltaSeconds, snap);
+        SetKeysMany(name, KeyOps.Move(motion, list, deltaSeconds, snap));
+        return result;
+    }
+
+    /// <summary>pivot 기준으로 선택 키의 시각을 factor배(한 번의 조작).</summary>
+    public List<(CurveRef Curve, float T)> ScaleKeys(string name, IEnumerable<KeyRef> keys, float pivotSeconds, float factor, Func<float, float>? snap = null)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        List<KeyRef> list = keys.ToList();
+        var result = KeyOps.ResultingTimes(motion, list, t => pivotSeconds + (t - pivotSeconds) * factor, snap);
+        SetKeysMany(name, KeyOps.Scale(motion, list, pivotSeconds, factor, snap));
+        return result;
+    }
+
+    /// <summary>선택 키의 사본을 offset초 자리에 둔다(한 번의 조작). 돌려주는 것은 사본의 (커브, 시각).</summary>
+    public List<(CurveRef Curve, float T)> DuplicateKeys(string name, IEnumerable<KeyRef> keys, float offsetSeconds, Func<float, float>? snap = null)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        List<KeyRef> list = keys.ToList();
+        var result = KeyOps.ResultingTimes(motion, list, t => t + offsetSeconds, snap);
+        SetKeysMany(name, KeyOps.Duplicate(motion, list, offsetSeconds, snap));
+        return result;
+    }
+
     /// <summary>키들을 지운다. 성분이 비면 "성분 없음"이 된다. 한 번의 조작이다.</summary>
     public void RemoveKeys(string name, IEnumerable<KeyRef> keys)
     {

@@ -121,6 +121,46 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 그래프와_도프시트는_선택이_하나이고_현재_시각도_하나다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            var window = new MainWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+                window.AddChannelFromForm(y.Node, y.Kind);
+                window.EnsureComponent(y.Node, y.Kind, y.Axis);
+
+                Assert.Same(window.Graph.Selection, window.Dope.Selection);
+                Assert.Same(window.SharedSelection, window.Graph.Selection);
+                Assert.Equal("nod", window.Dope.MotionName);
+                Assert.Equal(3, window.Dope.Rows.Count);
+
+                window.Graph.Select(new[] { new KeyRef(y, 0) }, additive: false);
+                Assert.Single(window.Dope.Selection);
+                window.Dope.Selection.Clear();
+                Assert.Empty(window.Graph.Selection);
+
+                window.Dope.CurrentTime = 0.2;
+                Assert.Equal(0.2, window.Graph.CurrentTime, 9);
+                Assert.Equal(0.2, window.Viewport.Time, 9);
+
+                window.Viewport.ScrubTo(0.4);
+                Assert.Equal(0.4, window.Dope.CurrentTime, 9);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 되돌리기는_툴바_없이도_편집기를_지난다_그리고_문제는_아래에_보인다()
     {
         HeadlessUi.Run(() =>

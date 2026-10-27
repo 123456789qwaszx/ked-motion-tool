@@ -31,7 +31,11 @@ public partial class MainWindow : Window
 
     private readonly DocumentSession _session = new();
     private readonly GraphEditorView _graph = new();
+    private readonly DopeSheetView _dope = new();
     private readonly ViewportView _viewport = new();
+
+    /// <summary>그래프와 도프시트가 같은 선택을 든다 — 한 모델, 두 뷰.</summary>
+    private readonly KeySelection _selection = new();
 
     // 트랜스포트
     private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
@@ -81,12 +85,14 @@ public partial class MainWindow : Window
         BuildToolbar();
         BuildLeft();
         BuildRight();
+        _graph.Selection = _selection;
+        _dope.Selection = _selection;
         GraphHost.Child = BuildCenter();
 
         _session.DocumentReplaced += (_, _) => OnDocumentReplaced();
         _session.StatusChanged += (_, _) => StatusText.Text = _session.Status;
         _session.AssetsChanged += (_, _) => RefreshAssets();
-        _graph.SelectionChanged += (_, _) =>
+        _selection.Changed += (_, _) =>
         {
             RefreshKeyInspector();
             RefreshSelectedNode();
@@ -94,14 +100,27 @@ public partial class MainWindow : Window
         _graph.CurrentTimeChanged += (_, _) =>
         {
             _currentTime.Text = _graph.CurrentTime.ToString("0.###", CultureInfo.InvariantCulture);
-            SyncTime(() => _viewport.ScrubTo(_graph.CurrentTime));
+            SyncTime(() =>
+            {
+                _viewport.ScrubTo(_graph.CurrentTime);
+                _dope.CurrentTime = _graph.CurrentTime;
+            });
         };
+        _dope.CurrentTimeChanged += (_, _) => SyncTime(() =>
+        {
+            _graph.CurrentTime = _dope.CurrentTime;
+            _viewport.ScrubTo(_dope.CurrentTime);
+        });
         _graph.CurvesChanged += (_, _) =>
         {
             RefreshChannels();
             RefreshSelectedNode();
         };
-        _viewport.TimeChanged += (_, _) => SyncTime(() => _graph.CurrentTime = _viewport.Time);
+        _viewport.TimeChanged += (_, _) => SyncTime(() =>
+        {
+            _graph.CurrentTime = _viewport.Time;
+            _dope.CurrentTime = _viewport.Time;
+        });
         _viewport.PlayStateChanged += (_, _) => _playButton.Content = _viewport.IsPlaying ? "❚❚ 일시정지 (Space)" : "▶ 재생 (Space)";
 
         OnDocumentReplaced();
@@ -112,6 +131,10 @@ public partial class MainWindow : Window
     internal GraphEditorView Graph => _graph;
 
     internal ViewportView Viewport => _viewport;
+
+    internal DopeSheetView Dope => _dope;
+
+    internal KeySelection SharedSelection => _selection;
 
     internal string? SelectedMotion => _motionList.SelectedItem as string;
 
@@ -200,8 +223,17 @@ public partial class MainWindow : Window
         Grid.SetRow(splitter, 2);
         grid.Children.Add(splitter);
 
-        Grid.SetRow(_graph, 3);
-        grid.Children.Add(_graph);
+        var tabs = new TabControl
+        {
+            Padding = new Avalonia.Thickness(0),
+            ItemsSource = new[]
+            {
+                new TabItem { Header = "그래프", Content = _graph, FontSize = 12 },
+                new TabItem { Header = "도프 시트", Content = _dope, FontSize = 12 },
+            },
+        };
+        Grid.SetRow(tabs, 3);
+        grid.Children.Add(tabs);
         return grid;
     }
 
@@ -228,6 +260,7 @@ public partial class MainWindow : Window
     private void BindMotion(string? name)
     {
         _graph.Bind(_session.Editor, name);
+        _dope.Bind(_session.Editor, name);
         _viewport.Bind(_session.Editor, name);
         RefreshSelectedNode();
     }
@@ -417,7 +450,11 @@ public partial class MainWindow : Window
         };
 
         RightPanel.Children.Add(Header("보기"));
-        _snap.IsCheckedChanged += (_, _) => _graph.SnapEnabled = _snap.IsChecked == true;
+        _snap.IsCheckedChanged += (_, _) =>
+        {
+            _graph.SnapEnabled = _snap.IsChecked == true;
+            _dope.SnapEnabled = _snap.IsChecked == true;
+        };
         RightPanel.Children.Add(_snap);
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
         OnCommit(_currentTime, text => { if (TryFloat(text, out float v)) _graph.CurrentTime = v; });
@@ -438,7 +475,8 @@ public partial class MainWindow : Window
             Opacity = 0.6,
             TextWrapping = TextWrapping.Wrap,
             Text = "그래프: 클릭 선택 · Shift 추가 · 박스 선택 · 드래그(Shift=축 잠금) · 더블클릭=커브 위에 키 · 핸들 드래그=기울기 · " +
-                   "휠 줌(Ctrl=시간만·Shift=값만) · 가운데 버튼/Alt+드래그 팬 · Ctrl+Z/Y",
+                   "휠 줌(Ctrl=시간만·Shift=값만) · 가운데 버튼/Alt+드래그 팬 · Ctrl+Z/Y\n" +
+                   "도프 시트: 블록 드래그=시간 이동 · Alt+드래그=복제 · 범위 띠 양끝=시간 스케일 · 더블클릭=키 · 눈금자=스크럽 · 노드 행=접기",
         });
     }
 
