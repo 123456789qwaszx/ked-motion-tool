@@ -56,7 +56,7 @@ public partial class MainWindow : Window
     private static readonly int[] AutoSaveMinutes = { 0, 1, 5, 10 };
 
     // 트랜스포트
-    private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
+    private readonly Button _playButton = new() { Content = "▶", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
     private readonly ComboBox _playMode = new() { ItemsSource = new[] { "한 번", "루프", "왕복" }, SelectedIndex = 1, FontSize = 11 };
     private readonly ComboBox _playSpeed = new() { ItemsSource = new[] { "×0.25", "×0.5", "×1", "×2" }, SelectedIndex = 2, FontSize = 11 };
     private readonly TextBox _rangeStart = new() { Text = "0", Width = 56, FontSize = 11 };
@@ -206,7 +206,7 @@ public partial class MainWindow : Window
 
     // ── 전역 단축키 (마야 타임 슬라이더 관습) ───────────────────────────
     //
-    // 1 / 2 이전·다음 키 · Alt+1 / Alt+2 이전·다음 프레임 · Alt+Q 재생 토글
+    // 1 / 2 이전·다음 키 · Alt+1 / Alt+2 이전·다음 프레임 · ` 첫 프레임 · Alt+` / Alt+Q 재생 토글
     // Shift+W / E / F 현재 시각의 키 복사·붙여넣기·지우기 · Shift+1 / 2 인비트윈 빼기·넣기
     // 창 어디에 포커스가 있든 듣는다(터널). 글 입력 칸에서는 안 듣는다.
 
@@ -237,7 +237,11 @@ public partial class MainWindow : Window
                 StepFrame(+1);
                 break;
             case PhysicalKey.Q when alt:
+            case PhysicalKey.Backquote when alt:
                 _viewport.TogglePlay();
+                break;
+            case PhysicalKey.Backquote when none:
+                _viewport.Stop();
                 break;
             case PhysicalKey.W when shift:
                 Guard("키 복사", CopyKeysAtCurrentTime);
@@ -552,7 +556,7 @@ public partial class MainWindow : Window
         _playButton.Content = "▶";
         _playButton.FontSize = 10;
         _playButton.Padding = new Avalonia.Thickness(6, 2);
-        ToolTip.SetTip(_playButton, "재생 / 일시정지 (Space · Alt+Q)");
+        ToolTip.SetTip(_playButton, "재생 / 일시정지 (Alt+` · Alt+Q)");
         Button playBack = SmallButton("◀", (_, _) =>
         {
             if (_viewport.IsPlaying)
@@ -578,7 +582,7 @@ public partial class MainWindow : Window
         ToolTip.SetTip(_animEnd, "모션 길이(애니메이션 끝) — 바꾸면 길이가 바뀐다");
         (string Label, string Tip, EventHandler<RoutedEventArgs> Click)[] transportSpec =
         {
-            ("⏮", "범위 처음으로", (_, _) => _viewport.Stop()),
+            ("⏮", "범위 처음으로 (`)", (_, _) => _viewport.Stop()),
             ("|◀", "이전 키 (1 · ,)", (_, _) => _viewport.JumpToPreviousKey()),
             ("◁", "이전 프레임 (Alt+1 · ←)", (_, _) => StepFrame(-1)),
         };

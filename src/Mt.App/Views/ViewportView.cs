@@ -22,7 +22,7 @@ namespace Mt.App.Views;
 /// 여기에는 그리기·시계·입력만 있다. 무대는 기준 해상도 크기이고 컨트롤 안에 레터박스로 맞춘다.
 /// 깊이는 mid(DepthScale 1) 고정이고 카메라는 없다 — v1 범위.
 ///
-/// 타임 슬라이더는 따로(<see cref="TimeSliderView"/>)다. Space 재생/일시정지, Home/End 처음/끝.
+/// 타임 슬라이더는 따로(<see cref="TimeSliderView"/>)다. 재생 토글은 전역 Alt+`(셸), Home/End 처음/끝.
 /// <b>포즈 들고 스크럽</b>(마야 MMB 드래그): <see cref="HoldScrubTo"/>로 시각을 옮겨도 보이는 포즈는 그대로라 S로 그 포즈를 다른 프레임에 키한다.
 /// </summary>
 public sealed class ViewportView : Control
@@ -1102,9 +1102,6 @@ public sealed class ViewportView : Control
 
         switch (e.Key)
         {
-            case Key.Space:
-                TogglePlay();
-                break;
             case Key.Home:
                 Pause();
                 ScrubTo(0);

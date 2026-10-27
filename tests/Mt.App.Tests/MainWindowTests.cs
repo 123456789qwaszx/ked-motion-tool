@@ -391,6 +391,15 @@ public class MainWindowTests
                 Assert.True(window.Viewport.IsPlaying);
                 window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.Alt);
                 Assert.False(window.Viewport.IsPlaying);
+
+                // ` 첫 프레임 · Alt+` 재생 토글
+                window.Viewport.ScrubTo(0.3);
+                window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.None);
+                Assert.Equal(0, window.Viewport.Time, 6);
+                window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
+                Assert.True(window.Viewport.IsPlaying);
+                window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
+                Assert.False(window.Viewport.IsPlaying);
             }
             finally
             {

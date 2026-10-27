@@ -79,6 +79,7 @@ public sealed class GraphEditorView : Control
     private static readonly IBrush ValueLabelBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
     private static readonly Pen BufferPen = new(new SolidColorBrush(Color.FromArgb(150, 0x9A, 0x9A, 0x9A)), 1.5, DashStyle.Dash);
     private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromRgb(0xF9, 0xD7, 0x1C));
+    private static readonly IBrush SelectedCurveBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
 
     private readonly List<CurveSlot> _curves = new();
     private KeySelection _selection = new();
@@ -89,7 +90,12 @@ public sealed class GraphEditorView : Control
     private bool _cameraFitted;
     private double _currentTime;
 
-    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan, Scrub, Zoom, Scale, Lasso, RegionLeft, RegionRight, RegionTop, RegionBottom }
+    private enum Drag { None, Keys, KeysAxis, CurveInsert, InHandle, OutHandle, Box, Pan, Scrub, Zoom, Scale, Lasso, RegionLeft, RegionRight, RegionTop, RegionBottom }
+
+    /// <summary>선택한 커브(마야: 커브 선을 클릭). MMB 클릭이 여기에 키를 끼운다.</summary>
+    private readonly HashSet<CurveRef> _selectedCurves = new();
+    private bool _axisLockDecided;
+    private bool _axisLockHorizontal;
 
     /// <summary>리전 툴의 상자 — 선택 키의 시간·보기값 범위.</summary>
     private (double T0, double T1, double V0, double V1)? _region;
@@ -118,6 +124,67 @@ public sealed class GraphEditorView : Control
 
     /// <summary>마야 값 스냅 — 끌 때 키 값을 정수로.</summary>
     public bool ValueSnapEnabled { get; set; }
+
+    /// <summary>선택한 커브들.</summary>
+    public IReadOnlyCollection<CurveRef> SelectedCurves => _selectedCurves;
+
+    /// <summary>커브 선을 고른다(마야). additive가 아니면 다른 커브 선택은 풀린다.</summary>
+    public void SelectCurve(CurveRef curve, bool additive)
+    {
+        if (!additive)
+        {
+            _selectedCurves.Clear();
+        }
+
+        if (!_selectedCurves.Add(curve) && additive)
+        {
+            _selectedCurves.Remove(curve);
+        }
+
+        InvalidateVisual();
+    }
+
+    public void ClearCurveSelection()
+    {
+        _selectedCurves.Clear();
+        InvalidateVisual();
+    }
+
+    /// <summary>선택한 커브마다 그 시각(스냅)에 곡선 위 값으로 키 하나(한 조작). 마야 Insert Key(MMB 클릭).</summary>
+    public List<KeyRef> InsertKeysOnSelectedCurves(double seconds)
+    {
+        MotionAsset? motion = Motion;
+        var inserted = new List<KeyRef>();
+
+        if (motion is null || _editor is null || _motionName is null || _selectedCurves.Count == 0)
+        {
+            return inserted;
+        }
+
+        float t = (float)Math.Max(0, SnapTime(seconds));
+        var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
+        var targets = new List<(CurveRef, float)>();
+
+        foreach (CurveRef curve in _selectedCurves)
+        {
+            if (_flags.IsLocked(curve) || curve.Resolve(motion) is not { } component)
+            {
+                continue;
+            }
+
+            edits.Add((curve, KeyOps.WithKeyOnCurve(component.Keys, t)));
+            targets.Add((curve, t));
+        }
+
+        if (edits.Count == 0)
+        {
+            return inserted;
+        }
+
+        _editor.SetKeysMany(_motionName, edits);
+        SelectByTime(targets);
+        return _selection.ToList();
+    }
 
     /// <summary>리전 툴의 상자(시간·보기값). 선택이 없으면 null.</summary>
     public (double T0, double T1, double V0, double V1)? Region => _region;
@@ -561,7 +628,40 @@ public sealed class GraphEditorView : Control
         CurvesChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void PruneSelection() => _selection.Prune(Motion);
+    private void PruneSelection()
+    {
+        _selection.Prune(Motion);
+        _selectedCurves.RemoveWhere(c => !_curves.Any(s => s.Curve == c));
+    }
+
+    /// <summary>보이는 커브 선 중 가장 가까운 것(6px 안). 잠긴 커브는 뺀다.</summary>
+    private bool TryHitCurve(MotionAsset motion, Pixel at, out CurveRef hit)
+    {
+        hit = default;
+        double best = 6;
+        GraphPoint left = ToGraph(new Point(Plot.X, Plot.Y));
+        GraphPoint right = ToGraph(new Point(Plot.Right, Plot.Y));
+
+        foreach (CurveSlot slot in _curves)
+        {
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve || curve.Keys.Count == 0)
+            {
+                continue;
+            }
+
+            CurveViewTransform transform = ViewTransformOf(slot.Curve);
+            List<Pixel> polyline = CurveSampler.Sample(curve.Keys, left.T, right.T, 256).Select(p => ToPixel(ToScreen(new GraphPoint(p.T, transform.ToView(p.V))))).ToList();
+            double d = GraphHitTest.DistanceToPolyline(polyline, at);
+
+            if (d < best)
+            {
+                best = d;
+                hit = slot.Curve;
+            }
+        }
+
+        return best < 6;
+    }
 
     /// <summary>축이 색을 정한다(x 빨강·y 초록·z 파랑). 채널 순서가 색조를 조금씩 돌려 같은 축 둘을 가른다.</summary>
     public static Color ColorFor(Axis axis, int channelIndex)
@@ -947,7 +1047,10 @@ public sealed class GraphEditorView : Control
                     Point at = ToScreen(new GraphPoint(points[0].T, transform.ToView(points[0].V)));
                     DrawLabel(context, $"{slot.Curve.Axis.ToString().ToLowerInvariant()}: 중립 상수 — 내보내기에서 빠진다", new Point(plot.X + 6, at.Y - 14), LabelBrush, 10);
                 }
-                var pen = new Pen(new SolidColorBrush(color), locked ? 1 : 2, muted ? DashStyle.Dash : null);
+                bool curveSelected = _selectedCurves.Contains(slot.Curve);
+                var pen = curveSelected
+                    ? new Pen(SelectedCurveBrush, 3, muted ? DashStyle.Dash : null)
+                    : new Pen(new SolidColorBrush(color), locked ? 1 : 2, muted ? DashStyle.Dash : null);
                 var polyline = new PolylineGeometry(points.Select(p => ToScreen(new GraphPoint(p.T, transform.ToView(p.V)))), false);
                 context.DrawGeometry(null, pen, polyline);
             }
@@ -1231,13 +1334,30 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        // MMB 드래그 = 선택 키 이동(마야). 툴과 무관하다.
+        // MMB 드래그 = 선택 키 이동(마야). 툴과 무관하다. MMB 클릭(안 움직임) = 선택한 커브에 키 끼우기.
         if (point.Properties.IsMiddleButtonPressed)
         {
             if (pressedMotion is not null && _selection.Count > 0)
             {
                 BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
                 StartDrag(Drag.Keys, position, e);
+            }
+            else if (pressedMotion is not null && _selectedCurves.Count > 0)
+            {
+                StartDrag(Drag.CurveInsert, position, e);
+            }
+
+            return;
+        }
+
+        // RMB 드래그 = 선택 키를 한 축으로만 이동(처음 움직인 쪽으로 잠긴다). Shift = 정수 프레임·정수 값에 스냅.
+        if (point.Properties.IsRightButtonPressed)
+        {
+            if (pressedMotion is not null && _selection.Count > 0)
+            {
+                BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
+                _axisLockDecided = false;
+                StartDrag(Drag.KeysAxis, position, e);
             }
 
             return;
@@ -1374,10 +1494,24 @@ public sealed class GraphEditorView : Control
             return;
         }
 
+        // 커브 선 클릭 = 그 커브 선택(마야). Shift = 더하기/빼기.
+        if (TryHitCurve(motion, at, out CurveRef curveHit))
+        {
+            if (!shift)
+            {
+                _selection.Clear();
+            }
+
+            SelectCurve(curveHit, additive: shift);
+            e.Handled = true;
+            return;
+        }
+
         // 빈 자리: 박스 선택. Shift가 아니면 선택을 비운다.
         if (!shift)
         {
             _selection.Clear();
+            _selectedCurves.Clear();
         }
 
         StartDrag(Drag.Box, position, e);
@@ -1501,7 +1635,7 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        if (!_dragMoved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold && _drag != Drag.Pan && _drag != Drag.Box && _drag != Drag.Scrub && _drag != Drag.Zoom)
+        if (!_dragMoved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold && _drag != Drag.Pan && _drag != Drag.Box && _drag != Drag.Scrub && _drag != Drag.Zoom && _drag != Drag.CurveInsert)
         {
             return;
         }
@@ -1555,6 +1689,23 @@ public sealed class GraphEditorView : Control
 
                 break;
 
+            case Drag.KeysAxis:
+                if (motion is not null)
+                {
+                    if (!_axisLockDecided)
+                    {
+                        _axisLockHorizontal = Math.Abs(dx) >= Math.Abs(dy);
+                        _axisLockDecided = true;
+                    }
+
+                    MoveSelectionPreview(motion, _axisLockHorizontal ? dx : 0, _axisLockHorizontal ? 0 : dy, axisLock: false, wholeSnap: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                }
+
+                break;
+
+            case Drag.CurveInsert:
+                break;
+
             case Drag.InHandle:
             case Drag.OutHandle:
                 if (motion is not null)
@@ -1572,7 +1723,7 @@ public sealed class GraphEditorView : Control
         e.Handled = true;
     }
 
-    private void MoveSelectionPreview(MotionAsset motion, double dx, double dy, bool axisLock)
+    private void MoveSelectionPreview(MotionAsset motion, double dx, double dy, bool axisLock, bool wholeSnap = false)
     {
         if (axisLock)
         {
@@ -1595,8 +1746,23 @@ public sealed class GraphEditorView : Control
                 continue;
             }
 
-            preview.T = (float)Math.Max(0, SnapTime(original.T + delta.T));
-            preview.V = SnapValue((float)(original.V + delta.V / ViewTransformOf(keyRef.Curve).Scale));
+            double t = original.T + delta.T;
+            double v = original.V + delta.V / ViewTransformOf(keyRef.Curve).Scale;
+
+            if (wholeSnap)
+            {
+                // Shift: 정확히 1fr·2fr… 정수 프레임, 값은 정수.
+                t = Math.Round(t * TimeSnap.FramesPerSecond) / TimeSnap.FramesPerSecond;
+                v = Math.Round(v);
+            }
+            else
+            {
+                t = SnapTime(t);
+                v = SnapValue((float)v);
+            }
+
+            preview.T = (float)Math.Max(0, t);
+            preview.V = (float)v;
         }
     }
 
@@ -1710,7 +1876,27 @@ public sealed class GraphEditorView : Control
         {
             switch (drag)
             {
+                case Drag.CurveInsert:
+                    if (Math.Abs(_dragNow.X - _dragStart.X) < DragThreshold && Math.Abs(_dragNow.Y - _dragStart.Y) < DragThreshold)
+                    {
+                        InsertKeysOnSelectedCurves(ToGraph(_dragStart).T);
+                    }
+
+                    break;
+
                 case Drag.Keys:
+                    if (!_dragMoved && motion is not null && _selectedCurves.Count > 0)
+                    {
+                        InsertKeysOnSelectedCurves(ToGraph(_dragStart).T);
+                    }
+                    else if (_dragMoved && motion is not null)
+                    {
+                        CommitMove(motion);
+                    }
+
+                    break;
+
+                case Drag.KeysAxis:
                 case Drag.Scale:
                 case Drag.RegionLeft:
                 case Drag.RegionRight:

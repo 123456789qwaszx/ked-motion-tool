@@ -387,6 +387,72 @@ public class GraphEditorViewTests
     });
 
     [Fact]
+    public void 커브_선_클릭은_커브_선택이고_MMB_클릭이_키를_끼우며_RMB_드래그는_한_축으로만_옮긴다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            // flat 탄젠트 키 (0,0)·(0.3,-18) 사이 한가운데는 정확히 (0.15, -9) — 화면에선 두 키의 중점.
+            Point k0 = At(view, 0);
+            Point k1 = At(view, 1);
+            Point onCurve = InWindow(window, view, new Point((k0.X + k1.X) / 2, (k0.Y + k1.Y) / 2));
+            window.MouseDown(onCurve, MouseButton.Left);
+            window.MouseUp(onCurve, MouseButton.Left);
+
+            Assert.Contains(Y, view.SelectedCurves);
+            Assert.Empty(view.Selection);
+
+            // MMB 클릭(안 움직임) → 선택한 커브 위 그 시각에 키.
+            List<KeyAsset> before = Y.Resolve(editor.Document.Find("nod")!)!.Keys.Select(k => new KeyAsset { T = k.T, V = k.V, InTangent = k.InTangent, OutTangent = k.OutTangent, Tangent = k.Tangent }).ToList();
+            (float expectedValue, _) = TangentMath.OnCurve(before, 0.1f);
+            Point insertAt = InWindow(window, view, new Point(k0.X + (k1.X - k0.X) / 3, (k0.Y + k1.Y) / 2 + 30));
+            long revision = editor.Revision;
+            window.MouseDown(insertAt, MouseButton.Middle);
+            window.MouseUp(insertAt, MouseButton.Middle);
+
+            Assert.Equal(revision + 1, editor.Revision);
+            List<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+            Assert.Equal(4, keys.Count);
+            Assert.Equal(0.1f, keys[1].T, 3);
+            Assert.Equal(expectedValue, keys[1].V, 2);
+            Assert.Single(view.Selection);
+
+            // RMB 드래그: 가로로 끌면 시각만 바뀐다.
+            float valueBefore = keys[1].V;
+            Point grab = InWindow(window, view, At(view, 1));
+            window.MouseDown(grab, MouseButton.Right);
+            window.MouseMove(new Point(grab.X + 40, grab.Y + 3), RawInputModifiers.RightMouseButton);
+            window.MouseUp(new Point(grab.X + 40, grab.Y + 3), MouseButton.Right);
+
+            keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+            Assert.True(keys[1].T > 0.1f);
+            Assert.Equal(valueBefore, keys[1].V, 4);
+
+            // Shift+RMB: 정수 프레임에 스냅.
+            view.Select(new[] { new KeyRef(Y, 1) }, additive: false);
+            grab = InWindow(window, view, At(view, 1));
+            window.MouseDown(grab, MouseButton.Right, RawInputModifiers.Shift);
+            window.MouseMove(new Point(grab.X + 37, grab.Y), RawInputModifiers.RightMouseButton | RawInputModifiers.Shift);
+            window.MouseUp(new Point(grab.X + 37, grab.Y), MouseButton.Right, RawInputModifiers.Shift);
+
+            keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+            double frames = keys[1].T * 24.0;
+            Assert.Equal(Math.Round(frames), frames, 3);
+
+            // 빈 자리 클릭은 커브 선택도 푼다.
+            Point empty = InWindow(window, view, new Point(k0.X + 20, GraphEditorView.PadTop + 10));
+            window.MouseDown(empty, MouseButton.Left);
+            window.MouseUp(empty, MouseButton.Left);
+            Assert.Empty(view.SelectedCurves);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 박스_선택은_안에_든_키를_고른다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();

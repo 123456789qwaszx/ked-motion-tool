@@ -19,7 +19,7 @@
 2. **리그 덤프…** → `ked-stage-runtime/ExportedTuning/rig-schemas.json`. 옆의 `base-resolution.json`도 같이 실린다. 상태 줄에 `리그 덤프: character, background, screenEffect · 무대 1920×1080`.
 3. **초상 PNG…** → `ked-presentation-runtime/Assets/Samples/Portraits/harin/b/01.png`. 뷰포트에 초상이 선다(없으면 자리표시 사각형).
 4. **motions.json 가져오기…** → `ked-presentation-runtime/Assets/Samples/Dialogue/motions.json`. 왼쪽 "모션"에 `nod`·`bow`가 생긴다.
-5. `nod`를 고르고 뷰포트를 한 번 클릭한 뒤 **Space** — 끄덕인다. `bow`는 끝에서 8도 기운 채 남는다(commit).
+5. `nod`를 고르고 **Alt+`** — 끄덕인다. `bow`는 끝에서 8도 기운 채 남는다(commit).
 6. 그래프 탭에서 키를 끌어 본다 — 놓는 순간 뷰포트가 따라오고, Ctrl+Z로 돌아온다. 도프 시트 탭에서 블록을 끌면 시간이 옮겨진다.
 7. **다른 이름으로…** → `*.motion-authoring.json`으로 저장(저작 원본). **motions.json 내보내기…** → 런타임이 읽는 산출물. 아래 문제 칸이 비어 있을 때만 나간다.
 
@@ -46,6 +46,9 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 |---|---|
 | 아웃라이너 행 클릭 · Shift/Ctrl+클릭 · 검색 칸 | 그 커브만 보이기 · 더하기/빼기 · 노드·종류로 거르기. 없는 성분(흐림)은 클릭하면 현재 시각의 중립값 키 하나로 생긴다. 채널 행의 🔓/🔒 · 🔊/🔇 · rel/abs · × |
 | 클릭 · Shift+클릭 · 빈 자리 드래그 · Ctrl+드래그 | 키 선택 · 추가 선택 · 박스 선택 · 라소 |
+| **커브 선 클릭** · Shift+클릭 | 커브 선택(흰색 굵게) · 더하기/빼기. 빈 자리 클릭은 푼다 |
+| 커브를 고른 채 **MMB 클릭** | 그 커브 위, 그 시각(스냅)에 키(값은 곡선 위) — 마야 Insert Key |
+| 키를 고른 채 **RMB 드래그** · **Shift+RMB 드래그** | 처음 움직인 쪽으로만(가로 = 시각, 세로 = 값) 한 번에 이동 · Shift면 정수 프레임(1fr, 2fr…)·정수 값에 스냅 |
 | **MMB 드래그** (어느 툴이든) · 이동 툴(**W**)의 LMB 드래그 · Shift = 축 잠금 | 선택 키 시간·값 이동(마야). 선택 툴(**Q**)의 LMB는 고르기만. 시간은 스냅, 값은 **값 스냅**을 켜면 정수 |
 | 스케일 툴(**R**) LMB 드래그 · Shift = 한 축만 | 선택 중심(피벗) 기준 값·시간 스케일 — 오른쪽 = 시간, 위 = 값 |
 | **리전 툴** | 상자로 고르면 상자가 남는다. 상자 안 드래그 = 이동, 왼/오른 모서리 = 반대쪽 끝 기준 시간 스케일, 위/아래 모서리 = 값 스케일 |
@@ -83,7 +86,8 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 |---|---|
 | **1** · **2** | 이전 키 · 다음 키 |
 | **Alt+1** · **Alt+2** | 이전 프레임 · 다음 프레임 (24fps, ←/→와 같다) |
-| **Alt+Q** | 재생 토글 (PlaybackToggle) |
+| **`** | 첫 프레임(재생 범위 처음)으로 |
+| **Alt+`** · **Alt+Q** | 재생 토글 (PlaybackToggle) — Space는 쓰지 않는다 |
 | **Shift+W** | 현재 시각의 키 전부(모든 커브) 복사 (timeSliderCopyKey) |
 | **Shift+E** | 현재 시각에 붙여넣기 — 같은 시각은 덮어쓰고 없는 채널은 만든다 (timeSliderPasteKey) |
 | **Shift+F** | 현재 시각의 키 전부 지우기 (timeSliderClearKey) |
@@ -109,7 +113,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 - **매니퓰레이터**: 오른쪽 "뷰포트 조작"에서 노드를 고르고 **W** 이동 · **E** 회전 · **R** 배율 · **Q** 선택. 기즈모의 축 끝은 한 축만, 가운데는 자유. 놓는 순간 **Auto Key**면 키가 들어가고(바뀐 성분만), 아니면 "키 없는 포즈"로 남아 **S**로 키를 놓거나 **Esc**/시각 이동으로 버린다. 그 시각에 이미 키가 있으면 바로 덮어쓴다. 채널·성분이 없으면 모션 기본 mode로 만든다.
 - 리그 덤프(`rig-schemas.json`)로 세운 트리 위에 초상 PNG 한 장. 사이징은 런타임 `HeightFitPreserveAspect`와 같다. 깊이 mid, 카메라 없음(v1).
 - 포즈 = 코어 `MotionMath.Compose`. 길이를 지나면 restore는 시작 상태, commit은 마지막 키 — 재생도 그 규칙을 보여 준다.
-- **Space** 재생/일시정지 · **Home/End** 처음/끝 · **←/→** 한 프레임(24fps). 타임 슬라이더·그래프의 현재 시각과 하나다.
+- **Alt+`** 재생/일시정지 · **`** 첫 프레임 · **Home/End** 처음/끝 · **←/→** 한 프레임(24fps). 타임 슬라이더·그래프의 현재 시각과 하나다.
 - 어니언 스킨: 앞뒤 2프레임 반투명. 선택한 키의 노드에 피벗·x(빨강)·y(초록) 축.
 - `base-resolution.json`은 리그 덤프 옆에서 자동으로 싣는다(없으면 1920×1080).
 
