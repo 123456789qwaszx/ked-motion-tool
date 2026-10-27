@@ -1,7 +1,11 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Ked.Presentation.Core;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
+using Mt.Authoring.Preview;
 using Mt.Authoring.Serialization;
 
 namespace Mt.App.Tests;
@@ -152,6 +156,46 @@ public class MainWindowTests
 
                 window.Viewport.ScrubTo(0.4);
                 Assert.Equal(0.4, window.Dope.CurrentTime, 9);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 뷰포트_드래그만으로_키가_생기고_노드_목록이_선다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            var window = new MainWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("wave", "character", "0.5", MotionEnd.Restore);
+                Assert.Contains("CharacterPortrait_Track_Move_X", window.Viewport.NodeChoices);
+                Assert.DoesNotContain("CharSlot_Track_Focus", window.Viewport.NodeChoices);
+
+                window.Viewport.SelectedNode = "CharacterPortrait_Track_Move_X";
+                window.Viewport.Manipulator = ManipulatorMode.Move;
+                window.AutoKeyChecked = true;
+                Assert.True(window.Viewport.AutoKey);
+
+                window.Viewport.ScrubTo(0.25);
+                Point center = window.Viewport.TranslatePoint(window.Viewport.GizmoCenter()!.Value, window)!.Value;
+                var target = new Point(center.X + 40, center.Y);
+                window.MouseDown(center, MouseButton.Left);
+                window.MouseMove(target, RawInputModifiers.LeftMouseButton);
+                window.MouseUp(target, MouseButton.Left);
+
+                ChannelAsset channel = window.Session.Editor.Document.Find("wave")!.FindChannel("CharacterPortrait_Track_Move_X", MotionChannelKind.Position)!;
+                Assert.Equal(MotionChannelMode.Relative, channel.Mode);
+                Assert.Single(channel.X!.Keys);
+                Assert.True(channel.X.Keys[0].V > 0);
+                Assert.Equal(3, window.Dope.Rows.Count);
             }
             finally
             {

@@ -49,6 +49,13 @@ public partial class MainWindow : Window
     private Bitmap? _portrait;
     private bool _syncingTime;
 
+    // 뷰포트 조작
+    private readonly ComboBox _nodeCombo = new() { FontSize = 11, MinWidth = 200 };
+    private readonly CheckBox _followSelection = new() { Content = "선택 키의 노드 따라가기", IsChecked = true, FontSize = 11 };
+    private readonly CheckBox _autoKey = new() { Content = "Auto Key", FontSize = 11 };
+    private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
+    private readonly Button[] _manipulatorButtons = new Button[4];
+
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
     private readonly TextBox _newMotionName = new() { PlaceholderText = "이름 (a-z0-9_)", FontSize = 11 };
@@ -140,6 +147,12 @@ public partial class MainWindow : Window
     internal DopeSheetView Dope => _dope;
 
     internal KeySelection SharedSelection => _selection;
+
+    internal bool AutoKeyChecked
+    {
+        get => _autoKey.IsChecked == true;
+        set => _autoKey.IsChecked = value;
+    }
 
     internal string? SelectedMotion => _motionList.SelectedItem as string;
 
@@ -265,6 +278,39 @@ public partial class MainWindow : Window
         return grid;
     }
 
+    private void RefreshManipulatorButtons()
+    {
+        for (int i = 0; i < _manipulatorButtons.Length; i++)
+        {
+            _manipulatorButtons[i].Opacity = (int)_viewport.Manipulator == i ? 1 : 0.55;
+            _manipulatorButtons[i].FontWeight = (int)_viewport.Manipulator == i ? FontWeight.Bold : FontWeight.Normal;
+        }
+    }
+
+    private void RefreshPending()
+    {
+        _pendingText.Text = _viewport.HasPending ? "키 없는 포즈 — S로 키를 놓거나 Esc로 버린다. 시각을 옮기면 사라진다." : "";
+        _pendingText.IsVisible = _viewport.HasPending;
+    }
+
+    private void RefreshNodeChoices()
+    {
+        _refreshDepth++;
+
+        try
+        {
+            List<string> nodes = _viewport.NodeChoices.ToList();
+            string? current = _viewport.SelectedNode;
+            _nodeCombo.ItemsSource = nodes;
+            _nodeCombo.SelectedIndex = current is null ? -1 : nodes.IndexOf(current);
+            _nodeCombo.IsEnabled = nodes.Count > 0;
+        }
+        finally
+        {
+            _refreshDepth--;
+        }
+    }
+
     private void RefreshTransport()
     {
         _refreshDepth++;
@@ -319,8 +365,14 @@ public partial class MainWindow : Window
         string? node = _graph.Selection.Count > 0
             ? _graph.Selection.First().Curve.Node
             : motion?.Channels.FirstOrDefault()?.Node;
-        _viewport.SelectedNode = node;
+
+        if (_followSelection.IsChecked == true || _viewport.SelectedNode is null)
+        {
+            _viewport.SelectedNode = node ?? _viewport.SelectedNode;
+        }
+
         _viewport.InvalidateVisual();
+        RefreshNodeChoices();
     }
 
     private void RefreshAssets()
@@ -342,6 +394,7 @@ public partial class MainWindow : Window
         }
 
         _viewport.SetPortrait(_portrait);
+        RefreshNodeChoices();
         _stageInfo.Text = $"무대 {_session.StageSize.X:0}×{_session.StageSize.Y:0}"
                           + (_session.Rig is null ? " · 리그 없음" : "")
                           + (_portrait is null ? " · 초상 없음(자리표시)" : $" · 초상 {_portrait.PixelSize.Width}×{_portrait.PixelSize.Height}");
@@ -496,11 +549,51 @@ public partial class MainWindow : Window
             }
         };
 
+        RightPanel.Children.Add(Header("뷰포트 조작"));
+        RightPanel.Children.Add(Labeled("노드", _nodeCombo));
+        _nodeCombo.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _nodeCombo.SelectedItem is string node)
+            {
+                _viewport.SelectedNode = node;
+                _viewport.InvalidateVisual();
+            }
+        };
+        RightPanel.Children.Add(_followSelection);
+        var modes = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        string[] modeLabels = { "선택 (Q)", "이동 (W)", "회전 (E)", "배율 (R)" };
+
+        for (int i = 0; i < modeLabels.Length; i++)
+        {
+            var mode = (ManipulatorMode)i;
+            Button button = SmallButton(modeLabels[i], (_, _) =>
+            {
+                _viewport.Manipulator = mode;
+                _viewport.InvalidateVisual();
+                RefreshManipulatorButtons();
+            });
+            _manipulatorButtons[i] = button;
+            modes.Children.Add(button);
+        }
+
+        RightPanel.Children.Add(modes);
+        _autoKey.IsCheckedChanged += (_, _) => _viewport.AutoKey = _autoKey.IsChecked == true;
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children = { _autoKey, SmallButton("키 놓기 (S)", (_, _) => _viewport.SetKey()), SmallButton("버리기 (Esc)", (_, _) => _viewport.DiscardPending()) },
+        });
+        RightPanel.Children.Add(_pendingText);
+        _viewport.PendingChanged += (_, _) => RefreshPending();
+        RefreshManipulatorButtons();
+
         RightPanel.Children.Add(Header("보기"));
         _snap.IsCheckedChanged += (_, _) =>
         {
             _graph.SnapEnabled = _snap.IsChecked == true;
             _dope.SnapEnabled = _snap.IsChecked == true;
+            _viewport.SnapEnabled = _snap.IsChecked == true;
         };
         RightPanel.Children.Add(_snap);
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));

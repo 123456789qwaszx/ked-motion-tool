@@ -270,6 +270,49 @@ public sealed class MotionEditor
         });
     }
 
+    /// <summary>
+    /// 포즈를 키로(Set Key·Auto Key). 채널이 없으면 모션 기본 mode로 만들고, 성분이 없으면 만들고, 같은 시각의 키는 바꾼다 —
+    /// 전부 **한 번의 조작**이다. 돌려주는 것은 생긴 키들이다.
+    /// </summary>
+    public List<KeyRef> KeyComponents(
+        string name, string node, MotionChannelKind kind, float time, IReadOnlyList<(Axis Axis, float Value)> values, TangentMode tangent)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(values);
+        MotionAsset motion = Require(name);
+
+        if (values.Count == 0)
+        {
+            return new List<KeyRef>();
+        }
+
+        var result = new List<KeyRef>();
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            ChannelAsset? channel = motion.FindChannel(node, kind);
+
+            if (channel is null)
+            {
+                channel = new ChannelAsset { Node = node, Kind = kind, Mode = motion.DefaultMode };
+                motion.Channels.Add(channel);
+            }
+
+            foreach ((Axis axis, float value) in values)
+            {
+                ComponentCurve curve = channel.Get(axis) ?? new ComponentCurve();
+                curve.Keys.RemoveAll(k => Math.Abs(k.T - time) <= MotionRules.Tolerance);
+                curve.Keys.Add(new KeyAsset { T = time, V = value, Tangent = tangent });
+                curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+                TangentMath.Recompute(curve.Keys);
+                channel.Set(axis, curve);
+                result.Add(new KeyRef(new CurveRef(node, kind, axis), curve.Keys.FindIndex(k => Math.Abs(k.T - time) <= MotionRules.Tolerance)));
+            }
+        });
+
+        return result;
+    }
+
     /// <summary>선택 키를 delta초 옮긴다(한 번의 조작). 돌려주는 것은 옮긴 뒤의 (커브, 시각) — 선택을 다시 푸는 데 쓴다.</summary>
     public List<(CurveRef Curve, float T)> MoveKeys(string name, IEnumerable<KeyRef> keys, float deltaSeconds, Func<float, float>? snap = null)
     {
