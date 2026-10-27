@@ -22,12 +22,12 @@ namespace Mt.App.Views;
 /// 여기에는 그리기·시계·입력만 있다. 무대는 기준 해상도 크기이고 컨트롤 안에 레터박스로 맞춘다.
 /// 깊이는 mid(DepthScale 1) 고정이고 카메라는 없다 — v1 범위.
 ///
-/// 아래 띠가 타임라인이다: 클릭·드래그로 스크럽. Space 재생/일시정지, Home/End 처음/끝.
+/// 타임 슬라이더는 따로(<see cref="TimeSliderView"/>)다. Space 재생/일시정지, Home/End 처음/끝.
+/// <b>포즈 들고 스크럽</b>(마야 MMB 드래그): <see cref="HoldScrubTo"/>로 시각을 옮겨도 보이는 포즈는 그대로라 S로 그 포즈를 다른 프레임에 키한다.
 /// </summary>
 public sealed class ViewportView : Control
 {
     private const double Pad = 8;
-    private const double TimelineHeight = 22;
 
     private static readonly IBrush Background = new SolidColorBrush(Color.FromArgb(255, 16, 16, 22));
     private static readonly IBrush StageBrush = new SolidColorBrush(Color.FromArgb(255, 44, 44, 58));
@@ -37,15 +37,7 @@ public sealed class ViewportView : Control
     private static readonly Pen XAxisPen = new(new SolidColorBrush(Color.FromArgb(230, 248, 113, 113)), 2);
     private static readonly Pen YAxisPen = new(new SolidColorBrush(Color.FromArgb(230, 74, 222, 128)), 2);
     private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromArgb(240, 250, 204, 21));
-    private static readonly IBrush TimelineBrush = new SolidColorBrush(Color.FromArgb(255, 30, 30, 40));
-    private static readonly IBrush TimelineFill = new SolidColorBrush(Color.FromArgb(120, 34, 211, 238));
-    private static readonly Pen TimelinePen = new(new SolidColorBrush(Color.FromArgb(255, 34, 211, 238)), 2);
-    private static readonly Pen DurationPen = new(new SolidColorBrush(Color.FromArgb(180, 251, 146, 60)), 1);
     private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromArgb(200, 203, 213, 225));
-    private static readonly IBrush KeyTickBrush = new SolidColorBrush(Color.FromArgb(220, 248, 113, 113));
-    private static readonly IBrush SelectedTickBrush = new SolidColorBrush(Color.FromArgb(255, 250, 204, 21));
-    private static readonly IBrush RangeOutsideBrush = new SolidColorBrush(Color.FromArgb(110, 0, 0, 0));
-    private static readonly IBrush RangeHandleBrush = new SolidColorBrush(Color.FromArgb(240, 125, 211, 252));
     private static readonly IBrush GizmoCenterBrush = new SolidColorBrush(Color.FromArgb(230, 250, 204, 21));
     private static readonly IBrush GizmoXBrush = new SolidColorBrush(Color.FromArgb(240, 248, 113, 113));
     private static readonly IBrush GizmoYBrush = new SolidColorBrush(Color.FromArgb(240, 74, 222, 128));
@@ -89,7 +81,7 @@ public sealed class ViewportView : Control
 
     private void OnFlagsChanged(object? sender, EventArgs e) => InvalidateVisual();
 
-    private enum Drag { None, Scrub, RangeStart, RangeEnd, MoveFree, MoveX, MoveY, Rotate, ScaleFree, ScaleX, ScaleY }
+    private enum Drag { None, MoveFree, MoveX, MoveY, Rotate, ScaleFree, ScaleX, ScaleY }
 
     private Drag _drag = Drag.None;
 
@@ -99,6 +91,10 @@ public sealed class ViewportView : Control
     // 키로 아직 안 들어간 포즈(마야: 키 없이 바꾼 값). 시각이 바뀌면 버린다.
     private readonly Dictionary<string, RectNodeState> _overrides = new();
     private readonly Dictionary<(string Node, MotionChannelKind Kind), HashSet<Axis>> _pending = new();
+
+    // 들고 있는 포즈(마야 MMB 스크럽). 시각이 바뀌어도 이것을 보여 주고, S가 이것을 키한다.
+    private RectNodeTree? _held;
+    private bool _holdScrub;
     private Vec2 _dragStartRoot;
     private Vec2 _dragPivotRoot;
     private RectNodeState _dragStartState;
@@ -139,7 +135,10 @@ public sealed class ViewportView : Control
 
     public double SnapStep { get; set; } = TimeSnap.DefaultStep;
 
-    public bool HasPending => _pending.Count > 0;
+    public bool HasPending => _pending.Count > 0 || _held is not null;
+
+    /// <summary>포즈를 들고 있는가(MMB 스크럽 뒤). S가 모든 채널에 그 포즈를 키한다.</summary>
+    public bool IsHoldingPose => _held is not null;
 
     /// <summary>매니퓰레이터를 둘 수 있는 노드들 — 덤프의 노드 중 __root·키잉 금지 노드를 뺀 것.</summary>
     public IReadOnlyList<string> NodeChoices => _template is null
@@ -151,6 +150,11 @@ public sealed class ViewportView : Control
     /// <summary>지금 보이는 포즈 — 시각의 포즈에 키 없는 포즈를 얹은 것.</summary>
     public RectNodeTree? CurrentPose()
     {
+        if (_held is not null)
+        {
+            return _held;
+        }
+
         RectNodeTree? pose = PoseAt(_clock.Time);
 
         if (pose is null)
@@ -185,13 +189,15 @@ public sealed class ViewportView : Control
     /// <summary>키 없는 포즈를 버린다(시각이 바뀌거나 Esc).</summary>
     public void DiscardPending()
     {
-        if (_overrides.Count == 0 && _pending.Count == 0)
+        if (_overrides.Count == 0 && _pending.Count == 0 && _held is null)
         {
             return;
         }
 
         _overrides.Clear();
         _pending.Clear();
+        _held = null;
+        _holdScrub = false;
         PendingChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
     }
@@ -205,6 +211,12 @@ public sealed class ViewportView : Control
 
         if (_editor is null || motion is null)
         {
+            return;
+        }
+
+        if (_held is not null)
+        {
+            KeyHeldPose(motion);
             return;
         }
 
@@ -242,6 +254,81 @@ public sealed class ViewportView : Control
             }
         }
     }
+
+    /// <summary>들고 있는 포즈를 모든 채널의 있는 성분에 한 조작으로 키(마야: MMB로 옮긴 뒤 S).</summary>
+    private void KeyHeldPose(MotionAsset motion)
+    {
+        RectNodeTree? pose = _held;
+
+        if (_editor is null || _template is null || pose is null)
+        {
+            DiscardPending();
+            return;
+        }
+
+        var items = new List<(string, MotionChannelKind, IReadOnlyList<(Axis, float)>)>();
+
+        foreach (ChannelAsset channel in motion.Channels)
+        {
+            if (!pose.Contains(channel.Node))
+            {
+                continue;
+            }
+
+            RectNodeState start = _template.GetState(channel.Node);
+            RectNodeState posed = pose.GetState(channel.Node);
+            var values = new List<(Axis, float)>();
+
+            foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
+            {
+                if (channel.Get(axis) is not null)
+                {
+                    values.Add((axis, PoseEdit.KeyValueFor(channel.Kind, channel.Mode, PoseEdit.Component(channel.Kind, start, axis), PoseEdit.Component(channel.Kind, posed, axis))));
+                }
+            }
+
+            items.Add((channel.Node, channel.Kind, values));
+        }
+
+        float time = (float)Math.Max(0, SnapTime(_clock.Time));
+        DiscardPending();
+        _editor.KeyPose(motion.Name, time, items, DefaultTangent);
+        PoseKeyed?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 마야 MMB 스크럽 — 지금 보이는 포즈를 든 채 시각만 옮긴다. 처음 부르면 포즈를 들고, 놓을 때 <see cref="EndHoldScrub"/>.
+    /// 든 포즈는 S로 키하거나 Esc·보통 스크럽으로 버린다.
+    /// </summary>
+    public void HoldScrubTo(double seconds)
+    {
+        if (_held is null)
+        {
+            _held = CurrentPose();
+            _holdScrub = _held is not null;
+            PendingChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (_held is null)
+        {
+            ScrubTo(seconds);
+            return;
+        }
+
+        Pause();
+        double before = _clock.Time;
+        _clock.ScrubTo(seconds);
+
+        if (Math.Abs(before - _clock.Time) > 1e-12)
+        {
+            TimeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        InvalidateVisual();
+    }
+
+    public void EndHoldScrub() => _holdScrub = false;
 
     /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 채널 mode를 따른다.</summary>
     private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
@@ -508,6 +595,15 @@ public sealed class ViewportView : Control
         PlayStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>거꾸로 재생(마야 ◀).</summary>
+    public void PlayBackward()
+    {
+        _clock.PlayBackward();
+        _stopwatch.Restart();
+        _timer.Start();
+        PlayStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void TogglePlay()
     {
         if (_clock.IsPlaying)
@@ -536,7 +632,12 @@ public sealed class ViewportView : Control
 
         if (Math.Abs(before - _clock.Time) > 1e-12)
         {
-            DiscardPending();
+            // 포즈 들고 스크럽 중(MMB)이면 든 포즈를 지키고, 보통 스크럽은 키 없는 포즈를 버린다(마야).
+            if (!_holdScrub)
+            {
+                DiscardPending();
+            }
+
             TimeChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -592,15 +693,13 @@ public sealed class ViewportView : Control
         get
         {
             double availableWidth = Math.Max(1, Bounds.Width - Pad * 2);
-            double availableHeight = Math.Max(1, Bounds.Height - Pad * 2 - TimelineHeight);
+            double availableHeight = Math.Max(1, Bounds.Height - Pad * 2);
             double scale = Math.Min(availableWidth / _stageSize.X, availableHeight / _stageSize.Y);
             double width = _stageSize.X * scale;
             double height = _stageSize.Y * scale;
             return new Rect(Pad + (availableWidth - width) / 2, Pad + (availableHeight - height) / 2, width, height);
         }
     }
-
-    public Rect TimelineRect => new(Pad, Bounds.Height - TimelineHeight - 2, Math.Max(1, Bounds.Width - Pad * 2), TimelineHeight);
 
     private Point ToControl(Vec2 root)
     {
@@ -620,21 +719,6 @@ public sealed class ViewportView : Control
         return new Vec2((float)(canvasX - _stageSize.X / 2), (float)(_stageSize.Y / 2 - canvasY));
     }
 
-    private double TimeAtX(double x)
-    {
-        Rect timeline = TimelineRect;
-        double u = Math.Clamp((x - timeline.X) / Math.Max(1, timeline.Width), 0, 1);
-        return u * _clock.Duration;
-    }
-
-    public double XAtTime(double seconds)
-    {
-        Rect timeline = TimelineRect;
-        return timeline.X + (_clock.Duration <= 0 ? 0 : seconds / _clock.Duration) * timeline.Width;
-    }
-
-    private static Rect HandleRect(double x, Rect timeline) => new(x - 4, timeline.Y, 8, timeline.Height);
-
     // ── 그리기 ────────────────────────────────────────────────────────
 
     public override void Render(DrawingContext context)
@@ -649,14 +733,12 @@ public sealed class ViewportView : Control
         if (motion is null)
         {
             DrawLabel(context, "모션을 고르면 여기에 무대가 보입니다.", new Point(stage.X + 10, stage.Y + 10));
-            DrawTimeline(context);
             return;
         }
 
         if (_template is null)
         {
             DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 초상이 선다." : $"덤프에 rigKind '{motion.Rig}'가 없다.", new Point(stage.X + 10, stage.Y + 10));
-            DrawTimeline(context);
             return;
         }
 
@@ -681,7 +763,6 @@ public sealed class ViewportView : Control
 
         string endRule = motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다";
         DrawLabel(context, $"{motion.Name} · {endRule}", new Point(stage.X + 8, stage.Y + 6));
-        DrawTimeline(context);
     }
 
     private void DrawPortrait(DrawingContext context, RectNodeTree pose)
@@ -788,46 +869,6 @@ public sealed class ViewportView : Control
         return new Point(from.X + dx / length * GizmoArm, from.Y + dy / length * GizmoArm);
     }
 
-    private void DrawTimeline(DrawingContext context)
-    {
-        Rect timeline = TimelineRect;
-        context.FillRectangle(TimelineBrush, timeline);
-
-        // 재생 범위 밖은 어둡게.
-        double startX = XAtTime(_clock.RangeStart);
-        double endX = XAtTime(_clock.RangeEnd);
-        context.FillRectangle(RangeOutsideBrush, new Rect(timeline.X, timeline.Y, Math.Max(0, startX - timeline.X), timeline.Height));
-        context.FillRectangle(RangeOutsideBrush, new Rect(endX, timeline.Y, Math.Max(0, timeline.Right - endX), timeline.Height));
-
-        double x = XAtTime(_clock.Time);
-        context.FillRectangle(TimelineFill, new Rect(timeline.X, timeline.Y, Math.Max(0, x - timeline.X), timeline.Height));
-
-        // 키 틱 — 모든 키는 빨강, 선택 키는 노랑(마야 타임 슬라이더).
-        if (Motion is { } motion)
-        {
-            List<float> selected = KeyTimes.OfSelection(motion, _selection);
-
-            foreach (float t in KeyTimes.All(motion))
-            {
-                bool isSelected = selected.Any(st => Math.Abs(st - t) <= MotionRules.Tolerance);
-                double tx = XAtTime(t);
-                context.FillRectangle(isSelected ? SelectedTickBrush : KeyTickBrush, new Rect(tx - 1.5, timeline.Y + 2, 3, timeline.Height - 4));
-            }
-        }
-
-        context.DrawLine(TimelinePen, new Point(x, timeline.Y), new Point(x, timeline.Bottom));
-        context.DrawLine(DurationPen, new Point(timeline.Right - 1, timeline.Y), new Point(timeline.Right - 1, timeline.Bottom));
-        context.FillRectangle(RangeHandleBrush, HandleRect(startX, timeline));
-        context.FillRectangle(RangeHandleBrush, HandleRect(endX, timeline));
-
-        string mode = _clock.Mode switch { PlaybackMode.Once => "한 번", PlaybackMode.Oscillate => "왕복", _ => "루프" };
-        string label = string.Format(
-            CultureInfo.InvariantCulture, "{0:0.000}s · {1:0.#}f / {2:0.###}s · {3}{4}{5}",
-            _clock.Time, TimeSnap.ToFrames(_clock.Time), _clock.Duration, mode,
-            Math.Abs(_clock.Speed - 1) > 1e-9 ? $" ×{_clock.Speed:0.##}" : "", _clock.IsPlaying ? " ▶" : "");
-        DrawLabel(context, label, new Point(timeline.X + 6, timeline.Y + 4));
-    }
-
     private static void DrawLabel(DrawingContext context, string text, Point at)
     {
         var formatted = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
@@ -852,33 +893,7 @@ public sealed class ViewportView : Control
             Pause();
             e.Pointer.Capture(this);
             e.Handled = true;
-            return;
         }
-
-        Rect timeline = TimelineRect;
-
-        if (!timeline.Contains(position))
-        {
-            return;
-        }
-
-        if (HandleRect(XAtTime(_clock.RangeEnd), timeline).Inflate(3).Contains(position))
-        {
-            _drag = Drag.RangeEnd;
-        }
-        else if (HandleRect(XAtTime(_clock.RangeStart), timeline).Inflate(3).Contains(position))
-        {
-            _drag = Drag.RangeStart;
-        }
-        else
-        {
-            _drag = Drag.Scrub;
-            Pause();
-            ScrubTo(TimeAtX(position.X));
-        }
-
-        e.Pointer.Capture(this);
-        e.Handled = true;
     }
 
     private bool TryStartManipulation(Point position)
@@ -1043,42 +1058,12 @@ public sealed class ViewportView : Control
 
     private static double Distance(Point a, Point b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
-    private void DragRange(double x)
-    {
-        double t = TimeAtX(x);
-
-        try
-        {
-            if (_drag == Drag.RangeEnd)
-            {
-                SetRange(_clock.RangeStart, Math.Max(t, _clock.RangeStart + 1.0 / TimeSnap.FramesPerSecond));
-            }
-            else
-            {
-                SetRange(Math.Min(t, _clock.RangeEnd - 1.0 / TimeSnap.FramesPerSecond), _clock.RangeEnd);
-            }
-        }
-        catch (ArgumentException)
-        {
-            // 범위가 너무 좁다 — 그 프레임은 건너뛴다.
-        }
-    }
-
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
 
         switch (_drag)
         {
-            case Drag.Scrub:
-                ScrubTo(TimeAtX(e.GetPosition(this).X));
-                e.Handled = true;
-                break;
-            case Drag.RangeStart:
-            case Drag.RangeEnd:
-                DragRange(e.GetPosition(this).X);
-                e.Handled = true;
-                break;
             case Drag.MoveFree:
             case Drag.MoveX:
             case Drag.MoveY:

@@ -313,6 +313,50 @@ public sealed class MotionEditor
         return result;
     }
 
+    /// <summary>
+    /// 포즈 하나를 여러 채널에 한 번의 조작으로 키 — 마야 "포즈 들고 스크럽 뒤 S". 없는 채널·성분은 모션 기본 mode로 만든다.
+    /// </summary>
+    public List<KeyRef> KeyPose(
+        string name, float time, IEnumerable<(string Node, MotionChannelKind Kind, IReadOnlyList<(Axis Axis, float Value)> Values)> items, TangentMode tangent)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        MotionAsset motion = Require(name);
+        var list = items.Where(i => i.Values.Count > 0).ToList();
+        var result = new List<KeyRef>();
+
+        if (list.Count == 0)
+        {
+            return result;
+        }
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            foreach ((string node, MotionChannelKind kind, IReadOnlyList<(Axis Axis, float Value)> values) in list)
+            {
+                ChannelAsset? channel = motion.FindChannel(node, kind);
+
+                if (channel is null)
+                {
+                    channel = new ChannelAsset { Node = node, Kind = kind, Mode = motion.DefaultMode };
+                    motion.Channels.Add(channel);
+                }
+
+                foreach ((Axis axis, float value) in values)
+                {
+                    ComponentCurve curve = channel.Get(axis) ?? new ComponentCurve();
+                    curve.Keys.RemoveAll(k => Math.Abs(k.T - time) <= MotionRules.Tolerance);
+                    curve.Keys.Add(new KeyAsset { T = time, V = value, Tangent = tangent });
+                    curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+                    TangentMath.Recompute(curve.Keys);
+                    channel.Set(axis, curve);
+                    result.Add(new KeyRef(new CurveRef(node, kind, axis), curve.Keys.FindIndex(k => Math.Abs(k.T - time) <= MotionRules.Tolerance)));
+                }
+            }
+        });
+
+        return result;
+    }
+
     /// <summary>선택 키의 값을 바꾼다(한 번의 조작). 시각은 그대로라 선택이 그대로 유효하다.</summary>
     public void SetKeyValues(string name, IEnumerable<KeyRef> keys, Func<KeyAsset, float> map)
     {

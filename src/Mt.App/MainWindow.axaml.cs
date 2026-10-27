@@ -62,6 +62,11 @@ public partial class MainWindow : Window
     private readonly ComboBox _playSpeed = new() { ItemsSource = new[] { "×0.25", "×0.5", "×1", "×2" }, SelectedIndex = 2, FontSize = 11 };
     private readonly TextBox _rangeStart = new() { Text = "0", Width = 56, FontSize = 11 };
     private readonly TextBox _rangeEnd = new() { Text = "1", Width = 56, FontSize = 11 };
+    private readonly TextBox _animEnd = new() { Width = 56, FontSize = 11 };
+    private readonly TimeSliderView _timeSlider = new();
+    private readonly RangeSliderView _rangeSlider = new();
+    private readonly ToggleButton _autoKeyToggle = new() { Content = "● Auto Key", FontSize = 10, Padding = new Avalonia.Thickness(6, 2) };
+    private static readonly IBrush AutoKeyOnBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0x3C, 0x3C));
     private readonly CheckBox _onion = new() { Content = "어니언 스킨", FontSize = 11 };
     private readonly TextBlock _stageInfo = new() { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
     private Bitmap? _portrait;
@@ -142,6 +147,10 @@ public partial class MainWindow : Window
         _viewport.Flags = _flags;
         _graph.Clipboard = _clipboard;
         _dope.Clipboard = _clipboard;
+        _timeSlider.Viewport = _viewport;
+        _timeSlider.Selection = _selection;
+        _timeSlider.Clipboard = _clipboard;
+        _rangeSlider.Viewport = _viewport;
         _flags.Changed += (_, _) => RefreshChannels();
         GraphHost.Child = BuildCenter();
 
@@ -177,7 +186,7 @@ public partial class MainWindow : Window
             _graph.CurrentTime = _viewport.Time;
             _dope.CurrentTime = _viewport.Time;
         });
-        _viewport.PlayStateChanged += (_, _) => _playButton.Content = _viewport.IsPlaying ? "❚❚ 일시정지 (Space)" : "▶ 재생 (Space)";
+        _viewport.PlayStateChanged += (_, _) => _playButton.Content = _viewport.IsPlaying ? "❚❚" : "▶";
 
         OnDocumentReplaced();
         ApplySettings();
@@ -373,6 +382,12 @@ public partial class MainWindow : Window
         _viewport.AutoKey = _settings.AutoKey;
         _graph.TimeDisplay = _settings.TimeDisplay;
         _dope.TimeDisplay = _settings.TimeDisplay;
+        _timeSlider.SnapEnabled = _settings.SnapEnabled;
+        _timeSlider.SnapStep = _settings.SnapStep;
+        _timeSlider.TimeDisplay = _settings.TimeDisplay;
+        _rangeSlider.TimeDisplay = _settings.TimeDisplay;
+        _timeSlider.InvalidateVisual();
+        _rangeSlider.InvalidateVisual();
         _graph.InvalidateVisual();
         _dope.InvalidateVisual();
         RefreshTimeTexts();
@@ -432,6 +447,10 @@ public partial class MainWindow : Window
     internal GraphEditorView Graph => _graph;
 
     internal ViewportView Viewport => _viewport;
+
+    internal TimeSliderView TimeSlider => _timeSlider;
+
+    internal RangeSliderView RangeSlider => _rangeSlider;
 
     internal DopeSheetView Dope => _dope;
 
@@ -497,7 +516,7 @@ public partial class MainWindow : Window
     /// <summary>가운데: 위 뷰포트, 트랜스포트 줄, 아래 그래프. 사이에 스플리터.</summary>
     private Control BuildCenter()
     {
-        var grid = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,4,3*") };
+        var grid = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,Auto,4,3*") };
 
         Grid.SetRow(_viewport, 0);
         grid.Children.Add(_viewport);
@@ -526,33 +545,111 @@ public partial class MainWindow : Window
             _viewport.InvalidateVisual();
         };
 
-        var transport = new StackPanel
+        // 마야 트랜스포트: [현재 프레임] ⏮ |◀ ◁ ◀ ▶ ▷ ▶| ⏭  — 타임 슬라이더가 나머지를 채운다.
+        _playButton.Content = "▶";
+        _playButton.FontSize = 10;
+        _playButton.Padding = new Avalonia.Thickness(6, 2);
+        ToolTip.SetTip(_playButton, "재생 / 일시정지 (Space · Alt+Q)");
+        Button playBack = SmallButton("◀", (_, _) =>
+        {
+            if (_viewport.IsPlaying)
+            {
+                _viewport.Pause();
+            }
+            else
+            {
+                _viewport.PlayBackward();
+            }
+        });
+        ToolTip.SetTip(playBack, "거꾸로 재생");
+        OnCommit(_animEnd, text => WithMotion(m =>
+        {
+            if (TimeText.TryParse(text, Display, out double v) && Math.Abs(v - m.Duration) > 1e-6)
+            {
+                _session.Editor.SetDuration(m.Name, (float)v);
+            }
+        }));
+        ToolTip.SetTip(_currentTime, "현재 프레임 — 숫자를 넣으면 그 시각으로(초는 0.5s처럼)");
+        ToolTip.SetTip(_rangeStart, "재생 범위 시작");
+        ToolTip.SetTip(_rangeEnd, "재생 범위 끝");
+        ToolTip.SetTip(_animEnd, "모션 길이(애니메이션 끝) — 바꾸면 길이가 바뀐다");
+        (string Label, string Tip, EventHandler<RoutedEventArgs> Click)[] transportSpec =
+        {
+            ("⏮", "범위 처음으로", (_, _) => _viewport.Stop()),
+            ("|◀", "이전 키 (1 · ,)", (_, _) => _viewport.JumpToPreviousKey()),
+            ("◁", "이전 프레임 (Alt+1 · ←)", (_, _) => StepFrame(-1)),
+        };
+        var transportButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Avalonia.Thickness(6, 0, 0, 0) };
+        _currentTime.Width = 56;
+        transportButtons.Children.Add(_currentTime);
+
+        foreach ((string label, string tip, EventHandler<RoutedEventArgs> click) in transportSpec)
+        {
+            Button b = SmallButton(label, click);
+            ToolTip.SetTip(b, tip);
+            transportButtons.Children.Add(b);
+        }
+
+        transportButtons.Children.Add(playBack);
+        transportButtons.Children.Add(_playButton);
+        (string Label, string Tip, EventHandler<RoutedEventArgs> Click)[] transportTail =
+        {
+            ("▷", "다음 프레임 (Alt+2 · →)", (_, _) => StepFrame(+1)),
+            ("▶|", "다음 키 (2 · .)", (_, _) => _viewport.JumpToNextKey()),
+            ("⏭", "범위 끝으로", (_, _) => { _viewport.Pause(); _viewport.ScrubTo(_viewport.Clock.RangeEnd); }),
+        };
+
+        foreach ((string label, string tip, EventHandler<RoutedEventArgs> click) in transportTail)
+        {
+            Button b = SmallButton(label, click);
+            ToolTip.SetTip(b, tip);
+            transportButtons.Children.Add(b);
+        }
+
+        var transportRow = new DockPanel { Margin = new Avalonia.Thickness(4, 2, 4, 0) };
+        DockPanel.SetDock(transportButtons, Dock.Right);
+        transportRow.Children.Add(transportButtons);
+        transportRow.Children.Add(_timeSlider);
+        Grid.SetRow(transportRow, 1);
+        grid.Children.Add(transportRow);
+
+        // 레인지 슬라이더 줄: [0][범위 시작] ═바═ [범위 끝][길이] · 모드 · 속도 · fps · Auto Key · 어니언 · 초상.
+        var rangeLeft = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(4, 2),
+            Spacing = 4,
+            Margin = new Avalonia.Thickness(0, 0, 4, 0),
+            Children = { new TextBlock { Text = "0", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, Width = 20, TextAlignment = TextAlignment.Center }, _rangeStart },
+        };
+        var rangeRight = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Avalonia.Thickness(4, 0, 0, 0),
             Children =
             {
-                _playButton,
-                SmallButton("■ 처음으로", (_, _) => _viewport.Stop()),
-                SmallButton("|◀ 이전 키 (,)", (_, _) => _viewport.JumpToPreviousKey()),
-                SmallButton("다음 키 (.) ▶|", (_, _) => _viewport.JumpToNextKey()),
+                _rangeEnd,
+                _animEnd,
                 _playMode,
                 _playSpeed,
-                new TextBlock { Text = "범위", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 },
-                _rangeStart,
-                _rangeEnd,
-                SmallButton("전체", (_, _) => _viewport.ResetRange()),
+                new TextBlock { Text = "24 fps", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 },
+                _autoKeyToggle,
                 _onion,
                 SmallButton("초상 PNG…", OnPickPortraitClick),
                 _stageInfo,
             },
         };
-        Grid.SetRow(transport, 1);
-        grid.Children.Add(transport);
+        var rangeRow = new DockPanel { Margin = new Avalonia.Thickness(4, 2, 4, 2) };
+        DockPanel.SetDock(rangeLeft, Dock.Left);
+        DockPanel.SetDock(rangeRight, Dock.Right);
+        rangeRow.Children.Add(rangeLeft);
+        rangeRow.Children.Add(rangeRight);
+        rangeRow.Children.Add(_rangeSlider);
+        Grid.SetRow(rangeRow, 2);
+        grid.Children.Add(rangeRow);
 
         var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, Background = Brushes.Transparent };
-        Grid.SetRow(splitter, 2);
+        Grid.SetRow(splitter, 3);
         grid.Children.Add(splitter);
 
         var tabs = new TabControl
@@ -564,7 +661,7 @@ public partial class MainWindow : Window
                 new TabItem { Header = "도프 시트", Content = _dope, FontSize = 12 },
             },
         };
-        Grid.SetRow(tabs, 3);
+        Grid.SetRow(tabs, 4);
         grid.Children.Add(tabs);
         return grid;
     }
@@ -672,7 +769,9 @@ public partial class MainWindow : Window
 
     private void RefreshPending()
     {
-        _pendingText.Text = _viewport.HasPending ? "키 없는 포즈 — S로 키를 놓거나 Esc로 버린다. 시각을 옮기면 사라진다." : "";
+        _pendingText.Text = _viewport.IsHoldingPose
+            ? "든 포즈(MMB 스크럽) — S로 이 프레임에 키를 놓거나 Esc·보통 스크럽으로 버린다."
+            : _viewport.HasPending ? "키 없는 포즈 — S로 키를 놓거나 Esc로 버린다. 시각을 옮기면 사라진다." : "";
         _pendingText.IsVisible = _viewport.HasPending;
     }
 
@@ -706,6 +805,7 @@ public partial class MainWindow : Window
             _playSpeed.SelectedIndex = speedIndex < 0 ? 2 : speedIndex;
             _rangeStart.Text = TimeText.Format(_viewport.Clock.RangeStart, Display);
             _rangeEnd.Text = TimeText.Format(_viewport.Clock.RangeEnd, Display);
+            _animEnd.Text = TimeText.Format(_viewport.Clock.Duration, Display);
             _graph.RangeStart = _viewport.Clock.RangeStart;
             _graph.RangeEnd = _viewport.Clock.RangeEnd;
             _graph.InvalidateVisual();
@@ -741,6 +841,7 @@ public partial class MainWindow : Window
         _graph.Bind(_session.Editor, name);
         _dope.Bind(_session.Editor, name);
         _viewport.Bind(_session.Editor, name);
+        _timeSlider.Bind(_session.Editor, name);
         RefreshSelectedNode();
     }
 
@@ -989,12 +1090,16 @@ public partial class MainWindow : Window
         _autoKey.IsCheckedChanged += (_, _) =>
         {
             _viewport.AutoKey = _autoKey.IsChecked == true;
+            _autoKeyToggle.IsChecked = _autoKey.IsChecked;
+            _autoKeyToggle.Foreground = _autoKey.IsChecked == true ? AutoKeyOnBrush : null;
 
             if (!_refreshing)
             {
                 _settings.AutoKey = _viewport.AutoKey;
             }
         };
+        _autoKeyToggle.IsCheckedChanged += (_, _) => _autoKey.IsChecked = _autoKeyToggle.IsChecked;
+        ToolTip.SetTip(_autoKeyToggle, "Auto Key — 매니퓰레이터를 놓는 순간 키가 들어간다(마야 빨간 키)");
         RightPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -1045,7 +1150,6 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(Labeled("어니언 프레임", _onionFrames));
         RightPanel.Children.Add(Labeled("자동 저장", _autoSaveCombo));
         RightPanel.Children.Add(Labeled("시간 표시", _timeDisplayCombo));
-        RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
         _showCycle.IsCheckedChanged += (_, _) =>
         {

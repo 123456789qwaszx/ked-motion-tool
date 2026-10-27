@@ -82,40 +82,12 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 타임라인_띠를_누르면_스크럽이다() => HeadlessUi.Run(() =>
+    public void 점은_키로_점프하고_거꾸로_재생은_범위_끝에서_처음으로_간다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();
 
         try
         {
-            Rect timeline = view.TimelineRect;
-            var local = new Point(timeline.X + timeline.Width * 0.5, timeline.Y + timeline.Height / 2);
-            Point at = view.TranslatePoint(local, window) ?? throw new InvalidOperationException("뷰가 창에 없다");
-
-            window.MouseDown(at, MouseButton.Left);
-            window.MouseUp(at, MouseButton.Left);
-
-            Assert.Equal(0.3, view.Time, 2);
-            Assert.False(view.IsPlaying);
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
-
-    [Fact]
-    public void 키_틱은_키_시각에_있고_점은_키로_점프한다() => HeadlessUi.Run(() =>
-    {
-        (Window window, ViewportView view, _) = Show();
-
-        try
-        {
-            Rect timeline = view.TimelineRect;
-            Assert.Equal(timeline.X, view.XAtTime(0), 3);
-            Assert.Equal(timeline.Right, view.XAtTime(view.Clock.Duration), 3);
-            Assert.Equal(timeline.X + timeline.Width / 2, view.XAtTime(0.3), 3);
-
             Assert.True(view.JumpToNextKey());
             Assert.Equal(0.3, view.Time, 6);
             Assert.True(view.JumpToNextKey());
@@ -123,44 +95,16 @@ public class ViewportViewTests
             Assert.False(view.JumpToNextKey());
             Assert.True(view.JumpToPreviousKey());
             Assert.Equal(0.3, view.Time, 6);
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
 
-    [Fact]
-    public void 범위_핸들을_끌면_재생_범위가_바뀌고_왕복은_그_안에서_돈다() => HeadlessUi.Run(() =>
-    {
-        (Window window, ViewportView view, _) = Show();
-
-        try
-        {
-            int changes = 0;
-            view.RangeChanged += (_, _) => changes++;
-            Rect timeline = view.TimelineRect;
-            Point endHandle = view.TranslatePoint(new Point(view.XAtTime(view.Clock.Duration) - 2, timeline.Center.Y), window)!.Value;
-            Point target = view.TranslatePoint(new Point(view.XAtTime(0.3), timeline.Center.Y), window)!.Value;
-
-            window.MouseDown(endHandle, MouseButton.Left);
-            window.MouseMove(target, RawInputModifiers.LeftMouseButton);
-            window.MouseUp(target, MouseButton.Left);
-
-            Assert.Equal(0.3, view.Clock.RangeEnd, 2);
-            Assert.True(changes > 0);
-
-            view.Mode = PlaybackMode.Oscillate;
-            view.Speed = 1;
-            view.Play();
-            view.Advance(0.25);
-            Assert.Equal(0.25, view.Time, 6);
-            view.Advance(0.1);
-            Assert.Equal(0.25, view.Time, 6); // 0.35 → 되돌아 0.25
+            view.Mode = PlaybackMode.Once;
+            view.PlayBackward();
             Assert.True(view.IsPlaying);
-
-            view.ResetRange();
-            Assert.Equal(0.6f, view.Clock.RangeEnd, 6);
+            Assert.True(view.Clock.IsReversed);
+            view.Advance(0.1);
+            Assert.Equal(0.2, view.Time, 6);
+            view.Advance(1);
+            Assert.Equal(0, view.Time, 6);
+            Assert.False(view.IsPlaying);
         }
         finally
         {

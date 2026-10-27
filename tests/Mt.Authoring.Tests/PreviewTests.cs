@@ -251,6 +251,45 @@ public class PlaybackClockTests
     }
 }
 
+public class PlaybackBackwardTests
+{
+    [Fact]
+    public void 거꾸로_재생은_한_번이면_범위_시작에서_멈추고_루프면_끝으로_감는다()
+    {
+        var clock = new PlaybackClock();
+        clock.SetDuration(1);
+        clock.Mode = PlaybackMode.Once;
+        clock.ScrubTo(0.6);
+        clock.PlayBackward();
+        Assert.True(clock.IsReversed);
+        clock.Advance(0.2);
+        Assert.Equal(0.4, clock.Time, 9);
+        clock.Advance(1);
+        Assert.Equal(0, clock.Time, 9);
+        Assert.False(clock.IsPlaying);
+
+        clock.Mode = PlaybackMode.Loop;
+        clock.ScrubTo(0.1);
+        clock.PlayBackward();
+        clock.Advance(0.3);
+        Assert.Equal(0.8, clock.Time, 9);
+        Assert.True(clock.IsPlaying);
+
+        clock.Play();
+        Assert.False(clock.IsReversed);
+    }
+
+    [Fact]
+    public void 시작에_서_있으면_거꾸로는_끝부터다()
+    {
+        var clock = new PlaybackClock();
+        clock.SetDuration(1);
+        clock.Mode = PlaybackMode.Once;
+        clock.PlayBackward();
+        Assert.Equal(1, clock.Time, 9);
+    }
+}
+
 public class KeyTimesTests
 {
     [Fact]

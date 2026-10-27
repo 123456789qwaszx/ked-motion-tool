@@ -32,6 +32,9 @@ public sealed class PlaybackClock
 
     public bool IsPlaying { get; private set; }
 
+    /// <summary>거꾸로 재생 중인가(마야 Play Backwards). 왕복은 방향이 번갈아 바뀐다.</summary>
+    public bool IsReversed => _direction < 0;
+
     public PlaybackMode Mode { get; set; } = PlaybackMode.Loop;
 
     /// <summary>호환용 — Loop ↔ Once. 왕복은 <see cref="Mode"/>로.</summary>
@@ -94,6 +97,19 @@ public sealed class PlaybackClock
         IsPlaying = true;
     }
 
+    /// <summary>거꾸로 재생(마야 ◀). 범위 밖이거나 시작에 서 있으면 범위 끝부터.</summary>
+    public void PlayBackward()
+    {
+        _direction = -1;
+
+        if (Time < RangeStart - 1e-9 || Time > RangeEnd + 1e-9 || (Mode == PlaybackMode.Once && Time <= RangeStart + 1e-9))
+        {
+            Time = RangeEnd;
+        }
+
+        IsPlaying = true;
+    }
+
     public void Pause() => IsPlaying = false;
 
     public void Toggle()
@@ -131,9 +147,14 @@ public sealed class PlaybackClock
         switch (Mode)
         {
             case PlaybackMode.Once:
-                if (next >= RangeEnd)
+                if (_direction > 0 && next >= RangeEnd)
                 {
                     next = RangeEnd;
+                    IsPlaying = false;
+                }
+                else if (_direction < 0 && next <= RangeStart)
+                {
+                    next = RangeStart;
                     IsPlaying = false;
                 }
 
@@ -143,6 +164,10 @@ public sealed class PlaybackClock
                 if (next >= RangeEnd)
                 {
                     next = RangeStart + (next - RangeStart) % span;
+                }
+                else if (next < RangeStart)
+                {
+                    next = RangeEnd - (RangeStart - next) % span;
                 }
 
                 break;

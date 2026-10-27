@@ -37,6 +37,36 @@ public static class TimeSliderOps
         return result;
     }
 
+    /// <summary>모든 커브에서 [a, b] 구간(허용 오차 포함)의 키 — 타임 슬라이더의 빨간 범위 선택.</summary>
+    public static List<KeyRef> KeysBetween(MotionAsset motion, double a, double b)
+    {
+        ArgumentNullException.ThrowIfNull(motion);
+        double lo = Math.Min(a, b) - MotionRules.Tolerance;
+        double hi = Math.Max(a, b) + MotionRules.Tolerance;
+        var result = new List<KeyRef>();
+
+        foreach (ChannelAsset channel in motion.Channels)
+        {
+            foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
+            {
+                if (channel.Get(axis) is not { } curve)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < curve.Keys.Count; i++)
+                {
+                    if (curve.Keys[i].T >= lo && curve.Keys[i].T <= hi)
+                    {
+                        result.Add(new KeyRef(new CurveRef(channel.Node, channel.Kind, axis), i));
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// 인비트윈 — <paramref name="atSeconds"/> 뒤의 키를 전부 <paramref name="deltaSeconds"/>만큼 민다
     /// (마야 Add Inbetween = +1프레임, Remove Inbetween = −1프레임). 그 시각의 키는 안 움직인다.
