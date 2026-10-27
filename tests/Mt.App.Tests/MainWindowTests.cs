@@ -263,6 +263,69 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 전역_단축키_이전_다음_키_프레임_복사_붙여넣기_지우기_인비트윈()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+                window.AddChannelFromForm(y.Node, y.Kind);
+                window.Session.Editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
+                MotionAsset Nod() => window.Session.Editor.Document.Find("nod")!;
+
+                // 2 다음 키 · 1 이전 키 (물리 키로 — 포커스가 어디 있든 듣는다)
+                window.KeyPressQwerty(PhysicalKey.Digit2, RawInputModifiers.None);
+                Assert.Equal(0.3, window.Viewport.Time, 4);
+                window.NextKey();
+                Assert.Equal(0.6, window.Viewport.Time, 4);
+                window.KeyPressQwerty(PhysicalKey.Digit1, RawInputModifiers.None);
+                Assert.Equal(0.3, window.Viewport.Time, 4);
+
+                // Alt+2 / Alt+1 한 프레임(24fps)
+                window.StepFrame(+1);
+                Assert.Equal(0.3 + 1.0 / 24.0, window.Viewport.Time, 4);
+                window.StepFrame(-1);
+                Assert.Equal(0.3, window.Viewport.Time, 4);
+
+                // Shift+W 복사 → 0.45로 가서 Shift+E 붙여넣기
+                window.CopyKeysAtCurrentTime();
+                window.Viewport.ScrubTo(0.45);
+                window.PasteKeysAtCurrentTime();
+                Assert.Equal(4, y.Resolve(Nod())!.Keys.Count);
+                Assert.Equal(-18f, y.Resolve(Nod())!.Keys[2].V);
+
+                // Shift+F 지우기
+                window.ClearKeysAtCurrentTime();
+                Assert.Equal(3, y.Resolve(Nod())!.Keys.Count);
+
+                // Shift+2 인비트윈 넣기 / Shift+1 빼기 — 0.3 뒤의 키만 움직인다
+                window.Viewport.ScrubTo(0.3);
+                window.AddInbetween();
+                Assert.Equal(0.6f + 1f / 24f, y.Resolve(Nod())!.Keys[2].T, 4);
+                window.RemoveInbetween();
+                Assert.Equal(0.6f, y.Resolve(Nod())!.Keys[2].T, 4);
+                Assert.Equal(0.3f, y.Resolve(Nod())!.Keys[1].T, 4);
+
+                // Alt+Q 재생 토글
+                window.KeyPressQwerty(PhysicalKey.KeyQ, RawInputModifiers.Alt);
+                Assert.True(window.Viewport.IsPlaying);
+                window.KeyPressQwerty(PhysicalKey.KeyQ, RawInputModifiers.Alt);
+                Assert.False(window.Viewport.IsPlaying);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 되돌리기는_툴바_없이도_편집기를_지난다_그리고_문제는_아래에_보인다()
     {
         HeadlessUi.Run(() =>

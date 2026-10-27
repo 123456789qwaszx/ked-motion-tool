@@ -415,6 +415,36 @@ public sealed class MotionEditor
         return result;
     }
 
+    /// <summary>마야 Add/Remove Inbetween — <paramref name="atSeconds"/> 뒤의 키를 전부 민다(한 번의 조작). 바뀐 것이 없으면 false.</summary>
+    public bool ShiftKeysAfter(string name, float atSeconds, float deltaSeconds)
+    {
+        MotionAsset motion = Require(name);
+        var edits = TimeSliderOps.Inbetween(motion, atSeconds, deltaSeconds);
+
+        if (edits.Count == 0)
+        {
+            return false;
+        }
+
+        SetKeysMany(name, edits);
+        return true;
+    }
+
+    /// <summary>마야 타임 슬라이더 Clear Key — 그 시각의 키를 모든 커브에서 지운다(한 번의 조작). 없으면 false.</summary>
+    public bool RemoveKeysAt(string name, double seconds)
+    {
+        MotionAsset motion = Require(name);
+        List<KeyRef> keys = TimeSliderOps.KeysAt(motion, seconds);
+
+        if (keys.Count == 0)
+        {
+            return false;
+        }
+
+        RemoveKeys(name, keys);
+        return true;
+    }
+
     /// <summary>키들을 지운다. 성분이 비면 "성분 없음"이 된다. 한 번의 조작이다.</summary>
     public void RemoveKeys(string name, IEnumerable<KeyRef> keys)
     {

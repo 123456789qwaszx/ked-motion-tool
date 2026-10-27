@@ -1555,22 +1555,22 @@ public sealed class GraphEditorView : Control
             case Key.Z when ctrl:
                 _editor?.Undo();
                 break;
-            case Key.D1:
+            case Key.D1 when ctrl:
                 SetTangentMode(TangentMode.Auto);
                 break;
-            case Key.D2:
+            case Key.D2 when ctrl:
                 SetTangentMode(TangentMode.Flat);
                 break;
-            case Key.D3:
+            case Key.D3 when ctrl:
                 SetTangentMode(TangentMode.Linear);
                 break;
-            case Key.D4:
+            case Key.D4 when ctrl:
                 SetTangentMode(TangentMode.Free);
                 break;
-            case Key.D5:
+            case Key.D5 when ctrl:
                 SetTangentMode(TangentMode.Spline);
                 break;
-            case Key.D6:
+            case Key.D6 when ctrl:
                 SetTangentMode(TangentMode.Plateau);
                 break;
             case Key.Q:

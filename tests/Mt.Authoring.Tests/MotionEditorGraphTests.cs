@@ -93,3 +93,69 @@ public class MotionEditorGraphTests
         Assert.Equal(before + 2, editor.Revision);
     }
 }
+
+public class TimeSliderOpsTests
+{
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+    private const float Frame = 1f / 24f;
+
+    [Fact]
+    public void 현재_시각의_키를_모든_커브에서_모은다()
+    {
+        MotionAsset bow = Fixtures.NodBowDocument().Find("bow")!;
+
+        List<KeyRef> at = TimeSliderOps.KeysAt(bow, 0.4);
+
+        Assert.Equal(3, at.Count); // x·y·z 끝 키
+        Assert.All(at, k => Assert.Equal(1, k.Index));
+        Assert.Empty(TimeSliderOps.KeysAt(bow, 0.2));
+    }
+
+    [Fact]
+    public void 인비트윈_넣기는_뒤의_키만_한_프레임_밀고_되돌리기_한_번이다()
+    {
+        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        long before = editor.Revision;
+
+        Assert.True(editor.ShiftKeysAfter("nod", 0.3f, Frame));
+
+        Assert.Equal(before + 1, editor.Revision);
+        List<float> times = Y.Resolve(editor.Document.Find("nod")!)!.Keys.Select(k => k.T).ToList();
+        Assert.Equal(0f, times[0]);
+        Assert.Equal(0.3f, times[1], 4);
+        Assert.Equal(0.6f + Frame, times[2], 4);
+        editor.Undo();
+        Assert.Equal(0.6f, Y.Resolve(editor.Document.Find("nod")!)!.Keys[2].T, 4);
+    }
+
+    [Fact]
+    public void 인비트윈_빼기는_닿는_키가_이기고_현재_시각_아래로_안_내려간다()
+    {
+        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        editor.SetKeys("nod", Y.Node, Y.Kind, Y.Axis, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.3f, -18f), Fixtures.Key(0.3f + Frame, 7f), Fixtures.Key(0.6f, 0f) });
+
+        Assert.True(editor.ShiftKeysAfter("nod", 0.3f, -Frame));
+
+        IReadOnlyList<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+        Assert.Equal(3, keys.Count);
+        Assert.Equal(0.3f, keys[1].T, 4);
+        Assert.Equal(7f, keys[1].V); // 움직인 키가 이긴다
+        Assert.Equal(0.6f - Frame, keys[2].T, 4);
+
+        Assert.False(editor.ShiftKeysAfter("nod", 1f, -Frame)); // 뒤에 키가 없다
+    }
+
+    [Fact]
+    public void 현재_시각의_키_지우기는_모든_커브에서_한_번에_지운다()
+    {
+        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        long before = editor.Revision;
+
+        Assert.True(editor.RemoveKeysAt("bow", 0.4));
+
+        Assert.Equal(before + 1, editor.Revision);
+        MotionAsset bow = editor.Document.Find("bow")!;
+        Assert.All(new[] { Axis.X, Axis.Y, Axis.Z }, a => Assert.Single(bow.Channels[0].Get(a)!.Keys));
+        Assert.False(editor.RemoveKeysAt("bow", 0.4));
+    }
+}

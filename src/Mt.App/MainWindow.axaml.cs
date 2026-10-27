@@ -181,6 +181,145 @@ public partial class MainWindow : Window
 
         _autoSaveTimer.Tick += (_, _) => Guard("자동 저장", () => _session.AutoSave());
         Closing += (_, _) => SaveSettings();
+        AddHandler(KeyDownEvent, OnShellKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    // ── 전역 단축키 (마야 타임 슬라이더 관습) ───────────────────────────
+    //
+    // 1 / 2 이전·다음 키 · Alt+1 / Alt+2 이전·다음 프레임 · Alt+Q 재생 토글
+    // Shift+W / E / F 현재 시각의 키 복사·붙여넣기·지우기 · Shift+1 / 2 인비트윈 빼기·넣기
+    // 창 어디에 포커스가 있든 듣는다(터널). 글 입력 칸에서는 안 듣는다.
+
+    private void OnShellKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Source is TextBox || e.Handled)
+        {
+            return;
+        }
+
+        KeyModifiers mods = e.KeyModifiers;
+        bool none = mods == KeyModifiers.None;
+        bool alt = mods == KeyModifiers.Alt;
+        bool shift = mods == KeyModifiers.Shift;
+
+        switch (e.PhysicalKey)
+        {
+            case PhysicalKey.Digit1 when none:
+                PreviousKey();
+                break;
+            case PhysicalKey.Digit2 when none:
+                NextKey();
+                break;
+            case PhysicalKey.Digit1 when alt:
+                StepFrame(-1);
+                break;
+            case PhysicalKey.Digit2 when alt:
+                StepFrame(+1);
+                break;
+            case PhysicalKey.KeyQ when alt:
+                _viewport.TogglePlay();
+                break;
+            case PhysicalKey.KeyW when shift:
+                Guard("키 복사", CopyKeysAtCurrentTime);
+                break;
+            case PhysicalKey.KeyE when shift:
+                Guard("키 붙여넣기", PasteKeysAtCurrentTime);
+                break;
+            case PhysicalKey.KeyF when shift:
+                Guard("키 지우기", ClearKeysAtCurrentTime);
+                break;
+            case PhysicalKey.Digit1 when shift:
+                Guard("인비트윈 빼기", RemoveInbetween);
+                break;
+            case PhysicalKey.Digit2 when shift:
+                Guard("인비트윈 넣기", AddInbetween);
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>한 프레임(24fps) — 뷰포트 ←/→와 같은 규약.</summary>
+    internal static float FrameSeconds => (float)(1.0 / TimeSnap.FramesPerSecond);
+
+    internal void PreviousKey() => _viewport.JumpToPreviousKey();
+
+    internal void NextKey() => _viewport.JumpToNextKey();
+
+    internal void StepFrame(int frames)
+    {
+        _viewport.Pause();
+        _viewport.ScrubTo(_viewport.Time + frames * (double)FrameSeconds);
+    }
+
+    /// <summary>마야 timeSliderCopyKey — 현재 시각의 키 전부(모든 커브)를 클립보드에.</summary>
+    internal void CopyKeysAtCurrentTime()
+    {
+        if (_graph.Motion is not { } motion)
+        {
+            return;
+        }
+
+        List<KeyRef> keys = TimeSliderOps.KeysAt(motion, _viewport.Time);
+        KeyClipboard? clipboard = KeyClipboard.Copy(motion, keys);
+
+        if (clipboard is null || clipboard.Count == 0)
+        {
+            _session.SetStatus("현재 시각에 키가 없다.");
+            return;
+        }
+
+        _clipboard.Current = clipboard;
+        _session.SetStatus($"키 {clipboard.Count}개 복사 ({_viewport.Time:0.###}s).");
+    }
+
+    /// <summary>마야 timeSliderPasteKey — 클립보드를 현재 시각에(같은 시각은 덮어씀, 없는 채널은 만든다).</summary>
+    internal void PasteKeysAtCurrentTime()
+    {
+        if (_graph.MotionName is not { } name)
+        {
+            return;
+        }
+
+        if (_clipboard.Current is not { } clipboard || clipboard.Count == 0)
+        {
+            _session.SetStatus("클립보드에 키가 없다.");
+            return;
+        }
+
+        float at = (float)_viewport.Time;
+        Func<float, float>? snap = _settings.SnapEnabled ? t => (float)TimeSnap.Snap(t, _settings.SnapStep) : null;
+        List<KeyRef> pasted = _session.Editor.PasteKeys(name, clipboard, snap?.Invoke(at) ?? at, snap);
+        _selection.Set(pasted);
+    }
+
+    /// <summary>마야 timeSliderClearKey — 현재 시각의 키를 모든 커브에서 지운다.</summary>
+    internal void ClearKeysAtCurrentTime()
+    {
+        if (_graph.MotionName is { } name && !_session.Editor.RemoveKeysAt(name, _viewport.Time))
+        {
+            _session.SetStatus("현재 시각에 키가 없다.");
+        }
+    }
+
+    /// <summary>마야 removeInbetween — 현재 시각 뒤의 키를 한 프레임 당긴다.</summary>
+    internal void RemoveInbetween()
+    {
+        if (_graph.MotionName is { } name && !_session.Editor.ShiftKeysAfter(name, (float)_viewport.Time, -FrameSeconds))
+        {
+            _session.SetStatus("현재 시각 뒤에 키가 없다.");
+        }
+    }
+
+    /// <summary>마야 addInbetween — 현재 시각 뒤의 키를 한 프레임 민다.</summary>
+    internal void AddInbetween()
+    {
+        if (_graph.MotionName is { } name && !_session.Editor.ShiftKeysAfter(name, (float)_viewport.Time, FrameSeconds))
+        {
+            _session.SetStatus("현재 시각 뒤에 키가 없다.");
+        }
     }
 
     internal ToolSettings Settings => _settings;
@@ -683,12 +822,12 @@ public partial class MainWindow : Window
             Spacing = 4,
             Children =
             {
-                SmallButton("auto (1)", (_, _) => _graph.SetTangentMode(TangentMode.Auto)),
-                SmallButton("flat (2)", (_, _) => _graph.SetTangentMode(TangentMode.Flat)),
-                SmallButton("linear (3)", (_, _) => _graph.SetTangentMode(TangentMode.Linear)),
-                SmallButton("free (4)", (_, _) => _graph.SetTangentMode(TangentMode.Free)),
-                SmallButton("spline (5)", (_, _) => _graph.SetTangentMode(TangentMode.Spline)),
-                SmallButton("plateau (6)", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
+                SmallButton("auto (Ctrl+1)", (_, _) => _graph.SetTangentMode(TangentMode.Auto)),
+                SmallButton("flat (Ctrl+2)", (_, _) => _graph.SetTangentMode(TangentMode.Flat)),
+                SmallButton("linear (Ctrl+3)", (_, _) => _graph.SetTangentMode(TangentMode.Linear)),
+                SmallButton("free (Ctrl+4)", (_, _) => _graph.SetTangentMode(TangentMode.Free)),
+                SmallButton("spline (Ctrl+5)", (_, _) => _graph.SetTangentMode(TangentMode.Spline)),
+                SmallButton("plateau (Ctrl+6)", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
             },
         });
         RightPanel.Children.Add(new StackPanel
@@ -701,6 +840,20 @@ public partial class MainWindow : Window
                 SmallButton("잘라내기 (Ctrl+X)", (_, _) => _graph.CutSelection()),
                 SmallButton("붙여넣기 (Ctrl+V)", (_, _) => _graph.Paste()),
                 SmallButton("삭제 (Del)", (_, _) => _graph.DeleteSelection()),
+            },
+        });
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock { Text = "현재 시각", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 },
+                SmallButton("복사 (Shift+W)", (_, _) => Guard("키 복사", CopyKeysAtCurrentTime)),
+                SmallButton("붙여넣기 (Shift+E)", (_, _) => Guard("키 붙여넣기", PasteKeysAtCurrentTime)),
+                SmallButton("지우기 (Shift+F)", (_, _) => Guard("키 지우기", ClearKeysAtCurrentTime)),
+                SmallButton("인비트윈 − (Shift+1)", (_, _) => Guard("인비트윈 빼기", RemoveInbetween)),
+                SmallButton("인비트윈 + (Shift+2)", (_, _) => Guard("인비트윈 넣기", AddInbetween)),
             },
         });
         RightPanel.Children.Add(new StackPanel
