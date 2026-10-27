@@ -1,0 +1,12 @@
+### .NET ###
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+
+### IDE ###
+.idea/
+.vscode/

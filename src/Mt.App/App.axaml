@@ -1,0 +1,25 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Mt.App.App"
+             RequestedThemeVariant="Default">
+    <!-- "Default"는 시스템 테마를 따른다. -->
+
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+
+    <!-- ThemeBorderLowBrush는 Simple 테마의 키라 FluentTheme에는 없다. VnTool에서 가져올
+         화면(커브 편집기 등)이 이 키를 참조하므로 여기 한 번만 정의한다. -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ThemeBorderLowBrush" Color="#33555555" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ThemeBorderLowBrush" Color="#4DAAAAAA" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

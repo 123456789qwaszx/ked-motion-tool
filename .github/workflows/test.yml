@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  dotnet:
+    # 툴은 Windows에서 쓰지만, M0의 검증 대상은 빌드·헤드리스 테스트뿐이라 Linux로 충분하다.
+    # 휴대용 Windows 패키지 검증이 생기면 VnTool처럼 windows-latest를 더한다.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore KedMotionTool.sln
+      - name: Build
+        run: dotnet build KedMotionTool.sln --no-restore --configuration Release
+      - name: Test
+        run: dotnet test KedMotionTool.sln --no-build --configuration Release --logger "console;verbosity=normal"

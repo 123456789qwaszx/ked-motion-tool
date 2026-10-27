@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ked-stage-runtime에서 복사 반입한 연출 코어. 원본 asmdef의 noEngineReferences: true와
+       유니티 C# 수준을 컴파일러 제약으로 유지한다 — 코드가 유니티로 못 돌아가는 상태가
+       되는 것을 막는 안전핀. 출처와 절차는 vendoring.md. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 그리기와 입력뿐이다. 좌표 변환·히트 테스트·핸들 산수는 순수 함수로 두고 테스트한다. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace>Mt.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mt.Authoring\Mt.Authoring.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mt.App.Tests" />
+  </ItemGroup>
+
+  <!-- 배포는 exe 하나로. 패키지가 딸려 보낸 네이티브 .pdb(100MB대)는 쓰는 사람에게 소용없다. -->
+  <Target Name="StripPublishedSymbols" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishedSymbol Include="$(PublishDir)**\*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(PublishedSymbol)" />
+  </Target>
+</Project>

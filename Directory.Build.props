@@ -1,0 +1,10 @@
+<Project>
+  <!-- VnTool(VNStoryEditor_avalonia)의 Directory.Build.props와 같다. 반입 코어(src/Ked.Presentation.Core)만
+       자기 csproj에서 LangVersion 9 · netstandard2.1 · ImplicitUsings/Nullable disable로 되돌린다. -->
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>
