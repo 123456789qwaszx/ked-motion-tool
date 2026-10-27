@@ -294,6 +294,49 @@ public class GraphEditorViewTests
     });
 
     [Fact]
+    public void 복사_붙여넣기와_버퍼_커브_바꾸기() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            view.Select(new[] { new KeyRef(Y, 1) }, additive: false);
+            view.CopySelection();
+            Assert.False(view.Clipboard.IsEmpty);
+
+            view.CurrentTime = 0.45;
+            view.Paste();
+            List<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+            Assert.Equal(4, keys.Count);
+            Assert.Contains(keys, k => Math.Abs(k.T - 0.45f) < 1e-4 && k.V == -18f);
+            Assert.Single(view.Selection);
+
+            view.SnapshotBuffer();
+            Assert.True(view.HasBuffer);
+            view.Select(new[] { new KeyRef(Y, 1) }, additive: false);
+            view.CutSelection();
+            Assert.Equal(3, Y.Resolve(editor.Document.Find("nod")!)!.Keys.Count);
+
+            long before = editor.Revision;
+            view.SwapBuffer();
+            Assert.Equal(before + 1, editor.Revision);
+            Assert.Equal(4, Y.Resolve(editor.Document.Find("nod")!)!.Keys.Count); // 버퍼(4개)가 돌아왔다
+            view.SwapBuffer();
+            Assert.Equal(3, Y.Resolve(editor.Document.Find("nod")!)!.Keys.Count); // 다시 바꾸면 3개
+
+            view.ShowCycle = true;
+            view.InvalidateVisual();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            view.ClearBuffer();
+            Assert.False(view.HasBuffer);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 박스_선택은_안에_든_키를_고른다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();

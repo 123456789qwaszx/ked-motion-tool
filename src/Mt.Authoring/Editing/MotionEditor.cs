@@ -321,6 +321,67 @@ public sealed class MotionEditor
         SetKeysMany(name, KeyOps.MapValues(motion, keys.ToList(), map));
     }
 
+    /// <summary>
+    /// 클립보드를 현재 시각에 붙인다(merge — 같은 시각의 키는 바뀐다). 채널·성분이 없으면 모션 기본 mode로 만든다. 한 번의 조작.
+    /// 돌려주는 것은 붙은 키들이다.
+    /// </summary>
+    public List<KeyRef> PasteKeys(string name, KeyClipboard clipboard, float atTime, Func<float, float>? snap = null)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        MotionAsset motion = Require(name);
+        float shift = atTime - clipboard.Origin;
+        var result = new List<KeyRef>();
+
+        if (clipboard.Count == 0)
+        {
+            return result;
+        }
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            foreach ((CurveRef curveRef, IReadOnlyList<KeyAsset> keys) in clipboard.Items)
+            {
+                ChannelAsset? channel = motion.FindChannel(curveRef.Node, curveRef.Kind);
+
+                if (channel is null)
+                {
+                    channel = new ChannelAsset { Node = curveRef.Node, Kind = curveRef.Kind, Mode = motion.DefaultMode };
+                    motion.Channels.Add(channel);
+                }
+
+                ComponentCurve curve = channel.Get(curveRef.Axis) ?? new ComponentCurve();
+                var pastedTimes = new List<float>();
+
+                foreach (KeyAsset key in keys)
+                {
+                    float t = Math.Max(0f, snap is null ? key.T + shift : snap(key.T + shift));
+                    curve.Keys.RemoveAll(k => Math.Abs(k.T - t) <= MotionRules.Tolerance);
+                    curve.Keys.Add(new KeyAsset
+                    {
+                        T = t, V = key.V, InTangent = key.InTangent, OutTangent = key.OutTangent, Tangent = key.Tangent, Broken = key.Broken,
+                    });
+                    pastedTimes.Add(t);
+                }
+
+                curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+                TangentMath.Recompute(curve.Keys);
+                channel.Set(curveRef.Axis, curve);
+
+                foreach (float t in pastedTimes)
+                {
+                    int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= MotionRules.Tolerance);
+
+                    if (index >= 0)
+                    {
+                        result.Add(new KeyRef(curveRef, index));
+                    }
+                }
+            }
+        });
+
+        return result;
+    }
+
     /// <summary>선택 키를 delta초 옮긴다(한 번의 조작). 돌려주는 것은 옮긴 뒤의 (커브, 시각) — 선택을 다시 푸는 데 쓴다.</summary>
     public List<(CurveRef Curve, float T)> MoveKeys(string name, IEnumerable<KeyRef> keys, float deltaSeconds, Func<float, float>? snap = null)
     {

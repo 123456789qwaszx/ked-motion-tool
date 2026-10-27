@@ -41,6 +41,8 @@ public partial class MainWindow : Window
     /// <summary>잠금·뮤트 — 그래프·도프시트·뷰포트가 같은 객체를 든다.</summary>
     private readonly CurveFlags _flags = new();
     private readonly ComboBox _viewMode = new() { ItemsSource = new[] { "절대", "정규화", "쌓기" }, SelectedIndex = 0, FontSize = 11 };
+    private readonly KeyClipboardSlot _clipboard = new();
+    private readonly CheckBox _showCycle = new() { Content = "사이클 미리보기(보기만)", FontSize = 11 };
 
     // 트랜스포트
     private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
@@ -112,6 +114,8 @@ public partial class MainWindow : Window
         _graph.Flags = _flags;
         _dope.Flags = _flags;
         _viewport.Flags = _flags;
+        _graph.Clipboard = _clipboard;
+        _dope.Clipboard = _clipboard;
         _flags.Changed += (_, _) => RefreshChannels();
         GraphHost.Child = BuildCenter();
 
@@ -568,7 +572,30 @@ public partial class MainWindow : Window
                 SmallButton("plateau (6)", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
             },
         });
-        RightPanel.Children.Add(SmallButton("선택 키 삭제 (Delete)", (_, _) => _graph.DeleteSelection()));
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children =
+            {
+                SmallButton("복사 (Ctrl+C)", (_, _) => _graph.CopySelection()),
+                SmallButton("잘라내기 (Ctrl+X)", (_, _) => _graph.CutSelection()),
+                SmallButton("붙여넣기 (Ctrl+V)", (_, _) => _graph.Paste()),
+                SmallButton("삭제 (Del)", (_, _) => _graph.DeleteSelection()),
+            },
+        });
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock { Text = "버퍼 커브", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 },
+                SmallButton("스냅샷 (Ctrl+B)", (_, _) => _graph.SnapshotBuffer()),
+                SmallButton("바꾸기 (Ctrl+Shift+B)", (_, _) => _graph.SwapBuffer()),
+                SmallButton("지우기", (_, _) => _graph.ClearBuffer()),
+            },
+        });
 
         OnCommit(_keyTime, text => ApplyToSelectedKeys(text, time: true));
         OnCommit(_keyValue, text => ApplyToSelectedKeys(text, time: false));
@@ -645,6 +672,12 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
         RightPanel.Children.Add(Labeled("그래프 보기", _viewMode));
+        _showCycle.IsCheckedChanged += (_, _) =>
+        {
+            _graph.ShowCycle = _showCycle.IsChecked == true;
+            _graph.InvalidateVisual();
+        };
+        RightPanel.Children.Add(_showCycle);
         _viewMode.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _viewMode.SelectedIndex >= 0)

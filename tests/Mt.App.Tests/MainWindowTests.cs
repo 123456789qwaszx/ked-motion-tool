@@ -147,6 +147,13 @@ public class MainWindowTests
 
                 window.Graph.Select(new[] { new KeyRef(y, 0) }, additive: false);
                 Assert.Single(window.Dope.Selection);
+
+                // 클립보드도 하나다 — 그래프에서 복사해 도프시트에서 붙인다.
+                window.Graph.CopySelection();
+                window.Dope.CurrentTime = 0.25;
+                window.Dope.Paste();
+                Assert.Equal(2, y.Resolve(window.Session.Editor.Document.Find("nod")!)!.Keys.Count);
+
                 window.Dope.Selection.Clear();
                 Assert.Empty(window.Graph.Selection);
 

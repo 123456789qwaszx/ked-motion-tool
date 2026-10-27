@@ -45,6 +45,32 @@ public static class CurveSampler
         return points;
     }
 
+    /// <summary>
+    /// 길이로 감아 반복한 곡선(사이클 미리보기 — 마야 pre/post infinity cycle). 값은 <c>t mod duration</c>의 값이다.
+    /// 산출물에는 없는 보기다 — 실제 끝은 restore/commit 규칙이 정한다.
+    /// </summary>
+    public static List<GraphPoint> SampleCycled(IReadOnlyList<KeyAsset> keys, double duration, double t0, double t1, int count)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var points = new List<GraphPoint>();
+
+        if (keys.Count == 0 || count < 1 || t1 <= t0 || duration <= 0)
+        {
+            return points;
+        }
+
+        CurveKey[] core = TangentMath.ToCurveKeys(keys);
+
+        for (int i = 0; i <= count; i++)
+        {
+            double t = t0 + (t1 - t0) * i / count;
+            double wrapped = ((t % duration) + duration) % duration;
+            points.Add(new GraphPoint(t, CurveFunctions.Evaluate(core, (float)wrapped)));
+        }
+
+        return points;
+    }
+
     /// <summary>키들의 값 범위. 키가 없으면 false.</summary>
     public static bool TryBounds(IEnumerable<KeyAsset> keys, out double tMin, out double tMax, out double vMin, out double vMax)
     {

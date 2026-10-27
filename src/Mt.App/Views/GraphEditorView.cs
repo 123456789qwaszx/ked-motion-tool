@@ -66,6 +66,7 @@ public sealed class GraphEditorView : Control
     private static readonly Pen HandlePen = new(new SolidColorBrush(Color.FromArgb(210, 125, 211, 252)), 1);
     private static readonly IBrush HandleBrush = new SolidColorBrush(Color.FromArgb(235, 125, 211, 252));
     private static readonly IBrush ValueLabelBrush = new SolidColorBrush(Color.FromArgb(230, 250, 204, 21));
+    private static readonly Pen BufferPen = new(new SolidColorBrush(Color.FromArgb(120, 203, 213, 225)), 1.5, DashStyle.Dash);
     private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromArgb(230, 251, 146, 60));
 
     private readonly List<CurveSlot> _curves = new();
@@ -86,6 +87,116 @@ public sealed class GraphEditorView : Control
     private GraphPoint _scalePivot;
 
     private GraphViewMode _viewMode = GraphViewMode.Absolute;
+    private readonly Dictionary<CurveRef, List<KeyAsset>> _buffer = new();
+
+    /// <summary>복사/붙여넣기 자리 — 도프시트와 같은 객체를 꽂는다.</summary>
+    public KeyClipboardSlot Clipboard { get; set; } = new();
+
+    /// <summary>길이로 감아 반복한 곡선을 양옆에 흐리게(마야 cycle infinity). 보기만이다.</summary>
+    public bool ShowCycle { get; set; }
+
+    public bool HasBuffer => _buffer.Count > 0;
+
+    /// <summary>버퍼 커브 — 보이는 커브의 지금 키를 찍어 둔다(마야 Buffer Curve Snapshot). 흐린 점선으로 남는다.</summary>
+    public void SnapshotBuffer()
+    {
+        _buffer.Clear();
+
+        if (Motion is { } motion)
+        {
+            foreach (CurveSlot slot in _curves)
+            {
+                if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
+                {
+                    _buffer[slot.Curve] = curve.Keys.Select(k => new KeyAsset
+                    {
+                        T = k.T, V = k.V, InTangent = k.InTangent, OutTangent = k.OutTangent, Tangent = k.Tangent, Broken = k.Broken,
+                    }).ToList();
+                }
+            }
+        }
+
+        InvalidateVisual();
+    }
+
+    /// <summary>버퍼와 지금 커브를 바꾼다(마야 Swap Buffer Curve). 한 번의 조작.</summary>
+    public void SwapBuffer()
+    {
+        MotionAsset? motion = Motion;
+
+        if (_editor is null || _motionName is null || motion is null || _buffer.Count == 0)
+        {
+            return;
+        }
+
+        var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
+        var next = new Dictionary<CurveRef, List<KeyAsset>>();
+
+        foreach ((CurveRef curveRef, List<KeyAsset> buffered) in _buffer)
+        {
+            if (curveRef.Resolve(motion) is not { } current)
+            {
+                continue;
+            }
+
+            next[curveRef] = current.Keys.Select(k => new KeyAsset
+            {
+                T = k.T, V = k.V, InTangent = k.InTangent, OutTangent = k.OutTangent, Tangent = k.Tangent, Broken = k.Broken,
+            }).ToList();
+            edits.Add((curveRef, buffered));
+        }
+
+        if (edits.Count == 0)
+        {
+            return;
+        }
+
+        _editor.SetKeysMany(_motionName, edits);
+        _buffer.Clear();
+
+        foreach ((CurveRef curveRef, List<KeyAsset> keys) in next)
+        {
+            _buffer[curveRef] = keys;
+        }
+
+        InvalidateVisual();
+    }
+
+    public void ClearBuffer()
+    {
+        _buffer.Clear();
+        InvalidateVisual();
+    }
+
+    public void CopySelection()
+    {
+        if (Motion is { } motion && _selection.Count > 0)
+        {
+            Clipboard.Current = KeyClipboard.Copy(motion, _selection) ?? Clipboard.Current;
+        }
+    }
+
+    public void CutSelection()
+    {
+        if (Motion is { } motion && _selection.Count > 0 && KeyClipboard.Copy(motion, _selection) is { } copied)
+        {
+            Clipboard.Current = copied;
+            DeleteSelection();
+        }
+    }
+
+    /// <summary>현재 시각에 붙인다(merge). 붙은 키가 선택된다.</summary>
+    public void Paste()
+    {
+        if (_editor is null || _motionName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
+        {
+            return;
+        }
+
+        float at = (float)SnapTime(CurrentTime);
+        List<KeyRef> pasted = _editor.PasteKeys(_motionName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
+        _selection.Set(pasted);
+    }
     private readonly Dictionary<CurveRef, CurveViewTransform> _viewTransforms = new();
     private CurveFlags _flags = new();
 
@@ -265,6 +376,7 @@ public sealed class GraphEditorView : Control
 
         _selection.Clear();
         _curves.Clear();
+        _buffer.Clear();
         _cameraFitted = false;
         ReloadCurves();
         RefreshViewTransforms();
@@ -652,6 +764,13 @@ public sealed class GraphEditorView : Control
             GraphPoint right = ToGraph(new Point(plot.Right, plot.Y));
             int samples = Math.Max(16, (int)(plot.Width / 2));
 
+            foreach ((CurveRef curveRef, List<KeyAsset> buffered) in _buffer)
+            {
+                CurveViewTransform bufferTransform = ViewTransformOf(curveRef);
+                List<GraphPoint> bufferPoints = CurveSampler.Sample(buffered, left.T, right.T, samples);
+                context.DrawGeometry(null, BufferPen, new PolylineGeometry(bufferPoints.Select(p => ToScreen(new GraphPoint(p.T, bufferTransform.ToView(p.V)))), false));
+            }
+
             foreach (CurveSlot slot in _curves)
             {
                 if (!slot.Visible)
@@ -664,6 +783,14 @@ public sealed class GraphEditorView : Control
                 if (keys.Count == 0)
                 {
                     continue;
+                }
+
+                if (ShowCycle && motion.Duration > 0)
+                {
+                    CurveViewTransform cycleTransform = ViewTransformOf(slot.Curve);
+                    var cyclePen = new Pen(new SolidColorBrush(Color.FromArgb(80, slot.Color.R, slot.Color.G, slot.Color.B)), 1, DashStyle.Dash);
+                    List<GraphPoint> cycle = CurveSampler.SampleCycled(keys, motion.Duration, left.T, right.T, samples);
+                    context.DrawGeometry(null, cyclePen, new PolylineGeometry(cycle.Select(p => ToScreen(new GraphPoint(p.T, cycleTransform.ToView(p.V)))), false));
                 }
 
                 List<GraphPoint> points = CurveSampler.Sample(keys, left.T, right.T, samples);
@@ -1387,6 +1514,21 @@ public sealed class GraphEditorView : Control
                 break;
             case Key.A:
                 FitAll();
+                break;
+            case Key.C when ctrl:
+                CopySelection();
+                break;
+            case Key.X when ctrl:
+                CutSelection();
+                break;
+            case Key.V when ctrl:
+                Paste();
+                break;
+            case Key.B when ctrl && shift:
+                SwapBuffer();
+                break;
+            case Key.B when ctrl:
+                SnapshotBuffer();
                 break;
             case Key.I:
                 InsertKeyAtCurrentTime();

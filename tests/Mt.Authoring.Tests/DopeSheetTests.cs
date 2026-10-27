@@ -239,3 +239,69 @@ public class KeyValueOpsTests
         Assert.Empty(GraphHitTest.InPolygon(candidates, new List<Pixel> { new(0, 0), new(1, 1) }));
     }
 }
+
+public class KeyClipboardTests
+{
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Z = new("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Z);
+
+    [Fact]
+    public void 복사는_사본이고_기준은_가장_이른_키다()
+    {
+        MotionAsset nod = Fixtures.NodBowDocument().Find("nod")!;
+
+        KeyClipboard clipboard = KeyClipboard.Copy(nod, new[] { new KeyRef(Y, 2), new KeyRef(Y, 1), new KeyRef(Y, 9) })!;
+
+        Assert.Equal(2, clipboard.Count);
+        Assert.Equal(0.3f, clipboard.Origin, 4);
+        (CurveRef curve, IReadOnlyList<KeyAsset> keys) = Assert.Single(clipboard.Items);
+        Assert.Equal(Y, curve);
+        Assert.Equal(new[] { 0.3f, 0.6f }, keys.Select(k => (float)Math.Round(k.T, 4)));
+        Assert.NotSame(Y.Resolve(nod)!.Keys[1], keys[0]);
+        Assert.Null(KeyClipboard.Copy(nod, new[] { new KeyRef(Y, 9) }));
+    }
+
+    [Fact]
+    public void 붙여넣기는_현재_시각에_기준을_맞추고_같은_시각은_바꾸며_없는_채널은_만든다()
+    {
+        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        MotionAsset nod = editor.Document.Find("nod")!;
+        KeyClipboard clipboard = KeyClipboard.Copy(nod, new[] { new KeyRef(Y, 1), new KeyRef(Y, 2) })!; // 0.3(-18) · 0.6(0)
+        long before = editor.Revision;
+
+        List<KeyRef> pasted = editor.PasteKeys("nod", clipboard, 0.6f); // 0.6 ← -18 (덮어씀) · 0.9 ← 0
+        Assert.Equal(before + 1, editor.Revision);
+        Assert.Equal(2, pasted.Count);
+        List<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+        Assert.Equal(new[] { 0f, 0.3f, 0.6f, 0.9f }, keys.Select(k => (float)Math.Round(k.T, 4)));
+        Assert.Equal(-18f, keys[2].V);
+
+        // bow에 nod의 y 채널을 붙이면 채널·성분이 생긴다(모션 기본 mode).
+        List<KeyRef> intoBow = editor.PasteKeys("bow", clipboard, 0f);
+        ChannelAsset created = editor.Document.Find("bow")!.FindChannel(Y.Node, Y.Kind)!;
+        Assert.Equal(MotionChannelMode.Absolute, created.Mode);
+        Assert.Equal(2, created.Y!.Keys.Count);
+        Assert.Equal(0f, created.Y.Keys[0].T);
+        Assert.Equal(2, intoBow.Count);
+
+        // 스냅.
+        editor.PasteKeys("bow", KeyClipboard.Copy(editor.Document.Find("bow")!, new[] { new KeyRef(Z, 1) })!, 0.311f, t => (float)TimeSnap.Snap(t, TimeSnap.DefaultStep));
+        Assert.Contains(Z.Resolve(editor.Document.Find("bow")!)!.Keys, k => Math.Abs(k.T - 19f / 60f) < 1e-4);
+    }
+}
+
+public class CycleSamplerTests
+{
+    [Fact]
+    public void 사이클은_길이로_감아_반복한다()
+    {
+        var keys = new List<KeyAsset> { new() { T = 0, V = 0 }, new() { T = 0.3f, V = -18 }, new() { T = 0.6f, V = 0 } };
+
+        List<GraphPoint> points = CurveSampler.SampleCycled(keys, 0.6, -0.6, 1.2, 18);
+
+        Assert.Equal(19, points.Count);
+        Assert.Contains(points, p => Math.Abs(p.T - 0.9) < 1e-9 && Math.Abs(p.V + 18) < 1e-3);
+        Assert.Contains(points, p => Math.Abs(p.T + 0.3) < 1e-9 && Math.Abs(p.V + 18) < 1e-3);
+        Assert.Empty(CurveSampler.SampleCycled(keys, 0, 0, 1, 4));
+    }
+}

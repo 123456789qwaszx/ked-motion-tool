@@ -133,6 +133,37 @@ public sealed class DopeSheetView : Control
 
     public double SnapStep { get; set; } = TimeSnap.DefaultStep;
 
+    /// <summary>복사/붙여넣기 자리 — 그래프와 같은 객체를 꽂는다.</summary>
+    public KeyClipboardSlot Clipboard { get; set; } = new();
+
+    public void CopySelection()
+    {
+        if (Motion is { } motion && _selection.Count > 0)
+        {
+            Clipboard.Current = KeyClipboard.Copy(motion, _selection) ?? Clipboard.Current;
+        }
+    }
+
+    public void CutSelection()
+    {
+        if (Motion is { } motion && _selection.Count > 0 && KeyClipboard.Copy(motion, _selection) is { } copied)
+        {
+            Clipboard.Current = copied;
+            DeleteSelection();
+        }
+    }
+
+    public void Paste()
+    {
+        if (_editor is null || _motionName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
+        {
+            return;
+        }
+
+        float at = (float)SnapTime(CurrentTime);
+        _selection.Set(_editor.PasteKeys(_motionName, clipboard, at, Snapper()));
+    }
+
     public string? MotionName => _motionName;
 
     public MotionAsset? Motion => _editor is not null && _motionName is not null ? _editor.Document.Find(_motionName) : null;
@@ -876,6 +907,15 @@ public sealed class DopeSheetView : Control
                 break;
             case Key.D when ctrl:
                 DuplicateSelection(1.0 / TimeSnap.FramesPerSecond);
+                break;
+            case Key.C when ctrl:
+                CopySelection();
+                break;
+            case Key.X when ctrl:
+                CutSelection();
+                break;
+            case Key.V when ctrl:
+                Paste();
                 break;
             case Key.OemPeriod:
             case Key.OemComma:
