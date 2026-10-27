@@ -263,6 +263,33 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 이름을_비우고_모션을_추가하면_motion이_되고_규칙_밖_이름은_상태줄에_남는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("", "character", "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("  ", "character", "0.6", MotionEnd.Restore);
+
+                Assert.Equal(new[] { "motion", "motion_2" }, window.Session.Editor.Document.Motions.Select(m => m.Name));
+                Assert.DoesNotContain(window.ProblemsShown, p => p.Message.Contains("이름은", StringComparison.Ordinal));
+
+                Assert.Throws<InvalidOperationException>(() => window.AddMotionFromForm("Nod", "character", "0.6", MotionEnd.Restore));
+                Assert.Equal(2, window.Session.Editor.Document.Motions.Count);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 아웃라이너_행_클릭은_그_커브만_보이고_없는_성분은_만들고_검색은_거른다()
     {
         HeadlessUi.Run(() =>

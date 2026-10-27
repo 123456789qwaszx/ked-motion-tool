@@ -151,6 +151,51 @@ public class MotionFixesTests
     }
 }
 
+public class MotionNamesTests
+{
+    [Fact]
+    public void 이름은_소문자_숫자_밑줄만이고_고치면_규칙에_맞고_겹치지_않는다()
+    {
+        Assert.True(MotionNames.IsValid("nod_2"));
+        Assert.False(MotionNames.IsValid(""));
+        Assert.False(MotionNames.IsValid("Nod"));
+        Assert.False(MotionNames.IsValid("끄덕"));
+
+        Assert.Equal("nod bow".Replace(" ", "_"), MotionNames.Sanitize("Nod Bow"));
+        Assert.Equal("motion", MotionNames.Sanitize(""));
+        Assert.Equal("motion", MotionNames.Sanitize("끄덕"));
+        Assert.Equal("a_b", MotionNames.Sanitize("--a--b--"));
+
+        var document = new MotionDocument();
+        document.Motions.Add(new MotionAsset { Name = "motion", Rig = "character", Duration = 1 });
+        document.Motions.Add(new MotionAsset { Name = "motion_2", Rig = "character", Duration = 1 });
+        Assert.Equal("motion_3", MotionNames.Unique(document, "motion"));
+        Assert.Equal("motion", MotionNames.Unique(document, "motion", except: "motion"));
+    }
+
+    [Fact]
+    public void 편집기는_규칙_밖_이름을_거부하고_돕는_손이_빈_이름을_고친다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotion("", "character", 1f));
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotion("Nod", "character", 1f));
+        editor.AddMotion("nod", "character", 1f);
+        Assert.Throws<InvalidOperationException>(() => editor.RenameMotion("nod", "Nod!"));
+
+        // 이미 빈 이름으로 저장된 문서(예전 버전)는 돕는 손으로 고친다.
+        var document = new MotionDocument();
+        document.Motions.Add(new MotionAsset { Name = "", Rig = "character", Duration = 1 });
+        var old = new MotionEditor(document);
+        MotionProblem problem = Assert.Single(MotionValidator.Validate(old.Document), p => p.Message.Contains("이름은", StringComparison.Ordinal));
+        Assert.Equal(new[] { MotionFix.NameToValid }, MotionFixes.Suggest(problem));
+
+        Assert.True(MotionFixes.Apply(old, problem.MotionName, MotionFix.NameToValid));
+
+        Assert.Equal("motion", old.Document.Motions[0].Name);
+        Assert.DoesNotContain(MotionValidator.Validate(old.Document), p => p.Message.Contains("이름은", StringComparison.Ordinal));
+    }
+}
+
 public class ToolSettingsTests
 {
     [Fact]

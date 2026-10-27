@@ -28,6 +28,9 @@ public enum MotionFix
 
     /// <summary>끝 규칙을 commit으로.</summary>
     EndToCommit,
+
+    /// <summary>이름을 규칙(소문자·숫자·_)에 맞게, 겹치지 않게 고친다. 빈 이름은 motion.</summary>
+    NameToValid,
 }
 
 public static class MotionFixes
@@ -41,6 +44,7 @@ public static class MotionFixes
         MotionFix.DurationToLastKey => "길이를 마지막 키에 맞추기",
         MotionFix.ChannelsToRelative => "채널을 relative로",
         MotionFix.EndToCommit => "끝을 commit으로",
+        MotionFix.NameToValid => "이름 고치기 (소문자·숫자·_)",
         _ => fix.ToString(),
     };
 
@@ -49,6 +53,11 @@ public static class MotionFixes
     {
         ArgumentNullException.ThrowIfNull(problem);
         string m = problem.Message;
+
+        if (m.Contains("이름은 [a-z0-9_]+ 여야 한다", StringComparison.Ordinal))
+        {
+            return new[] { MotionFix.NameToValid };
+        }
 
         if (m.Contains("마지막 키 시각이 길이와 다르다", StringComparison.Ordinal))
         {
@@ -86,6 +95,19 @@ public static class MotionFixes
 
         switch (fix)
         {
+            case MotionFix.NameToValid:
+            {
+                string fixedName = MotionNames.Unique(editor.Document, MotionNames.Sanitize(motion.Name), except: motion.Name);
+
+                if (fixedName == motion.Name)
+                {
+                    return false;
+                }
+
+                editor.RenameMotion(motionName, fixedName);
+                return true;
+            }
+
             case MotionFix.DurationToLastKey:
             {
                 List<float> times = KeyTimes.All(motion);

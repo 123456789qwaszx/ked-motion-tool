@@ -63,6 +63,11 @@ public sealed class MotionEditor
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(rig);
 
+        if (!MotionNames.IsValid(name))
+        {
+            throw new InvalidOperationException(MotionNames.RuleMessage(name));
+        }
+
         if (Document.Find(name) is not null)
         {
             throw new InvalidOperationException($"모션 '{name}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
@@ -87,6 +92,11 @@ public sealed class MotionEditor
         if (string.Equals(name, newName, StringComparison.Ordinal))
         {
             return;
+        }
+
+        if (!MotionNames.IsValid(newName))
+        {
+            throw new InvalidOperationException(MotionNames.RuleMessage(newName));
         }
 
         if (Document.Find(newName) is not null)

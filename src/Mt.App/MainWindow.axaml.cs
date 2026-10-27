@@ -1253,6 +1253,12 @@ public partial class MainWindow : Window
             string? selected = SelectedMotion ?? _graph.MotionName;
             List<string> names = _session.Editor.Document.Motions.Select(m => m.Name).ToList();
             _motionList.ItemsSource = names;
+            _motionList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((name, _) => new TextBlock
+            {
+                Text = string.IsNullOrEmpty(name) ? "(이름 없음 — 아래 문제 칸의 '이름 고치기')" : name,
+                FontSize = 11,
+                Opacity = string.IsNullOrEmpty(name) ? 0.6 : 1,
+            });
             int index = selected is null ? -1 : names.IndexOf(selected);
             _motionList.SelectedIndex = index;
 
@@ -1593,6 +1599,13 @@ public partial class MainWindow : Window
     private void AddMotion()
     {
         string name = (_newMotionName.Text ?? "").Trim();
+
+        // 이름을 비우면 motion, motion_2…로 만든다 — 빈 이름의 모션은 목록에서 안 보여 규칙 위반이 "안 없어지는" 것처럼 보인다.
+        if (name.Length == 0)
+        {
+            name = MotionNames.Unique(_session.Editor.Document, MotionNames.Fallback);
+        }
+
         string rig = _newMotionRig.SelectedItem as string ?? "character";
 
         if (!TryFloat(_newMotionDuration.Text ?? "", out float duration))
