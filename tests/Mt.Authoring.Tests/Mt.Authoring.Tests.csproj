@@ -20,4 +20,10 @@
     <ProjectReference Include="..\..\src\Mt.Authoring\Mt.Authoring.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 견본: motions.nod-bow.json은 재생 저장소 Samples/Dialogue/motions.json(Unity 내보내기 산출물) 그대로,
+         rig-schemas.json은 무대 런타임 ExportedTuning/ 그대로. 바이트 비교 대상이므로 손대지 않는다. -->
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

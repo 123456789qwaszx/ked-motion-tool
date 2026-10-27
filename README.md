@@ -18,7 +18,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 | 프로젝트 | 역할 |
 |---|---|
 | `src/Ked.Presentation.Core` | 무대 런타임의 연출 코어 복사본. 모션 규약·수학·검증·리그 수학의 유일한 출처. 출처와 동기화 절차는 [`vendoring.md`](src/Ked.Presentation.Core/vendoring.md) |
-| `src/Mt.Authoring` | 저작 도메인. 문서(`*.motion-authoring.json`)·편집 명령·되돌리기·내보내기. Avalonia를 모른다 |
+| `src/Mt.Authoring` | 저작 도메인. Avalonia를 모른다. `Model/`(저작 원본 `*.motion-authoring.json`) · `Editing/MotionEditor`(모든 편집의 통로, 스냅샷 undo) · `Serialization/`(`MotionDocumentJson` 저작 원본, `MotionsJson` 산출물 `motions/1` 정규 쓰기·관용 읽기) · `Validation/`(코어 `MotionRules`로 편집 중 검증, 0건일 때만 내보내기) · `Rig/RigSchemaFile`(리그 덤프 + SHA-256) |
 | `src/Mt.App` | 그리기와 입력. 좌표 변환·히트 테스트는 순수 함수로 두고 테스트한다 |
 
 ## 빌드·테스트
@@ -43,5 +43,6 @@ dotnet run --project src/Mt.App/Mt.App.csproj
 | 단계 | 상태 |
 |---|---|
 | M0 뼈대 — 솔루션 · Core 반입 · 빈 창 · 헤드리스 테스트 · CI | 완료 |
-| M1 데이터 — 저작 원본 ↔ `motions.json` 왕복 | 다음 |
-| M2 그래프 편집기 · M3 뷰포트 · M4 도프 시트 · M5 UX · M6 통합 | [`docs/PLAN.md`](docs/PLAN.md) |
+| M1 데이터 — 저작 원본 모델 · `MotionEditor`(undo) · 가져오기/내보내기 · 정규 직렬화 · 검증 · 리그 덤프 | 완료 — `nod`·`bow` 바이트 동일 테스트 |
+| M2 그래프 편집기 | 다음 |
+| M3 뷰포트 · M4 도프 시트 · M5 UX · M6 통합 | [`docs/PLAN.md`](docs/PLAN.md) |

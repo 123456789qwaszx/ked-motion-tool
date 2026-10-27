@@ -1,0 +1,396 @@
+using Ked.Presentation.Core;
+using Mt.Authoring.Model;
+using Mt.Authoring.Serialization;
+
+namespace Mt.Authoring.Editing;
+
+/// <summary>
+/// 문서를 바꾸는 유일한 통로 (VnTool <c>ProjectEditor</c>의 자리).
+///
+/// 화면들은 서로 이야기하지 않는다 — 전부 여기에 의도를 전달하고 <see cref="Changed"/>를 듣고 다시 그린다.
+/// 되돌리기는 문서 전체 스냅샷(<see cref="MotionDocumentJson"/>)이다: 되돌리기 한 번 = 조작 하나이고,
+/// 명령마다 역연산을 짓지 않으므로 새 명령이 생겨도 되돌리기가 빠질 수 없다.
+///
+/// 명령은 모델을 고치되 **규칙을 강제하지 않는다** — 키를 길이 밖에 두거나 relative 첫 키를 0 아닌 값으로 두는 것은
+/// 편집 중 자연스러운 중간 상태다. 어긋남은 <c>MotionValidator</c>가 계속 알리고, 내보내기만 막는다.
+/// 단 하나, 키 목록의 시각 오름차순은 편집기가 지킨다(그래프가 그것을 전제한다).
+/// </summary>
+public sealed class MotionEditor
+{
+    private const int MaxHistory = 200;
+
+    private readonly List<string> _undo = new();
+    private readonly List<string> _redo = new();
+
+    public MotionEditor(MotionDocument document)
+    {
+        Document = document ?? throw new ArgumentNullException(nameof(document));
+    }
+
+    public MotionDocument Document { get; private set; }
+
+    /// <summary>무엇이든 바뀌었을 때. 듣는 쪽은 현재 상태를 다시 읽는다.</summary>
+    public event EventHandler<MotionChangedEventArgs>? Changed;
+
+    /// <summary>실제로 바뀐 횟수. 두 시점의 값이 같으면 그 사이에 아무 일도 없었다.</summary>
+    public long Revision { get; private set; }
+
+    public bool CanUndo => _undo.Count > 0;
+
+    public bool CanRedo => _redo.Count > 0;
+
+    // ── 문서 ──────────────────────────────────────────────────────────
+
+    public void SetRigSchemas(string path, string sha256)
+        => Mutate(MotionChangeKind.Document, () => Document.RigSchemas = new RigSchemasReference { Path = path, Sha256 = sha256 });
+
+    public void SetBaseResolution(string? path)
+        => Mutate(MotionChangeKind.Document, () => Document.BaseResolution = path is null ? null : new FileReference { Path = path });
+
+    public void SetPreviewPortrait(string? path)
+        => Mutate(MotionChangeKind.Document, () => Document.Preview = path is null ? null : new PreviewSettings { Portrait = path });
+
+    // ── 모션 ──────────────────────────────────────────────────────────
+
+    public MotionAsset AddMotion(
+        string name,
+        string rig,
+        float duration,
+        MotionEnd end = MotionEnd.Restore,
+        MotionChannelMode defaultMode = MotionChannelMode.Relative)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(rig);
+
+        if (Document.Find(name) is not null)
+        {
+            throw new InvalidOperationException($"모션 '{name}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
+        }
+
+        var motion = new MotionAsset { Name = name, Rig = rig, Duration = duration, End = end, DefaultMode = defaultMode };
+        Mutate(MotionChangeKind.Structure, () => Document.Motions.Add(motion));
+        return motion;
+    }
+
+    public void RemoveMotion(string name)
+    {
+        MotionAsset motion = Require(name);
+        Mutate(MotionChangeKind.Structure, () => Document.Motions.Remove(motion));
+    }
+
+    public void RenameMotion(string name, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(newName);
+        MotionAsset motion = Require(name);
+
+        if (string.Equals(name, newName, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (Document.Find(newName) is not null)
+        {
+            throw new InvalidOperationException($"모션 '{newName}'이 이미 있다.");
+        }
+
+        Mutate(MotionChangeKind.Metadata, () => motion.Name = newName);
+    }
+
+    /// <summary>
+    /// 길이를 바꾼다. 키는 옮기지 않는다 — "끝 키를 길이로 옮기기"는 따로 있는 돕는 손이고,
+    /// 어긋난 동안은 검증이 알린다.
+    /// </summary>
+    public void SetDuration(string name, float seconds)
+    {
+        MotionAsset motion = Require(name);
+        Mutate(MotionChangeKind.Metadata, () => motion.Duration = seconds);
+    }
+
+    public void SetEnd(string name, MotionEnd end)
+    {
+        MotionAsset motion = Require(name);
+        Mutate(MotionChangeKind.Metadata, () => motion.End = end);
+    }
+
+    public void SetDefaultMode(string name, MotionChannelMode mode)
+    {
+        MotionAsset motion = Require(name);
+        Mutate(MotionChangeKind.Metadata, () => motion.DefaultMode = mode);
+    }
+
+    public void SetNotes(string name, string? notes)
+    {
+        MotionAsset motion = Require(name);
+        Mutate(MotionChangeKind.Metadata, () => motion.Notes = string.IsNullOrEmpty(notes) ? null : notes);
+    }
+
+    // ── 채널 ──────────────────────────────────────────────────────────
+
+    /// <param name="mode">null이면 모션의 기본 mode.</param>
+    public ChannelAsset AddChannel(string name, string node, MotionChannelKind kind, MotionChannelMode? mode = null)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        MotionAsset motion = Require(name);
+
+        if (motion.FindChannel(node, kind) is not null)
+        {
+            throw new InvalidOperationException($"모션 '{name}'에 채널 {node}/{kind}가 이미 있다 — 같은 노드·종류는 하나뿐이다.");
+        }
+
+        var channel = new ChannelAsset { Node = node, Kind = kind, Mode = mode ?? motion.DefaultMode };
+        Mutate(MotionChangeKind.Structure, () => motion.Channels.Add(channel));
+        return channel;
+    }
+
+    public void RemoveChannel(string name, string node, MotionChannelKind kind)
+    {
+        MotionAsset motion = Require(name);
+        ChannelAsset channel = RequireChannel(motion, node, kind);
+        Mutate(MotionChangeKind.Structure, () => motion.Channels.Remove(channel));
+    }
+
+    public void SetChannelMode(string name, string node, MotionChannelKind kind, MotionChannelMode mode)
+    {
+        MotionAsset motion = Require(name);
+        ChannelAsset channel = RequireChannel(motion, node, kind);
+        Mutate(MotionChangeKind.Metadata, () => channel.Mode = mode);
+    }
+
+    // ── 키 ────────────────────────────────────────────────────────────
+
+    /// <summary>성분의 키 목록을 통째로 바꾼다. 빈 목록은 "성분 없음". 시각 오름차순으로 정렬해 둔다.</summary>
+    public void SetKeys(string name, string node, MotionChannelKind kind, Axis axis, IEnumerable<KeyAsset> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        ChannelAsset channel = RequireChannel(motion, node, kind);
+
+        List<KeyAsset> sorted = keys.Select(Clone).OrderBy(k => k.T).ToList();
+        ComponentCurve? curve = sorted.Count == 0 ? null : new ComponentCurve { Keys = sorted };
+
+        Mutate(MotionChangeKind.Keys, () => channel.Set(axis, curve));
+    }
+
+    /// <summary>키를 더한다. 같은 시각(허용 오차 안)에 키가 있으면 그 키를 대신한다 — 한 시각에 키는 하나다.</summary>
+    public KeyAsset AddKey(string name, string node, MotionChannelKind kind, Axis axis, KeyAsset key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        MotionAsset motion = Require(name);
+        ChannelAsset channel = RequireChannel(motion, node, kind);
+        KeyAsset copy = Clone(key);
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            ComponentCurve curve = channel.Get(axis) ?? new ComponentCurve();
+            curve.Keys.RemoveAll(k => Math.Abs(k.T - copy.T) <= MotionRules.Tolerance);
+            curve.Keys.Add(copy);
+            curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+            channel.Set(axis, curve);
+        });
+
+        return copy;
+    }
+
+    public void RemoveKey(string name, string node, MotionChannelKind kind, Axis axis, int index)
+    {
+        MotionAsset motion = Require(name);
+        ChannelAsset channel = RequireChannel(motion, node, kind);
+        ComponentCurve curve = RequireCurve(channel, axis, index);
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            curve.Keys.RemoveAt(index);
+
+            if (curve.Keys.Count == 0)
+            {
+                channel.Set(axis, null);
+            }
+        });
+    }
+
+    /// <summary>키 하나의 값을 바꾼다. 시각이 바뀌면 다시 정렬하므로 index는 호출 뒤 유효하지 않을 수 있다.</summary>
+    public void UpdateKey(string name, string node, MotionChannelKind kind, Axis axis, int index, KeyAsset value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        MotionAsset motion = Require(name);
+        ChannelAsset channel = RequireChannel(motion, node, kind);
+        ComponentCurve curve = RequireCurve(channel, axis, index);
+        KeyAsset copy = Clone(value);
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            curve.Keys[index] = copy;
+            curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
+        });
+    }
+
+    // ── 가져오기 ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <c>motions/1</c> 클립들을 저작본으로 올린다(탄젠트는 free). 이름이 겹치면 <paramref name="replace"/>가
+    /// 참일 때만 바꿔 넣고, 아니면 건너뛴다. 돌려주는 것은 들어온 이름들이다.
+    /// </summary>
+    public IReadOnlyList<string> ImportClips(IEnumerable<MotionClip> clips, bool replace)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+
+        var incoming = clips.Select(MotionAssetCodec.FromClip).ToList();
+        var imported = new List<string>();
+        var plan = new List<(int Index, MotionAsset Asset)>();
+
+        foreach (MotionAsset asset in incoming)
+        {
+            int existing = Document.Motions.FindIndex(m => string.Equals(m.Name, asset.Name, StringComparison.Ordinal));
+
+            if (existing < 0 || replace)
+            {
+                plan.Add((existing, asset));
+                imported.Add(asset.Name);
+            }
+        }
+
+        // 바뀔 것이 없으면 조작도 없다 — Revision과 되돌리기 기록에 빈 항목을 남기지 않는다.
+        if (plan.Count == 0)
+        {
+            return imported;
+        }
+
+        Mutate(MotionChangeKind.Structure, () =>
+        {
+            foreach ((int index, MotionAsset asset) in plan)
+            {
+                if (index < 0)
+                {
+                    Document.Motions.Add(asset);
+                }
+                else
+                {
+                    Document.Motions[index] = asset;
+                }
+            }
+        });
+
+        return imported;
+    }
+
+    // ── 되돌리기 ──────────────────────────────────────────────────────
+
+    public void Undo()
+    {
+        if (_undo.Count == 0)
+        {
+            return;
+        }
+
+        _redo.Add(MotionDocumentJson.Write(Document));
+        Restore(_undo[^1]);
+        _undo.RemoveAt(_undo.Count - 1);
+    }
+
+    public void Redo()
+    {
+        if (_redo.Count == 0)
+        {
+            return;
+        }
+
+        _undo.Add(MotionDocumentJson.Write(Document));
+        Restore(_redo[^1]);
+        _redo.RemoveAt(_redo.Count - 1);
+    }
+
+    /// <summary>파일에서 새로 읽었을 때처럼, 기록을 버리고 통째로 갈아 끼운다.</summary>
+    public void Replace(MotionDocument document)
+    {
+        Document = document ?? throw new ArgumentNullException(nameof(document));
+        _undo.Clear();
+        _redo.Clear();
+        Raise(MotionChangeKind.Structure);
+    }
+
+    private void Restore(string snapshot)
+    {
+        Document = MotionDocumentJson.Read(snapshot);
+        Raise(MotionChangeKind.Structure);
+    }
+
+    private void Mutate(MotionChangeKind kind, Action change)
+    {
+        _undo.Add(MotionDocumentJson.Write(Document));
+
+        if (_undo.Count > MaxHistory)
+        {
+            _undo.RemoveAt(0);
+        }
+
+        _redo.Clear();
+        change();
+        Raise(kind);
+    }
+
+    private void Raise(MotionChangeKind kind)
+    {
+        Revision++;
+        Changed?.Invoke(this, new MotionChangedEventArgs(kind));
+    }
+
+    private MotionAsset Require(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return Document.Find(name) ?? throw new KeyNotFoundException($"모션 '{name}'이 없다.");
+    }
+
+    private static ChannelAsset RequireChannel(MotionAsset motion, string node, MotionChannelKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return motion.FindChannel(node, kind) ?? throw new KeyNotFoundException($"모션 '{motion.Name}'에 채널 {node}/{kind}가 없다.");
+    }
+
+    private static ComponentCurve RequireCurve(ChannelAsset channel, Axis axis, int index)
+    {
+        ComponentCurve curve = channel.Get(axis) ?? throw new KeyNotFoundException($"채널 {channel.Node}/{channel.Kind}에 {axis} 성분이 없다.");
+
+        if (index < 0 || index >= curve.Keys.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index), index, $"키가 {curve.Keys.Count}개다.");
+        }
+
+        return curve;
+    }
+
+    // 호출자의 객체를 문서에 꽂지 않는다 — 문서 밖에서 고치면 되돌리기 스냅샷이 거짓이 된다.
+    private static KeyAsset Clone(KeyAsset key) => new()
+    {
+        T = key.T,
+        V = key.V,
+        InTangent = key.InTangent,
+        OutTangent = key.OutTangent,
+        Tangent = key.Tangent,
+        Broken = key.Broken,
+    };
+}
+
+public enum MotionChangeKind
+{
+    /// <summary>모션·채널이 생기거나 사라졌다. 목록을 다시 만든다.</summary>
+    Structure,
+
+    /// <summary>이름·길이·end·mode·메모. 목록은 그대로, 글자만 다시 쓴다.</summary>
+    Metadata,
+
+    /// <summary>키 값. 그래프·뷰포트만 다시 그린다.</summary>
+    Keys,
+
+    /// <summary>리그 덤프·기준 해상도·미리보기 설정.</summary>
+    Document,
+}
+
+public sealed class MotionChangedEventArgs : EventArgs
+{
+    public MotionChangedEventArgs(MotionChangeKind kind)
+    {
+        Kind = kind;
+    }
+
+    public MotionChangeKind Kind { get; }
+}
