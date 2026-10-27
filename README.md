@@ -8,6 +8,23 @@
 - **v2 이후**: 카메라·depth·intent 채널, Spine 식 다중 스프라이트 리그, 컷인·배경 연출.
 - 툴은 Yarn·커맨드를 **모른다**. 산출물은 `motions.json` 하나다.
 
+## 처음 써 보기 (10분)
+
+리그는 툴에서 **만들지 않는다**. 유니티가 이미 내보낸 덤프 `ExportedTuning/rig-schemas.json`(ked-stage-runtime·ked-presentation-runtime 둘 다 같은 파일)을 읽는다 — 노드 이름·계층·앵커·피벗이 전부 거기서 온다.
+
+1. **실행** — 저장소 루트에서:
+   ```
+   dotnet run --project src/Mt.App/Mt.App.csproj
+   ```
+2. **리그 덤프…** → `ked-stage-runtime/ExportedTuning/rig-schemas.json`. 옆의 `base-resolution.json`도 같이 실린다. 상태 줄에 `리그 덤프: character, background, screenEffect · 무대 1920×1080`.
+3. **초상 PNG…** → `ked-presentation-runtime/Assets/Samples/Portraits/harin/b/01.png`. 뷰포트에 초상이 선다(없으면 자리표시 사각형).
+4. **motions.json 가져오기…** → `ked-presentation-runtime/Assets/Samples/Dialogue/motions.json`. 왼쪽 "모션"에 `nod`·`bow`가 생긴다.
+5. `nod`를 고르고 뷰포트를 한 번 클릭한 뒤 **Space** — 끄덕인다. `bow`는 끝에서 8도 기운 채 남는다(commit).
+6. 그래프 탭에서 키를 끌어 본다 — 놓는 순간 뷰포트가 따라오고, Ctrl+Z로 돌아온다. 도프 시트 탭에서 블록을 끌면 시간이 옮겨진다.
+7. **다른 이름으로…** → `*.motion-authoring.json`으로 저장(저작 원본). **motions.json 내보내기…** → 런타임이 읽는 산출물. 아래 문제 칸이 비어 있을 때만 나간다.
+
+**처음부터 만들기**: 왼쪽 폼에 이름 `wave`, 리그 `character`, 길이 `0.5`, 끝 `restore` → **모션 추가**. 노드 `CharacterPortrait_Track_Move_X` · `position` → **채널 추가**. 채널 행의 **x** 토글을 켜면 현재 시각에 중립값 키 하나로 성분이 생긴다. 보기의 현재 시각을 `0.25`로 두고 **키 끼우기(I)**, 인스펙터 값에 `30` Enter. 현재 시각 `0.5`에서 다시 **I**, 값 `0`. 전체 선택 후 **flat(2)**. 문제 칸이 비면 내보낸다.
+
 ## 구조
 
 ```
