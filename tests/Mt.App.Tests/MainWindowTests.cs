@@ -110,7 +110,7 @@ public class MainWindowTests
 
                 // 길이 밖은 뷰포트가 길이로 죈다 — 그래프는 그대로.
                 window.Graph.CurrentTime = 2;
-                Assert.Equal(0.6, window.Viewport.Time, 9);
+                Assert.Equal(0.6f, window.Viewport.Time, 6); // 길이는 float(0.6f)다
                 Assert.Equal(2, window.Graph.CurrentTime, 9);
             }
             finally
