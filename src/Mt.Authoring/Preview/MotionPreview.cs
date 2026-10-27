@@ -14,13 +14,28 @@ namespace Mt.Authoring.Preview;
 /// </summary>
 public static class MotionPreview
 {
-    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds)
+    /// <param name="isMuted">뮤트된 성분(재생에서 뺀다 — 시작값 그대로). null이면 없음.</param>
+    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, Func<Graph.CurveRef, bool>? isMuted = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(motion);
 
         RectNodeTree tree = template.Clone();
         MotionClip clip = MotionAssetCodec.ToClip(motion);
+
+        if (isMuted is not null && clip.Channels is not null)
+        {
+            for (int i = 0; i < clip.Channels.Length; i++)
+            {
+                MotionChannel ch = clip.Channels[i];
+
+                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.X))) ch.X = null;
+                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Y))) ch.Y = null;
+                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Z))) ch.Z = null;
+
+                clip.Channels[i] = ch;
+            }
+        }
         bool ended = seconds >= motion.Duration - 1e-6;
 
         if (ended && clip.End == MotionEnd.Restore)

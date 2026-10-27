@@ -203,6 +203,7 @@ public class GraphEditorViewTests
 
             view.Tool = GraphTool.Select;
             view.ClearSelection();
+            view.FitAll(); // 스케일로 키가 플롯 밖으로 나갔다 — 라소 점이 컨트롤 안에 있어야 한다
             Point first = At(view, 0);
             Point middle = At(view, 1);
             Point a = InWindow(window, view, new Point(first.X - 12, Math.Min(first.Y, middle.Y) - 12));
