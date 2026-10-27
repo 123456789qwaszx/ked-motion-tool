@@ -1,5 +1,6 @@
 using Ked.Presentation.Core;
 using Mt.Authoring.Editing;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
 using Mt.Authoring.Rig;
@@ -146,7 +147,7 @@ public class PortraitLayoutTests
 public class PlaybackClockTests
 {
     [Fact]
-    public void 루프는_감고_아니면_끝에서_멈춘다()
+    public void 루프는_감고_한_번은_끝에서_멈춘다()
     {
         var clock = new PlaybackClock();
         clock.SetDuration(0.6);
@@ -158,14 +159,66 @@ public class PlaybackClockTests
         Assert.Equal(0.1, clock.Time, 9);
         Assert.True(clock.IsPlaying);
 
-        clock.Loop = false;
+        clock.Mode = PlaybackMode.Once;
         clock.Advance(1);
         Assert.Equal(0.6, clock.Time, 9);
         Assert.False(clock.IsPlaying);
 
-        // 끝에 선 채 다시 재생하면 처음부터.
+        // 끝에 선 채 다시 재생하면 범위 처음부터.
         clock.Play();
         Assert.Equal(0, clock.Time, 9);
+        Assert.False(clock.Loop);
+        clock.Loop = true;
+        Assert.Equal(PlaybackMode.Loop, clock.Mode);
+    }
+
+    [Fact]
+    public void 왕복은_범위_끝에서_되돌아오고_속도는_배율이다()
+    {
+        var clock = new PlaybackClock { Mode = PlaybackMode.Oscillate, Speed = 2 };
+        clock.SetDuration(1);
+        clock.SetRange(0.2, 0.6);
+        clock.Play();
+        Assert.Equal(0.2, clock.Time, 9);
+
+        clock.Advance(0.1); // ×2 → 0.4
+        Assert.Equal(0.4, clock.Time, 9);
+        clock.Advance(0.15); // 0.7 → 되돌아 0.5
+        Assert.Equal(0.5, clock.Time, 9);
+        clock.Advance(0.2); // 0.1 → 되돌아 0.3
+        Assert.Equal(0.3, clock.Time, 9);
+        Assert.True(clock.IsPlaying);
+    }
+
+    [Fact]
+    public void 재생_범위는_길이_안이고_끝에_붙은_범위는_길이를_따라간다()
+    {
+        var clock = new PlaybackClock();
+        clock.SetDuration(1);
+        Assert.Equal(1, clock.RangeEnd);
+
+        clock.SetDuration(2);
+        Assert.Equal(2, clock.RangeEnd);
+
+        clock.SetRange(0.5, 1.5);
+        clock.SetDuration(3);
+        Assert.Equal(1.5, clock.RangeEnd);
+        clock.SetDuration(1);
+        Assert.Equal(1, clock.RangeEnd);
+        Assert.True(clock.RangeStart < clock.RangeEnd);
+
+        Assert.Throws<ArgumentException>(() => clock.SetRange(0.5, 0.5));
+        clock.ResetRange();
+        Assert.Equal(0, clock.RangeStart);
+        Assert.Equal(1, clock.RangeEnd);
+
+        // 범위 밖에서 재생하면 범위 처음으로.
+        clock.SetRange(0.4, 0.8);
+        clock.ScrubTo(0.1);
+        clock.Play();
+        Assert.Equal(0.4, clock.Time, 9);
+        clock.Stop();
+        Assert.Equal(0.4, clock.Time, 9);
     }
 
     [Fact]
@@ -181,15 +234,37 @@ public class PlaybackClockTests
         clock.ScrubTo(-1);
         Assert.Equal(0, clock.Time);
 
-        clock.ScrubTo(0.7);
-        clock.SetDuration(0.5);
-        Assert.Equal(0.5, clock.Time);
-
         clock.Play();
         clock.Toggle();
         Assert.False(clock.IsPlaying);
-        clock.Stop();
-        Assert.Equal(0, clock.Time);
+    }
+}
+
+public class KeyTimesTests
+{
+    [Fact]
+    public void 모든_키_시각은_합쳐_오름차순이고_다음_이전을_찾는다()
+    {
+        MotionAsset bow = Fixtures.NodBowDocument().Find("bow")!;
+        List<float> times = KeyTimes.All(bow);
+
+        Assert.Equal(new[] { 0f, 0.4f }, times);
+        Assert.Equal(0.4f, KeyTimes.Next(times, 0));
+        Assert.Null(KeyTimes.Next(times, 0.4));
+        Assert.Equal(0f, KeyTimes.Previous(times, 0.4));
+        Assert.Null(KeyTimes.Previous(times, 0));
+        Assert.Equal(0.4f, KeyTimes.Next(times, 0.2));
+        Assert.Equal(0f, KeyTimes.Previous(times, 0.2));
+    }
+
+    [Fact]
+    public void 선택_키_시각()
+    {
+        MotionAsset nod = Fixtures.NodBowDocument().Find("nod")!;
+        var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+
+        List<float> selected = KeyTimes.OfSelection(nod, new[] { new KeyRef(y, 2), new KeyRef(y, 1), new KeyRef(y, 9) });
+        Assert.Equal(new[] { 0.3f, 0.6f }, selected);
     }
 }
 

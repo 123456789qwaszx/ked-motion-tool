@@ -13,6 +13,7 @@ using Mt.Authoring;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
+using Mt.Authoring.Preview;
 using Mt.Authoring.Validation;
 
 namespace Mt.App;
@@ -39,7 +40,10 @@ public partial class MainWindow : Window
 
     // 트랜스포트
     private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
-    private readonly CheckBox _loop = new() { Content = "루프", IsChecked = true, FontSize = 11 };
+    private readonly ComboBox _playMode = new() { ItemsSource = new[] { "한 번", "루프", "왕복" }, SelectedIndex = 1, FontSize = 11 };
+    private readonly ComboBox _playSpeed = new() { ItemsSource = new[] { "×0.25", "×0.5", "×1", "×2" }, SelectedIndex = 2, FontSize = 11 };
+    private readonly TextBox _rangeStart = new() { Text = "0", Width = 56, FontSize = 11 };
+    private readonly TextBox _rangeEnd = new() { Text = "1", Width = 56, FontSize = 11 };
     private readonly CheckBox _onion = new() { Content = "어니언 스킨", FontSize = 11 };
     private readonly TextBlock _stageInfo = new() { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
     private Bitmap? _portrait;
@@ -87,6 +91,7 @@ public partial class MainWindow : Window
         BuildRight();
         _graph.Selection = _selection;
         _dope.Selection = _selection;
+        _viewport.Selection = _selection;
         GraphHost.Child = BuildCenter();
 
         _session.DocumentReplaced += (_, _) => OnDocumentReplaced();
@@ -194,7 +199,23 @@ public partial class MainWindow : Window
         grid.Children.Add(_viewport);
 
         _playButton.Click += (_, _) => _viewport.TogglePlay();
-        _loop.IsCheckedChanged += (_, _) => _viewport.Loop = _loop.IsChecked == true;
+        _playMode.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _playMode.SelectedIndex >= 0)
+            {
+                _viewport.Mode = (PlaybackMode)_playMode.SelectedIndex;
+            }
+        };
+        _playSpeed.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _playSpeed.SelectedIndex >= 0)
+            {
+                _viewport.Speed = new[] { 0.25, 0.5, 1, 2 }[_playSpeed.SelectedIndex];
+            }
+        };
+        OnCommit(_rangeStart, text => Guard("재생 범위", () => { if (TryFloat(text, out float v)) _viewport.SetRange(v, _viewport.Clock.RangeEnd); }));
+        OnCommit(_rangeEnd, text => Guard("재생 범위", () => { if (TryFloat(text, out float v)) _viewport.SetRange(_viewport.Clock.RangeStart, v); }));
+        _viewport.RangeChanged += (_, _) => RefreshTransport();
         _onion.IsCheckedChanged += (_, _) =>
         {
             _viewport.OnionSkinEnabled = _onion.IsChecked == true;
@@ -210,7 +231,14 @@ public partial class MainWindow : Window
             {
                 _playButton,
                 SmallButton("■ 처음으로", (_, _) => _viewport.Stop()),
-                _loop,
+                SmallButton("|◀ 이전 키 (,)", (_, _) => _viewport.JumpToPreviousKey()),
+                SmallButton("다음 키 (.) ▶|", (_, _) => _viewport.JumpToNextKey()),
+                _playMode,
+                _playSpeed,
+                new TextBlock { Text = "범위", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 },
+                _rangeStart,
+                _rangeEnd,
+                SmallButton("전체", (_, _) => _viewport.ResetRange()),
                 _onion,
                 SmallButton("초상 PNG…", OnPickPortraitClick),
                 _stageInfo,
@@ -235,6 +263,25 @@ public partial class MainWindow : Window
         Grid.SetRow(tabs, 3);
         grid.Children.Add(tabs);
         return grid;
+    }
+
+    private void RefreshTransport()
+    {
+        _refreshDepth++;
+
+        try
+        {
+            _playMode.SelectedIndex = (int)_viewport.Mode;
+            double[] speeds = { 0.25, 0.5, 1, 2 };
+            int speedIndex = Array.FindIndex(speeds, v => Math.Abs(v - _viewport.Speed) < 1e-9);
+            _playSpeed.SelectedIndex = speedIndex < 0 ? 2 : speedIndex;
+            _rangeStart.Text = _viewport.Clock.RangeStart.ToString("0.###", CultureInfo.InvariantCulture);
+            _rangeEnd.Text = _viewport.Clock.RangeEnd.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            _refreshDepth--;
+        }
     }
 
     /// <summary>그래프와 뷰포트의 현재 시각은 하나다 — 서로를 되부르지 않게 한쪽만 민다.</summary>

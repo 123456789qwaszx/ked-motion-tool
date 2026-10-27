@@ -848,6 +848,20 @@ public sealed class DopeSheetView : Control
             case Key.D when ctrl:
                 DuplicateSelection(1.0 / TimeSnap.FramesPerSecond);
                 break;
+            case Key.OemPeriod:
+            case Key.OemComma:
+                if (Motion is { } motion)
+                {
+                    List<float> times = KeyTimes.All(motion);
+                    float? target = e.Key == Key.OemPeriod ? KeyTimes.Next(times, CurrentTime) : KeyTimes.Previous(times, CurrentTime);
+
+                    if (target is not null)
+                    {
+                        CurrentTime = target.Value;
+                    }
+                }
+
+                break;
             default:
                 return;
         }

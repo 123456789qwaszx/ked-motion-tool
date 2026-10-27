@@ -68,7 +68,7 @@ public sealed class GraphEditorView : Control
     private bool _cameraFitted;
     private double _currentTime;
 
-    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan }
+    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan, Scrub }
 
     private Drag _drag = Drag.None;
     private Point _dragStart;
@@ -513,6 +513,26 @@ public sealed class GraphEditorView : Control
         InvalidateVisual();
     }
 
+    /// <summary>다음/이전 키 시각으로 현재 시각을 옮긴다(`.` `,`).</summary>
+    public bool JumpToKey(bool forward)
+    {
+        if (Motion is not { } motion)
+        {
+            return false;
+        }
+
+        List<float> times = KeyTimes.All(motion);
+        float? target = forward ? KeyTimes.Next(times, CurrentTime) : KeyTimes.Previous(times, CurrentTime);
+
+        if (target is null)
+        {
+            return false;
+        }
+
+        CurrentTime = target.Value;
+        return true;
+    }
+
     // ── 그리기 ────────────────────────────────────────────────────────
 
     public override void Render(DrawingContext context)
@@ -752,6 +772,16 @@ public sealed class GraphEditorView : Control
             return;
         }
 
+        // 아래 눈금자: 스크럽(마야 타임 슬라이더와 같다).
+        if (position.Y >= Plot.Bottom)
+        {
+            _drag = Drag.Scrub;
+            CurrentTime = Math.Max(0, SnapTime(ToGraph(position).T));
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
         MotionAsset? motion = Motion;
 
         if (motion is null || _editor is null || _motionName is null)
@@ -898,7 +928,7 @@ public sealed class GraphEditorView : Control
         double dx = position.X - _dragStart.X;
         double dy = position.Y - _dragStart.Y;
 
-        if (!_dragMoved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold && _drag != Drag.Pan && _drag != Drag.Box)
+        if (!_dragMoved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold && _drag != Drag.Pan && _drag != Drag.Box && _drag != Drag.Scrub)
         {
             return;
         }
@@ -910,6 +940,10 @@ public sealed class GraphEditorView : Control
         {
             case Drag.Pan:
                 _camera = _panStart.Pan(dx, dy);
+                break;
+
+            case Drag.Scrub:
+                CurrentTime = Math.Max(0, SnapTime(ToGraph(position).T));
                 break;
 
             case Drag.Keys:
@@ -1134,6 +1168,12 @@ public sealed class GraphEditorView : Control
                 break;
             case Key.D4:
                 SetTangentMode(TangentMode.Free);
+                break;
+            case Key.OemPeriod:
+                JumpToKey(forward: true);
+                break;
+            case Key.OemComma:
+                JumpToKey(forward: false);
                 break;
             default:
                 return;

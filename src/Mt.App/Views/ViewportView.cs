@@ -42,6 +42,10 @@ public sealed class ViewportView : Control
     private static readonly Pen TimelinePen = new(new SolidColorBrush(Color.FromArgb(255, 34, 211, 238)), 2);
     private static readonly Pen DurationPen = new(new SolidColorBrush(Color.FromArgb(180, 251, 146, 60)), 1);
     private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromArgb(200, 203, 213, 225));
+    private static readonly IBrush KeyTickBrush = new SolidColorBrush(Color.FromArgb(220, 248, 113, 113));
+    private static readonly IBrush SelectedTickBrush = new SolidColorBrush(Color.FromArgb(255, 250, 204, 21));
+    private static readonly IBrush RangeOutsideBrush = new SolidColorBrush(Color.FromArgb(110, 0, 0, 0));
+    private static readonly IBrush RangeHandleBrush = new SolidColorBrush(Color.FromArgb(240, 125, 211, 252));
 
     private readonly PlaybackClock _clock = new();
     private readonly DispatcherTimer _timer;
@@ -55,7 +59,11 @@ public sealed class ViewportView : Control
     private Bitmap? _portrait;
     private float _aspect = PortraitLayout.PlaceholderAspect;
     private Vec2 _stageSize = BaseResolutionFile.Default;
-    private bool _scrubbing;
+    private KeySelection _selection = new();
+
+    private enum Drag { None, Scrub, RangeStart, RangeEnd }
+
+    private Drag _drag = Drag.None;
 
     public ViewportView()
     {
@@ -64,11 +72,112 @@ public sealed class ViewportView : Control
         Focusable = true;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _timer.Tick += (_, _) => OnTick();
+        _selection.Changed += OnSelectionChanged;
     }
 
     public event EventHandler? TimeChanged;
 
     public event EventHandler? PlayStateChanged;
+
+    /// <summary>재생 범위·모드·속도가 바뀌었다.</summary>
+    public event EventHandler? RangeChanged;
+
+    /// <summary>선택 키를 띠에 노랗게 보이려고 든다. 그래프·도프시트와 같은 객체를 꽂는다.</summary>
+    public KeySelection Selection
+    {
+        get => _selection;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (ReferenceEquals(_selection, value))
+            {
+                return;
+            }
+
+            _selection.Changed -= OnSelectionChanged;
+            _selection = value;
+            _selection.Changed += OnSelectionChanged;
+            InvalidateVisual();
+        }
+    }
+
+    private void OnSelectionChanged(object? sender, EventArgs e) => InvalidateVisual();
+
+    public PlaybackMode Mode
+    {
+        get => _clock.Mode;
+        set
+        {
+            _clock.Mode = value;
+            RangeChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+        }
+    }
+
+    public double Speed
+    {
+        get => _clock.Speed;
+        set
+        {
+            _clock.Speed = Math.Clamp(value, 0.05, 8);
+            RangeChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void SetRange(double start, double end)
+    {
+        _clock.SetRange(start, end);
+        RangeChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
+    }
+
+    public void ResetRange()
+    {
+        _clock.ResetRange();
+        RangeChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
+    }
+
+    /// <summary>다음 키 시각으로(`.`). 없으면 그대로.</summary>
+    public bool JumpToNextKey()
+    {
+        if (Motion is not { } motion)
+        {
+            return false;
+        }
+
+        float? next = KeyTimes.Next(KeyTimes.All(motion), _clock.Time);
+
+        if (next is null)
+        {
+            return false;
+        }
+
+        Pause();
+        ScrubTo(next.Value);
+        return true;
+    }
+
+    /// <summary>이전 키 시각으로(`,`). 없으면 그대로.</summary>
+    public bool JumpToPreviousKey()
+    {
+        if (Motion is not { } motion)
+        {
+            return false;
+        }
+
+        float? previous = KeyTimes.Previous(KeyTimes.All(motion), _clock.Time);
+
+        if (previous is null)
+        {
+            return false;
+        }
+
+        Pause();
+        ScrubTo(previous.Value);
+        return true;
+    }
 
     public PlaybackClock Clock => _clock;
 
@@ -168,6 +277,7 @@ public sealed class ViewportView : Control
         if (Motion is { } motion)
         {
             _clock.SetDuration(motion.Duration);
+            RangeChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -312,6 +422,14 @@ public sealed class ViewportView : Control
         return u * _clock.Duration;
     }
 
+    public double XAtTime(double seconds)
+    {
+        Rect timeline = TimelineRect;
+        return timeline.X + (_clock.Duration <= 0 ? 0 : seconds / _clock.Duration) * timeline.Width;
+    }
+
+    private static Rect HandleRect(double x, Rect timeline) => new(x - 4, timeline.Y, 8, timeline.Height);
+
     // ── 그리기 ────────────────────────────────────────────────────────
 
     public override void Render(DrawingContext context)
@@ -416,15 +534,38 @@ public sealed class ViewportView : Control
         Rect timeline = TimelineRect;
         context.FillRectangle(TimelineBrush, timeline);
 
-        double u = _clock.Duration <= 0 ? 0 : _clock.Time / _clock.Duration;
-        double x = timeline.X + u * timeline.Width;
+        // 재생 범위 밖은 어둡게.
+        double startX = XAtTime(_clock.RangeStart);
+        double endX = XAtTime(_clock.RangeEnd);
+        context.FillRectangle(RangeOutsideBrush, new Rect(timeline.X, timeline.Y, Math.Max(0, startX - timeline.X), timeline.Height));
+        context.FillRectangle(RangeOutsideBrush, new Rect(endX, timeline.Y, Math.Max(0, timeline.Right - endX), timeline.Height));
+
+        double x = XAtTime(_clock.Time);
         context.FillRectangle(TimelineFill, new Rect(timeline.X, timeline.Y, Math.Max(0, x - timeline.X), timeline.Height));
+
+        // 키 틱 — 모든 키는 빨강, 선택 키는 노랑(마야 타임 슬라이더).
+        if (Motion is { } motion)
+        {
+            List<float> selected = KeyTimes.OfSelection(motion, _selection);
+
+            foreach (float t in KeyTimes.All(motion))
+            {
+                bool isSelected = selected.Any(st => Math.Abs(st - t) <= MotionRules.Tolerance);
+                double tx = XAtTime(t);
+                context.FillRectangle(isSelected ? SelectedTickBrush : KeyTickBrush, new Rect(tx - 1.5, timeline.Y + 2, 3, timeline.Height - 4));
+            }
+        }
+
         context.DrawLine(TimelinePen, new Point(x, timeline.Y), new Point(x, timeline.Bottom));
         context.DrawLine(DurationPen, new Point(timeline.Right - 1, timeline.Y), new Point(timeline.Right - 1, timeline.Bottom));
+        context.FillRectangle(RangeHandleBrush, HandleRect(startX, timeline));
+        context.FillRectangle(RangeHandleBrush, HandleRect(endX, timeline));
 
+        string mode = _clock.Mode switch { PlaybackMode.Once => "한 번", PlaybackMode.Oscillate => "왕복", _ => "루프" };
         string label = string.Format(
-            CultureInfo.InvariantCulture, "{0:0.000}s · {1:0.#}f / {2:0.###}s{3}",
-            _clock.Time, TimeSnap.ToFrames(_clock.Time), _clock.Duration, _clock.IsPlaying ? " ▶" : "");
+            CultureInfo.InvariantCulture, "{0:0.000}s · {1:0.#}f / {2:0.###}s · {3}{4}{5}",
+            _clock.Time, TimeSnap.ToFrames(_clock.Time), _clock.Duration, mode,
+            Math.Abs(_clock.Speed - 1) > 1e-9 ? $" ×{_clock.Speed:0.##}" : "", _clock.IsPlaying ? " ▶" : "");
         DrawLabel(context, label, new Point(timeline.X + 6, timeline.Y + 4));
     }
 
@@ -447,13 +588,50 @@ public sealed class ViewportView : Control
             return;
         }
 
-        if (TimelineRect.Contains(position))
+        Rect timeline = TimelineRect;
+
+        if (!timeline.Contains(position))
         {
-            _scrubbing = true;
+            return;
+        }
+
+        if (HandleRect(XAtTime(_clock.RangeEnd), timeline).Inflate(3).Contains(position))
+        {
+            _drag = Drag.RangeEnd;
+        }
+        else if (HandleRect(XAtTime(_clock.RangeStart), timeline).Inflate(3).Contains(position))
+        {
+            _drag = Drag.RangeStart;
+        }
+        else
+        {
+            _drag = Drag.Scrub;
             Pause();
             ScrubTo(TimeAtX(position.X));
-            e.Pointer.Capture(this);
-            e.Handled = true;
+        }
+
+        e.Pointer.Capture(this);
+        e.Handled = true;
+    }
+
+    private void DragRange(double x)
+    {
+        double t = TimeAtX(x);
+
+        try
+        {
+            if (_drag == Drag.RangeEnd)
+            {
+                SetRange(_clock.RangeStart, Math.Max(t, _clock.RangeStart + 1.0 / TimeSnap.FramesPerSecond));
+            }
+            else
+            {
+                SetRange(Math.Min(t, _clock.RangeEnd - 1.0 / TimeSnap.FramesPerSecond), _clock.RangeEnd);
+            }
+        }
+        catch (ArgumentException)
+        {
+            // 범위가 너무 좁다 — 그 프레임은 건너뛴다.
         }
     }
 
@@ -461,10 +639,17 @@ public sealed class ViewportView : Control
     {
         base.OnPointerMoved(e);
 
-        if (_scrubbing)
+        switch (_drag)
         {
-            ScrubTo(TimeAtX(e.GetPosition(this).X));
-            e.Handled = true;
+            case Drag.Scrub:
+                ScrubTo(TimeAtX(e.GetPosition(this).X));
+                e.Handled = true;
+                break;
+            case Drag.RangeStart:
+            case Drag.RangeEnd:
+                DragRange(e.GetPosition(this).X);
+                e.Handled = true;
+                break;
         }
     }
 
@@ -472,9 +657,9 @@ public sealed class ViewportView : Control
     {
         base.OnPointerReleased(e);
 
-        if (_scrubbing)
+        if (_drag != Drag.None)
         {
-            _scrubbing = false;
+            _drag = Drag.None;
             e.Pointer.Capture(null);
             e.Handled = true;
         }
@@ -504,6 +689,12 @@ public sealed class ViewportView : Control
             case Key.Right:
                 Pause();
                 ScrubTo(_clock.Time + 1.0 / TimeSnap.FramesPerSecond);
+                break;
+            case Key.OemPeriod:
+                JumpToNextKey();
+                break;
+            case Key.OemComma:
+                JumpToPreviousKey();
                 break;
             default:
                 return;
