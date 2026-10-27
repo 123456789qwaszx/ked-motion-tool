@@ -12,6 +12,10 @@ namespace Mt.App.Tests;
 
 public class MainWindowTests
 {
+    /// <summary>테스트는 이 컴퓨터의 설정 파일을 건드리지 않는다 — 임시 경로.</summary>
+    private static MainWindow NewWindow()
+        => new(Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"settings-{Guid.NewGuid():N}.json"));
+
     [Fact]
     public void 주_창이_헤드리스에서_열리고_그려진다()
     {
@@ -19,7 +23,7 @@ public class MainWindowTests
         {
             Assert.True(HeadlessUi.OnUiThread);
 
-            var window = new MainWindow();
+            MainWindow window = NewWindow();
             window.Show();
 
             try
@@ -43,7 +47,7 @@ public class MainWindowTests
     {
         HeadlessUi.Run(() =>
         {
-            var window = new MainWindow();
+            MainWindow window = NewWindow();
             window.Show();
             string export = Path.Combine(Path.GetTempPath(), $"ked-motion-tool-{Guid.NewGuid():N}.json");
 
@@ -94,7 +98,7 @@ public class MainWindowTests
     {
         HeadlessUi.Run(() =>
         {
-            var window = new MainWindow();
+            MainWindow window = NewWindow();
             window.Show();
 
             try
@@ -129,7 +133,7 @@ public class MainWindowTests
     {
         HeadlessUi.Run(() =>
         {
-            var window = new MainWindow();
+            MainWindow window = NewWindow();
             window.Show();
 
             try
@@ -176,7 +180,7 @@ public class MainWindowTests
     {
         HeadlessUi.Run(() =>
         {
-            var window = new MainWindow();
+            MainWindow window = NewWindow();
             window.Show();
 
             try
@@ -212,11 +216,58 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 문제_행의_돕는_손이_문제를_없애고_설정은_파일로_남고_자동_저장은_문서_옆이다()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string settingsPath = Path.Combine(directory, "settings.json");
+
+        HeadlessUi.Run(() =>
+        {
+            var window = new MainWindow(settingsPath);
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("nod", "character", "0.5", MotionEnd.Restore);
+                var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+                window.AddChannelFromForm(y.Node, y.Kind);
+                window.Session.Editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
+
+                Assert.True(window.ProblemRowsShown >= 1); // 마지막 키 0.6 ≠ 길이 0.5
+                Assert.True(window.ApplyFix("nod", Mt.Authoring.Validation.MotionFix.DurationToLastKey));
+                Assert.Equal(0, window.ProblemRowsShown);
+                Assert.Equal(0.6f, window.Session.Editor.Document.Find("nod")!.Duration, 4);
+
+                // 설정: 스냅을 끄고 창을 닫으면 파일에 남는다.
+                window.Settings.SnapEnabled = false;
+                string documentPath = Path.Combine(directory, "doc.motion-authoring.json");
+                window.Session.Save(documentPath);
+                window.Session.Editor.SetDuration("nod", 0.7f);
+                string? autosaved = window.Session.AutoSave();
+                Assert.NotNull(autosaved);
+                Assert.Equal(Path.Combine(directory, "doc.autosave.motion-authoring.json"), autosaved);
+                Assert.True(File.Exists(autosaved!));
+                Assert.True(window.Session.IsDirty);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.True(File.Exists(settingsPath));
+        Assert.Contains("\"snapEnabled\": false", File.ReadAllText(settingsPath), StringComparison.Ordinal);
+        Directory.Delete(directory, recursive: true);
+    }
+
+    [Fact]
     public void 되돌리기는_툴바_없이도_편집기를_지난다_그리고_문제는_아래에_보인다()
     {
         HeadlessUi.Run(() =>
         {
-            var window = new MainWindow();
+            MainWindow window = NewWindow();
             window.Show();
 
             try

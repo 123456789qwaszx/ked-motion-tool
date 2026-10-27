@@ -11,7 +11,7 @@
         <Border DockPanel.Dock="Bottom" Padding="8,4" BorderThickness="0,1,0,0" BorderBrush="#33888888">
             <StackPanel Spacing="2">
                 <TextBlock x:Name="StatusText" FontSize="11" Opacity="0.8" Text="ked-motion-tool" />
-                <TextBlock x:Name="ProblemsText" FontSize="11" Foreground="OrangeRed" TextWrapping="Wrap" IsVisible="False" />
+                <StackPanel x:Name="ProblemsPanel" Spacing="2" IsVisible="False" />
             </StackPanel>
         </Border>
         <ScrollViewer DockPanel.Dock="Left" Width="280" HorizontalScrollBarVisibility="Disabled">

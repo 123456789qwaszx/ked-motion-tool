@@ -797,7 +797,15 @@ public sealed class GraphEditorView : Control
                 CurveViewTransform transform = ViewTransformOf(slot.Curve);
                 bool locked = _flags.IsLocked(slot.Curve);
                 bool muted = _flags.IsMuted(slot.Curve);
-                Color color = locked || muted ? Color.FromArgb(110, slot.Color.R, slot.Color.G, slot.Color.B) : slot.Color;
+                ChannelAsset? ownerChannel = motion.FindChannel(slot.Curve.Node, slot.Curve.Kind);
+                bool neutral = ownerChannel is not null && _preview.Count == 0 && MotionAssetCodec.IsNeutralConstant(ownerChannel, slot.Curve.Axis);
+                Color color = locked || muted || neutral ? Color.FromArgb(110, slot.Color.R, slot.Color.G, slot.Color.B) : slot.Color;
+
+                if (neutral && points.Count > 0)
+                {
+                    Point at = ToScreen(new GraphPoint(points[0].T, transform.ToView(points[0].V)));
+                    DrawLabel(context, $"{slot.Curve.Axis.ToString().ToLowerInvariant()}: 중립 상수 — 내보내기에서 빠진다", new Point(plot.X + 6, at.Y - 14), LabelBrush, 10);
+                }
                 var pen = new Pen(new SolidColorBrush(color), locked ? 1 : 2, muted ? DashStyle.Dash : null);
                 var polyline = new PolylineGeometry(points.Select(p => ToScreen(new GraphPoint(p.T, transform.ToView(p.V)))), false);
                 context.DrawGeometry(null, pen, polyline);

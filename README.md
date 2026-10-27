@@ -81,6 +81,13 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 - 어니언 스킨: 앞뒤 2프레임 반투명. 선택한 키의 노드에 피벗·x(빨강)·y(초록) 축.
 - `base-resolution.json`은 리그 덤프 옆에서 자동으로 싣는다(없으면 1920×1080).
 
+## 설정 · 저장
+
+- 설정은 `%APPDATA%/ked-motion-tool/settings.json`(스냅·스냅 간격·새 키 탄젠트·어니언 프레임·Auto Key·자동 저장 간격·최근 파일 8개). 창을 닫을 때 저장.
+- 자동 저장은 문서 옆 `<이름>.autosave.motion-authoring.json`(기본 5분, 바뀐 것이 있을 때만). 저장 상태는 건드리지 않는다.
+- 아래 문제 칸의 각 줄에 **돕는 손** 버튼: 끝 키를 길이로 · 길이를 마지막 키에 · 첫/마지막 키를 중립값으로 · 첫 키를 0초로 · 채널을 relative로 · 끝을 commit으로. 각각 되돌리기 한 번.
+- relative 채널의 전 구간 중립값 성분은 그래프에서 흐리게 보이고 내보내기에서 빠진다(Unity 내보내기와 같은 규칙).
+
 ## 빌드·테스트
 
 ```

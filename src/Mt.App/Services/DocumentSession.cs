@@ -73,6 +73,30 @@ public sealed class DocumentSession
         SetStatus($"열었다: {path}");
     }
 
+    /// <summary>자동 저장 — 문서 옆 <c>*.autosave.motion-authoring.json</c>. 저장 여부(IsDirty)는 건드리지 않는다. 경로가 없으면 안 한다.</summary>
+    public string? AutoSave()
+    {
+        if (DocumentPath is null || !IsDirty)
+        {
+            return null;
+        }
+
+        string path = AutoSavePathFor(DocumentPath);
+        File.WriteAllText(path, MotionDocumentJson.Write(Editor.Document));
+        SetStatus($"자동 저장: {Path.GetFileName(path)}");
+        return path;
+    }
+
+    public static string AutoSavePathFor(string documentPath)
+    {
+        string directory = Path.GetDirectoryName(Path.GetFullPath(documentPath)) ?? ".";
+        string name = Path.GetFileName(documentPath);
+        string stem = name.EndsWith(AuthoringFormat.AuthoringExtension, StringComparison.OrdinalIgnoreCase)
+            ? name[..^AuthoringFormat.AuthoringExtension.Length]
+            : Path.GetFileNameWithoutExtension(name);
+        return Path.Combine(directory, stem + ".autosave" + AuthoringFormat.AuthoringExtension);
+    }
+
     public void Save(string? path = null)
     {
         path ??= DocumentPath ?? throw new InvalidOperationException("저장할 경로가 없다 — 다른 이름으로 저장을 쓴다.");

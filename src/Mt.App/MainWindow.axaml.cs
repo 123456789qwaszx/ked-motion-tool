@@ -14,7 +14,9 @@ using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
+using Mt.Authoring.Settings;
 using Mt.Authoring.Validation;
+using Avalonia.Threading;
 
 namespace Mt.App;
 
@@ -42,6 +44,15 @@ public partial class MainWindow : Window
     private readonly CurveFlags _flags = new();
     private readonly ComboBox _viewMode = new() { ItemsSource = new[] { "절대", "정규화", "쌓기" }, SelectedIndex = 0, FontSize = 11 };
     private readonly KeyClipboardSlot _clipboard = new();
+    private readonly ToolSettings _settings;
+    private readonly string _settingsPath;
+    private readonly DispatcherTimer _autoSaveTimer = new();
+    private readonly Button _recentButton = new() { Content = "최근…", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
+    private readonly ComboBox _onionFrames = new() { ItemsSource = new[] { "0", "1", "2", "3", "4", "6" }, SelectedIndex = 2, FontSize = 11 };
+    private readonly ComboBox _snapStepCombo = new() { ItemsSource = new[] { "1/60초", "1/24초(프레임)", "1/120초" }, SelectedIndex = 0, FontSize = 11 };
+    private readonly ComboBox _autoSaveCombo = new() { ItemsSource = new[] { "끔", "1분", "5분", "10분" }, SelectedIndex = 2, FontSize = 11 };
+    private static readonly double[] SnapSteps = { 1.0 / 60.0, 1.0 / 24.0, 1.0 / 120.0 };
+    private static readonly int[] AutoSaveMinutes = { 0, 1, 5, 10 };
     private readonly CheckBox _showCycle = new() { Content = "사이클 미리보기(보기만)", FontSize = 11 };
 
     // 트랜스포트
@@ -102,8 +113,15 @@ public partial class MainWindow : Window
 
     private bool _refreshing => _refreshDepth > 0;
 
-    public MainWindow()
+    public MainWindow() : this(ToolSettings.DefaultPath())
     {
+    }
+
+    /// <param name="settingsPath">설정 파일 자리 — 테스트가 임시 경로를 준다.</param>
+    internal MainWindow(string settingsPath)
+    {
+        _settingsPath = settingsPath;
+        _settings = ToolSettings.Load(settingsPath);
         InitializeComponent();
         BuildToolbar();
         BuildLeft();
@@ -154,6 +172,106 @@ public partial class MainWindow : Window
         _viewport.PlayStateChanged += (_, _) => _playButton.Content = _viewport.IsPlaying ? "❚❚ 일시정지 (Space)" : "▶ 재생 (Space)";
 
         OnDocumentReplaced();
+        ApplySettings();
+
+        if (_settings.LoadProblem is { } problem)
+        {
+            _session.SetStatus(problem);
+        }
+
+        _autoSaveTimer.Tick += (_, _) => Guard("자동 저장", () => _session.AutoSave());
+        Closing += (_, _) => SaveSettings();
+    }
+
+    internal ToolSettings Settings => _settings;
+
+    /// <summary>설정 → 화면·뷰. 설정 파일에서 읽은 값을 한 번에 입힌다.</summary>
+    private void ApplySettings()
+    {
+        _refreshDepth++;
+
+        try
+        {
+            _snap.IsChecked = _settings.SnapEnabled;
+            int snapIndex = Array.FindIndex(SnapSteps, v => Math.Abs(v - _settings.SnapStep) < 1e-9);
+            _snapStepCombo.SelectedIndex = snapIndex < 0 ? 0 : snapIndex;
+            int tangentIndex = Array.IndexOf(NewKeyTangentChoices, _settings.DefaultTangent);
+            _newKeyTangent.SelectedIndex = tangentIndex < 0 ? 0 : tangentIndex;
+            int onionIndex = Array.IndexOf(new[] { 0, 1, 2, 3, 4, 6 }, _settings.OnionSkinFrames);
+            _onionFrames.SelectedIndex = onionIndex < 0 ? 2 : onionIndex;
+            _autoKey.IsChecked = _settings.AutoKey;
+            int autoSaveIndex = Array.IndexOf(AutoSaveMinutes, _settings.AutoSaveMinutes);
+            _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
+        }
+        finally
+        {
+            _refreshDepth--;
+        }
+
+        PushSettingsToViews();
+        RefreshRecentMenu();
+    }
+
+    private void PushSettingsToViews()
+    {
+        _graph.SnapEnabled = _settings.SnapEnabled;
+        _dope.SnapEnabled = _settings.SnapEnabled;
+        _viewport.SnapEnabled = _settings.SnapEnabled;
+        _graph.SnapStep = _settings.SnapStep;
+        _dope.SnapStep = _settings.SnapStep;
+        _viewport.SnapStep = _settings.SnapStep;
+        _viewport.DefaultTangent = _settings.DefaultTangent;
+        _viewport.OnionSkinFrames = _settings.OnionSkinFrames;
+        _viewport.AutoKey = _settings.AutoKey;
+        _autoSaveTimer.Stop();
+
+        if (_settings.AutoSaveMinutes > 0)
+        {
+            _autoSaveTimer.Interval = TimeSpan.FromMinutes(_settings.AutoSaveMinutes);
+            _autoSaveTimer.Start();
+        }
+
+        _viewport.InvalidateVisual();
+    }
+
+    private void SaveSettings()
+    {
+        try
+        {
+            _settings.Save(_settingsPath);
+        }
+        catch (Exception exception)
+        {
+            _session.SetStatus($"설정을 저장하지 못했다: {exception.Message}");
+        }
+    }
+
+    private void RefreshRecentMenu()
+    {
+        var flyout = new MenuFlyout();
+
+        foreach (string path in _settings.RecentFiles)
+        {
+            var item = new MenuItem { Header = path, FontSize = 11 };
+            string captured = path;
+            item.Click += (_, _) => Guard("최근 파일", () => OpenDocument(captured));
+            flyout.Items.Add(item);
+        }
+
+        if (_settings.RecentFiles.Count == 0)
+        {
+            flyout.Items.Add(new MenuItem { Header = "(없음)", IsEnabled = false, FontSize = 11 });
+        }
+
+        _recentButton.Flyout = flyout;
+    }
+
+    internal void OpenDocument(string path)
+    {
+        _session.Open(path);
+        _settings.Touch(path);
+        RefreshRecentMenu();
+        SaveSettings();
     }
 
     internal DocumentSession Session => _session;
@@ -453,6 +571,7 @@ public partial class MainWindow : Window
     {
         Toolbar.Children.Add(ToolButton("새로", (_, _) => Guard("새 문서", _session.New)));
         Toolbar.Children.Add(ToolButton("열기…", OnOpenClick));
+        Toolbar.Children.Add(_recentButton);
         Toolbar.Children.Add(ToolButton("저장", OnSaveClick));
         Toolbar.Children.Add(ToolButton("다른 이름으로…", OnSaveAsClick));
         Toolbar.Children.Add(Separator());
@@ -649,7 +768,15 @@ public partial class MainWindow : Window
         }
 
         RightPanel.Children.Add(modes);
-        _autoKey.IsCheckedChanged += (_, _) => _viewport.AutoKey = _autoKey.IsChecked == true;
+        _autoKey.IsCheckedChanged += (_, _) =>
+        {
+            _viewport.AutoKey = _autoKey.IsChecked == true;
+
+            if (!_refreshing)
+            {
+                _settings.AutoKey = _viewport.AutoKey;
+            }
+        };
         RightPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -664,11 +791,42 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(Header("보기"));
         _snap.IsCheckedChanged += (_, _) =>
         {
-            _graph.SnapEnabled = _snap.IsChecked == true;
-            _dope.SnapEnabled = _snap.IsChecked == true;
-            _viewport.SnapEnabled = _snap.IsChecked == true;
+            if (_refreshing)
+            {
+                return;
+            }
+
+            _settings.SnapEnabled = _snap.IsChecked == true;
+            PushSettingsToViews();
+        };
+        _snapStepCombo.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _snapStepCombo.SelectedIndex >= 0)
+            {
+                _settings.SnapStep = SnapSteps[_snapStepCombo.SelectedIndex];
+                PushSettingsToViews();
+            }
+        };
+        _onionFrames.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _onionFrames.SelectedIndex >= 0)
+            {
+                _settings.OnionSkinFrames = new[] { 0, 1, 2, 3, 4, 6 }[_onionFrames.SelectedIndex];
+                PushSettingsToViews();
+            }
+        };
+        _autoSaveCombo.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _autoSaveCombo.SelectedIndex >= 0)
+            {
+                _settings.AutoSaveMinutes = AutoSaveMinutes[_autoSaveCombo.SelectedIndex];
+                PushSettingsToViews();
+            }
         };
         RightPanel.Children.Add(_snap);
+        RightPanel.Children.Add(Labeled("스냅 간격", _snapStepCombo));
+        RightPanel.Children.Add(Labeled("어니언 프레임", _onionFrames));
+        RightPanel.Children.Add(Labeled("자동 저장", _autoSaveCombo));
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
         RightPanel.Children.Add(Labeled("그래프 보기", _viewMode));
@@ -685,7 +843,14 @@ public partial class MainWindow : Window
                 _graph.ViewMode = (GraphViewMode)_viewMode.SelectedIndex;
             }
         };
-        _newKeyTangent.SelectionChanged += (_, _) => _viewport.DefaultTangent = DefaultTangent;
+        _newKeyTangent.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing)
+            {
+                _settings.DefaultTangent = DefaultTangent;
+                PushSettingsToViews();
+            }
+        };
         OnCommit(_currentTime, text => { if (TryFloat(text, out float v)) _graph.CurrentTime = v; });
         RightPanel.Children.Add(new StackPanel
         {
@@ -960,9 +1125,43 @@ public partial class MainWindow : Window
     private void RefreshProblems()
     {
         IReadOnlyList<MotionProblem> problems = _session.Problems;
-        ProblemsText.IsVisible = problems.Count > 0;
-        ProblemsText.Text = problems.Count == 0 ? "" : string.Join("\n", problems.Select(p => "⚠ " + p));
+        ProblemsPanel.Children.Clear();
+        ProblemsPanel.IsVisible = problems.Count > 0;
+
+        foreach (MotionProblem problem in problems)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            row.Children.Add(new TextBlock
+            {
+                Text = "⚠ " + problem,
+                FontSize = 11,
+                Foreground = Brushes.OrangeRed,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                MaxWidth = 700,
+            });
+
+            foreach (MotionFix fix in MotionFixes.Suggest(problem))
+            {
+                string motionName = problem.MotionName;
+                MotionFix captured = fix;
+                row.Children.Add(SmallButton(MotionFixes.Label(fix), (_, _) => Guard("돕는 손", () =>
+                {
+                    if (!MotionFixes.Apply(_session.Editor, motionName, captured))
+                    {
+                        _session.SetStatus($"{MotionFixes.Label(captured)}: 바꿀 것이 없다.");
+                    }
+                })));
+            }
+
+            ProblemsPanel.Children.Add(row);
+        }
     }
+
+    /// <summary>테스트가 문제 행의 돕는 손을 누른 것과 같다.</summary>
+    internal bool ApplyFix(string motionName, MotionFix fix) => MotionFixes.Apply(_session.Editor, motionName, fix);
+
+    internal int ProblemRowsShown => ProblemsPanel.Children.Count;
 
     private void RefreshNewForms()
     {
@@ -1137,7 +1336,7 @@ public partial class MainWindow : Window
 
             if (path is not null)
             {
-                _session.Open(path);
+                OpenDocument(path);
             }
         }
         catch (Exception exception)
@@ -1184,6 +1383,9 @@ public partial class MainWindow : Window
         if (path is not null)
         {
             _session.Save(path);
+            _settings.Touch(path);
+            RefreshRecentMenu();
+            SaveSettings();
         }
     }
 
