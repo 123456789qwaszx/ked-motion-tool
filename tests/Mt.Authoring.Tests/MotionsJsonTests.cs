@@ -45,7 +45,6 @@ public class MotionsJsonTests
 
     [Theory]
     [InlineData(0f, "0")]
-    [InlineData(-0f, "0")]
     [InlineData(8f, "8")]
     [InlineData(-18f, "-18")]
     [InlineData(0.6f, "0.6")]
@@ -53,9 +52,19 @@ public class MotionsJsonTests
     [InlineData(0.1f, "0.1")]
     [InlineData(1.5f, "1.5")]
     [InlineData(-120f, "-120")]
-    public void 수는_invariant_R이고_정수는_소수점_없이_음수_0은_0이다(float value, string expected)
+    public void 수는_invariant_R이고_정수는_소수점_없이다(float value, string expected)
     {
         Assert.Equal(expected, MotionsJson.F(value));
+    }
+
+    [Fact]
+    public void 음수_0은_0이다()
+    {
+        // 컴파일 상수 -0f는 0f와 같은 값으로 접히므로 비트로 만든다 — 실제로 음수 0이 F에 들어가는지 본다.
+        float negativeZero = BitConverter.Int32BitsToSingle(unchecked((int)0x80000000));
+
+        Assert.True(float.IsNegative(negativeZero));
+        Assert.Equal("0", MotionsJson.F(negativeZero));
     }
 
     [Fact]
