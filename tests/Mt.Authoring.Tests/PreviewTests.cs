@@ -41,6 +41,17 @@ public class MotionPreviewTests
     }
 
     [Fact]
+    public void 뮤트된_성분은_재생에서_빠진다()
+    {
+        MotionAsset nod = Fixtures.NodBowDocument().Find("nod")!;
+        RectNodeTree template = RigFile.BuildTree("character");
+        var y = new CurveRef(MoveY, MotionChannelKind.Position, Axis.Y);
+
+        Assert.Equal(-18f, MotionPreview.Pose(template, nod, 0.3, c => c != y).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(0f, MotionPreview.Pose(template, nod, 0.3, c => c == y).GetState(MoveY).AnchoredPosition.Y, 4);
+    }
+
+    [Fact]
     public void relative_배율은_곱이고_absolute_위치는_그_값이며_없는_노드는_건너뛴다()
     {
         var editor = new MotionEditor(new MotionDocument());

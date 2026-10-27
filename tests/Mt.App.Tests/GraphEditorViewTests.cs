@@ -227,6 +227,73 @@ public class GraphEditorViewTests
     });
 
     [Fact]
+    public void 정규화_보기는_모양만_견주고_끌면_값은_실제_단위로_바뀐다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            // 두 번째 커브(배율, 1~1.2)를 더한다 — 절대 보기에선 -18~0 옆에서 납작하다.
+            editor.AddChannel("nod", "CharSlot_Scale", MotionChannelKind.Scale, MotionChannelMode.Relative);
+            editor.SetKeys("nod", "CharSlot_Scale", MotionChannelKind.Scale, Axis.X, new[] { TestDocuments.Key(0f, 1f), TestDocuments.Key(0.3f, 1.2f), TestDocuments.Key(0.6f, 1f) });
+            var sx = new CurveRef("CharSlot_Scale", MotionChannelKind.Scale, Axis.X);
+
+            view.ViewMode = GraphViewMode.Normalized;
+            Point yTop = view.ScreenPositionOf(new KeyRef(Y, 0))!.Value;    // y: 0 = 최대 → 보기 1
+            Point yBottom = view.ScreenPositionOf(new KeyRef(Y, 1))!.Value; // y: -18 = 최소 → 보기 0
+            Point sTop = view.ScreenPositionOf(new KeyRef(sx, 1))!.Value;   // 배율 1.2 = 최대 → 보기 1
+            Point sBottom = view.ScreenPositionOf(new KeyRef(sx, 0))!.Value;
+            Assert.Equal(yTop.Y, sTop.Y, 3);
+            Assert.Equal(yBottom.Y, sBottom.Y, 3);
+
+            // 정규화 보기에서 배율 키를 끌면 값은 배율 단위로 바뀐다(보기 0.5 = 0.1).
+            view.Tool = GraphTool.Move;
+            view.Select(new[] { new KeyRef(sx, 1) }, additive: false);
+            Point middle = InWindow(window, view, sTop);
+            double dy = (sBottom.Y - sTop.Y) / 2; // 보기에서 0.5만큼 아래로
+            window.MouseDown(middle, MouseButton.Left);
+            window.MouseMove(new Point(middle.X, middle.Y + dy), RawInputModifiers.LeftMouseButton | RawInputModifiers.Shift);
+            window.MouseUp(new Point(middle.X, middle.Y + dy), MouseButton.Left, RawInputModifiers.Shift);
+
+            Assert.Equal(1.1, sx.Resolve(editor.Document.Find("nod")!)!.Keys[1].V, 2);
+
+            view.ViewMode = GraphViewMode.Absolute;
+            Assert.Equal(CurveViewTransform.Identity, view.ViewTransformOf(sx));
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void 잠긴_커브는_고르거나_끌_수_없고_뮤트는_뷰포트에서_빠진다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, _) = Show();
+
+        try
+        {
+            view.Flags.SetLocked(Y, true);
+            Point middle = InWindow(window, view, At(view, 1));
+            window.MouseDown(middle, MouseButton.Left);
+            window.MouseUp(middle, MouseButton.Left);
+            Assert.Empty(view.Selection);
+
+            view.Flags.SetLocked(Y, false);
+            window.MouseDown(middle, MouseButton.Left);
+            window.MouseUp(middle, MouseButton.Left);
+            Assert.Single(view.Selection);
+
+            view.Flags.SetLocked(Y, true);
+            Assert.Empty(view.Selection); // 잠그면 선택에서 빠진다
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 박스_선택은_안에_든_키를_고른다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();

@@ -51,7 +51,35 @@ public sealed class DopeSheetView : Control
     private readonly List<DopeRow> _rows = new();
 
     private KeySelection _selection = new();
+    private CurveFlags _flags = new();
     private MotionEditor? _editor;
+
+    public CurveFlags Flags
+    {
+        get => _flags;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (ReferenceEquals(_flags, value))
+            {
+                return;
+            }
+
+            _flags.Changed -= OnFlagsChanged;
+            _flags = value;
+            _flags.Changed += OnFlagsChanged;
+            InvalidateVisual();
+        }
+    }
+
+    private void OnFlagsChanged(object? sender, EventArgs e)
+    {
+        _selection.RemoveWhere(k => _flags.IsLocked(k.Curve));
+        InvalidateVisual();
+    }
+
+    private bool IsLocked(DopeBlock block) => block.Keys.Count > 0 && block.Keys.All(k => _flags.IsLocked(k.Curve));
     private string? _motionName;
     private double _timeOrigin = -0.05;
     private double _pixelsPerSecond = 400;
@@ -75,6 +103,7 @@ public sealed class DopeSheetView : Control
         ClipToBounds = true;
         Focusable = true;
         _selection.Changed += OnSelectionChanged;
+        _flags.Changed += OnFlagsChanged;
     }
 
     public event EventHandler? SelectionChanged;
@@ -421,7 +450,7 @@ public sealed class DopeSheetView : Control
                         continue;
                     }
 
-                    DrawBlock(context, row.Level, center, selected ? SelectedBrush : row.Level == DopeRowLevel.Component ? BlockBrush : SummaryBlockBrush);
+                    DrawBlock(context, row.Level, center, selected ? SelectedBrush : IsLocked(block) ? DimLabelBrush : row.Level == DopeRowLevel.Component ? BlockBrush : SummaryBlockBrush);
                 }
             }
 
@@ -540,7 +569,7 @@ public sealed class DopeSheetView : Control
 
             foreach (DopeBlock b in candidate.Blocks)
             {
-                if (Math.Abs(XAtTime(b.Time) - at.X) <= HitRadius)
+                if (!IsLocked(b) && Math.Abs(XAtTime(b.Time) - at.X) <= HitRadius)
                 {
                     row = candidate;
                     block = b;
@@ -797,7 +826,7 @@ public sealed class DopeSheetView : Control
 
                 if (x >= box.X && x <= box.Right)
                 {
-                    hits.AddRange(block.Keys);
+                    hits.AddRange(block.Keys.Where(k => !_flags.IsLocked(k.Curve)));
                 }
             }
         }

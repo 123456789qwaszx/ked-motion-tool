@@ -300,6 +300,29 @@ public class ViewportViewTests
     });
 
     [Fact]
+    public void 뮤트된_채널은_재생에서_빠진다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, _) = Show();
+
+        try
+        {
+            var y = new Mt.Authoring.Graph.CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Mt.Authoring.Model.Axis.Y);
+            view.ScrubTo(0.3);
+            Assert.Equal(-18f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+
+            view.Flags.SetMuted(y, true);
+            Assert.Equal(0f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+
+            view.Flags.SetMuted(y, false);
+            Assert.Equal(-18f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 초상_비트맵이_종횡비를_정하고_없으면_자리표시다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();

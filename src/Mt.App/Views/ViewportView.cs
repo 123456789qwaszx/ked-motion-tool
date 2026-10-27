@@ -65,6 +65,29 @@ public sealed class ViewportView : Control
     private float _aspect = PortraitLayout.PlaceholderAspect;
     private Vec2 _stageSize = BaseResolutionFile.Default;
     private KeySelection _selection = new();
+    private CurveFlags _flags = new();
+
+    /// <summary>뮤트된 성분은 재생에서 뺀다(시작값 그대로). 그래프·도프시트와 같은 객체.</summary>
+    public CurveFlags Flags
+    {
+        get => _flags;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (ReferenceEquals(_flags, value))
+            {
+                return;
+            }
+
+            _flags.Changed -= OnFlagsChanged;
+            _flags = value;
+            _flags.Changed += OnFlagsChanged;
+            InvalidateVisual();
+        }
+    }
+
+    private void OnFlagsChanged(object? sender, EventArgs e) => InvalidateVisual();
 
     private enum Drag { None, Scrub, RangeStart, RangeEnd, MoveFree, MoveX, MoveY, Rotate, ScaleFree, ScaleX, ScaleY }
 
@@ -88,6 +111,7 @@ public sealed class ViewportView : Control
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _timer.Tick += (_, _) => OnTick();
         _selection.Changed += OnSelectionChanged;
+        _flags.Changed += OnFlagsChanged;
     }
 
     public event EventHandler? TimeChanged;
@@ -548,7 +572,7 @@ public sealed class ViewportView : Control
     public RectNodeTree? PoseAt(double seconds)
     {
         MotionAsset? motion = Motion;
-        return _template is null || motion is null ? null : MotionPreview.Pose(_template, motion, seconds);
+        return _template is null || motion is null ? null : MotionPreview.Pose(_template, motion, seconds, _flags.IsMuted);
     }
 
     /// <summary>지금 시각의 초상 사각형(루트 공간). 리그가 없으면 null.</summary>
@@ -644,12 +668,12 @@ public sealed class ViewportView : Control
                 {
                     using (context.PushOpacity(opacity))
                     {
-                        DrawPortrait(context, MotionPreview.Pose(_template, motion, t));
+                        DrawPortrait(context, MotionPreview.Pose(_template, motion, t, _flags.IsMuted));
                     }
                 }
             }
 
-            RectNodeTree pose = CurrentPose() ?? MotionPreview.Pose(_template, motion, _clock.Time);
+            RectNodeTree pose = CurrentPose() ?? MotionPreview.Pose(_template, motion, _clock.Time, _flags.IsMuted);
             DrawPortrait(context, pose);
             DrawAxes(context, pose);
             DrawGizmo(context, pose);

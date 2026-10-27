@@ -85,6 +85,83 @@ public sealed class GraphEditorView : Control
     private readonly List<Point> _lasso = new();
     private GraphPoint _scalePivot;
 
+    private GraphViewMode _viewMode = GraphViewMode.Absolute;
+    private readonly Dictionary<CurveRef, CurveViewTransform> _viewTransforms = new();
+    private CurveFlags _flags = new();
+
+    /// <summary>절대 / 정규화 / 쌓기(마야 Normalize·Stacked). 보기만 바뀐다 — 값은 그대로다.</summary>
+    public GraphViewMode ViewMode
+    {
+        get => _viewMode;
+        set
+        {
+            if (_viewMode == value)
+            {
+                return;
+            }
+
+            _viewMode = value;
+            RefreshViewTransforms();
+            FitAll();
+        }
+    }
+
+    /// <summary>잠금·뮤트. 도프시트·뷰포트와 같은 객체를 꽂는다.</summary>
+    public CurveFlags Flags
+    {
+        get => _flags;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (ReferenceEquals(_flags, value))
+            {
+                return;
+            }
+
+            _flags.Changed -= OnFlagsChanged;
+            _flags = value;
+            _flags.Changed += OnFlagsChanged;
+            InvalidateVisual();
+        }
+    }
+
+    private void OnFlagsChanged(object? sender, EventArgs e)
+    {
+        _selection.RemoveWhere(k => _flags.IsLocked(k.Curve));
+        InvalidateVisual();
+    }
+
+    /// <summary>커브의 보기 변환. 드래그 중에는 갱신하지 않는다 — 정규화 보기에서 끌리는 것이 보여야 한다.</summary>
+    public CurveViewTransform ViewTransformOf(CurveRef curve)
+        => _viewTransforms.TryGetValue(curve, out CurveViewTransform t) ? t : CurveViewTransform.Identity;
+
+    private void RefreshViewTransforms()
+    {
+        _viewTransforms.Clear();
+        MotionAsset? motion = Motion;
+
+        if (motion is null)
+        {
+            return;
+        }
+
+        int index = 0;
+
+        foreach (CurveSlot slot in _curves)
+        {
+            if (slot.Curve.Resolve(motion) is { } curve)
+            {
+                _viewTransforms[slot.Curve] = CurveViewTransform.For(curve.Keys, _viewMode, index);
+            }
+
+            index++;
+        }
+    }
+
+    private Point ScreenOf(CurveRef curve, double t, double v)
+        => ToScreen(new GraphPoint(t, ViewTransformOf(curve).ToView(v)));
+
     private Drag _drag = Drag.None;
     private Point _dragStart;
     private Point _dragNow;
@@ -102,6 +179,7 @@ public sealed class GraphEditorView : Control
         Focusable = true;
         Cursor = new Cursor(StandardCursorType.Cross);
         _selection.Changed += OnSelectionChanged;
+        _flags.Changed += OnFlagsChanged;
     }
 
     private void OnSelectionChanged(object? sender, EventArgs e)
@@ -189,6 +267,7 @@ public sealed class GraphEditorView : Control
         _curves.Clear();
         _cameraFitted = false;
         ReloadCurves();
+        RefreshViewTransforms();
         FitAll();
     }
 
@@ -213,6 +292,7 @@ public sealed class GraphEditorView : Control
     private void OnEditorChanged(object? sender, MotionChangedEventArgs e)
     {
         ReloadCurves();
+        RefreshViewTransforms();
         PruneSelection();
         InvalidateVisual();
     }
@@ -301,7 +381,7 @@ public sealed class GraphEditorView : Control
     {
         MotionAsset? motion = Motion;
         KeyAsset? asset = motion is null ? null : key.Resolve(motion);
-        return asset is null ? null : ToScreen(new GraphPoint(asset.T, asset.V));
+        return asset is null ? null : ScreenOf(key.Curve, asset.T, asset.V);
     }
 
     private static Pixel ToPixel(Point p) => new(p.X, p.Y);
@@ -321,7 +401,8 @@ public sealed class GraphEditorView : Control
             {
                 if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
                 {
-                    keys.AddRange(curve.Keys);
+                    CurveViewTransform transform = ViewTransformOf(slot.Curve);
+                    keys.AddRange(curve.Keys.Select(k => new KeyAsset { T = k.T, V = (float)transform.ToView(k.V) }));
                 }
             }
         }
@@ -346,7 +427,7 @@ public sealed class GraphEditorView : Control
         {
             if (key.Resolve(motion) is { } k)
             {
-                keys.Add(k);
+                keys.Add(new KeyAsset { T = k.T, V = (float)ViewTransformOf(key.Curve).ToView(k.V) });
             }
         }
 
@@ -458,9 +539,9 @@ public sealed class GraphEditorView : Control
         }
 
         float t = (float)SnapTime(CurrentTime);
-        IEnumerable<CurveRef> targets = _selection.Count > 0
+        IEnumerable<CurveRef> targets = (_selection.Count > 0
             ? _selection.Select(k => k.Curve).Distinct()
-            : _curves.Where(s => s.Visible).Select(s => s.Curve);
+            : _curves.Where(s => s.Visible).Select(s => s.Curve)).Where(c => !_flags.IsLocked(c));
 
         var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
         var inserted = new List<(CurveRef Curve, float T)>();
@@ -586,8 +667,12 @@ public sealed class GraphEditorView : Control
                 }
 
                 List<GraphPoint> points = CurveSampler.Sample(keys, left.T, right.T, samples);
-                var pen = new Pen(new SolidColorBrush(slot.Color), 2);
-                var polyline = new PolylineGeometry(points.Select(ToScreen), false);
+                CurveViewTransform transform = ViewTransformOf(slot.Curve);
+                bool locked = _flags.IsLocked(slot.Curve);
+                bool muted = _flags.IsMuted(slot.Curve);
+                Color color = locked || muted ? Color.FromArgb(110, slot.Color.R, slot.Color.G, slot.Color.B) : slot.Color;
+                var pen = new Pen(new SolidColorBrush(color), locked ? 1 : 2, muted ? DashStyle.Dash : null);
+                var polyline = new PolylineGeometry(points.Select(p => ToScreen(new GraphPoint(p.T, transform.ToView(p.V)))), false);
                 context.DrawGeometry(null, pen, polyline);
             }
 
@@ -599,17 +684,19 @@ public sealed class GraphEditorView : Control
                 }
 
                 List<KeyAsset> keys = KeysForRender(slot.Curve, motion);
-                var keyBrush = new SolidColorBrush(slot.Color);
+                bool locked = _flags.IsLocked(slot.Curve);
+                var keyBrush = new SolidColorBrush(locked ? Color.FromArgb(120, slot.Color.R, slot.Color.G, slot.Color.B) : slot.Color);
+                double valueScale = ViewTransformOf(slot.Curve).Scale;
 
                 for (int i = 0; i < keys.Count; i++)
                 {
                     var keyRef = new KeyRef(slot.Curve, i);
-                    Point center = ToScreen(new GraphPoint(keys[i].T, keys[i].V));
+                    Point center = ScreenOf(slot.Curve, keys[i].T, keys[i].V);
                     bool selected = _selection.Contains(keyRef);
 
                     if (selected)
                     {
-                        DrawHandles(context, keys, i, center);
+                        DrawHandles(context, keys, i, center, valueScale);
                         DrawLabel(context, $"{keys[i].T:0.###}s  {keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10);
                     }
 
@@ -647,21 +734,21 @@ public sealed class GraphEditorView : Control
         return curveRef.Resolve(motion)?.Keys ?? new List<KeyAsset>();
     }
 
-    private void DrawHandles(DrawingContext context, List<KeyAsset> keys, int index, Point center)
+    private void DrawHandles(DrawingContext context, List<KeyAsset> keys, int index, Point center, double valueScale)
     {
         KeyAsset key = keys[index];
         Pixel origin = ToPixel(center);
 
         if (index > 0)
         {
-            Point inEnd = ToPoint(HandleMath.HandleEnd(origin, key.InTangent, inward: true, _camera));
+            Point inEnd = ToPoint(HandleMath.HandleEnd(origin, key.InTangent * valueScale, inward: true, _camera));
             context.DrawLine(HandlePen, center, inEnd);
             context.DrawEllipse(HandleBrush, null, inEnd, 3.5, 3.5);
         }
 
         if (index < keys.Count - 1)
         {
-            Point outEnd = ToPoint(HandleMath.HandleEnd(origin, key.OutTangent, inward: false, _camera));
+            Point outEnd = ToPoint(HandleMath.HandleEnd(origin, key.OutTangent * valueScale, inward: false, _camera));
             context.DrawLine(HandlePen, center, outEnd);
             context.DrawEllipse(HandleBrush, null, outEnd, 3.5, 3.5);
         }
@@ -691,7 +778,7 @@ public sealed class GraphEditorView : Control
         {
             Point y = ToScreen(new GraphPoint(0, v));
             context.DrawLine(GridPen, new Point(plot.X, y.Y), new Point(plot.Right, y.Y));
-            DrawLabel(context, $"{v:0.###}", new Point(4, y.Y - 7), LabelBrush, 10);
+            DrawLabel(context, _viewMode == GraphViewMode.Absolute ? $"{v:0.###}" : $"{v:0.##}n", new Point(4, y.Y - 7), LabelBrush, 10);
         }
 
         // 기준선: 값 0 · 시각 0 · 길이 · 현재 시각.
@@ -723,14 +810,14 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveSlot slot in _curves)
         {
-            if (!slot.Visible || slot.Curve.Resolve(motion) is not { } curve)
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve)
             {
                 continue;
             }
 
             for (int i = 0; i < curve.Keys.Count; i++)
             {
-                candidates.Add((new KeyRef(slot.Curve, i), ToPixel(ToScreen(new GraphPoint(curve.Keys[i].T, curve.Keys[i].V)))));
+                candidates.Add((new KeyRef(slot.Curve, i), ToPixel(ScreenOf(slot.Curve, curve.Keys[i].T, curve.Keys[i].V))));
             }
         }
 
@@ -749,16 +836,17 @@ public sealed class GraphEditorView : Control
             }
 
             KeyAsset k = curve.Keys[keyRef.Index];
-            Pixel origin = ToPixel(ToScreen(new GraphPoint(k.T, k.V)));
+            Pixel origin = ToPixel(ScreenOf(keyRef.Curve, k.T, k.V));
+            double valueScale = ViewTransformOf(keyRef.Curve).Scale;
 
             if (keyRef.Index > 0)
             {
-                candidates.Add(((keyRef, true), HandleMath.HandleEnd(origin, k.InTangent, inward: true, _camera)));
+                candidates.Add(((keyRef, true), HandleMath.HandleEnd(origin, k.InTangent * valueScale, inward: true, _camera)));
             }
 
             if (keyRef.Index < curve.Keys.Count - 1)
             {
-                candidates.Add(((keyRef, false), HandleMath.HandleEnd(origin, k.OutTangent, inward: false, _camera)));
+                candidates.Add(((keyRef, false), HandleMath.HandleEnd(origin, k.OutTangent * valueScale, inward: false, _camera)));
             }
         }
 
@@ -953,12 +1041,13 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveSlot slot in _curves)
         {
-            if (!slot.Visible || slot.Curve.Resolve(motion) is not { } curve)
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve)
             {
                 continue;
             }
 
-            List<Pixel> polyline = CurveSampler.Sample(curve.Keys, left.T, right.T, 256).Select(p => ToPixel(ToScreen(p))).ToList();
+            CurveViewTransform transform = ViewTransformOf(slot.Curve);
+            List<Pixel> polyline = CurveSampler.Sample(curve.Keys, left.T, right.T, 256).Select(p => ToPixel(ToScreen(new GraphPoint(p.T, transform.ToView(p.V))))).ToList();
             double d = GraphHitTest.DistanceToPolyline(polyline, at);
 
             if (d < bestDistance)
@@ -1114,7 +1203,7 @@ public sealed class GraphEditorView : Control
             }
 
             preview.T = (float)Math.Max(0, SnapTime(original.T + delta.T));
-            preview.V = (float)(original.V + delta.V);
+            preview.V = (float)(original.V + delta.V / ViewTransformOf(keyRef.Curve).Scale);
         }
     }
 
@@ -1155,8 +1244,8 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        Pixel origin = ToPixel(ToScreen(new GraphPoint(original.T, original.V)));
-        float slope = (float)HandleMath.SlopeFromHandle(origin, ToPixel(position), inward, _camera);
+        Pixel origin = ToPixel(ScreenOf(_handleKey.Curve, original.T, original.V));
+        float slope = (float)(HandleMath.SlopeFromHandle(origin, ToPixel(position), inward, _camera) / ViewTransformOf(_handleKey.Curve).Scale);
 
         if (original.Broken)
         {

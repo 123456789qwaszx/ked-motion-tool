@@ -38,6 +38,10 @@ public partial class MainWindow : Window
     /// <summary>그래프와 도프시트가 같은 선택을 든다 — 한 모델, 두 뷰.</summary>
     private readonly KeySelection _selection = new();
 
+    /// <summary>잠금·뮤트 — 그래프·도프시트·뷰포트가 같은 객체를 든다.</summary>
+    private readonly CurveFlags _flags = new();
+    private readonly ComboBox _viewMode = new() { ItemsSource = new[] { "절대", "정규화", "쌓기" }, SelectedIndex = 0, FontSize = 11 };
+
     // 트랜스포트
     private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
     private readonly ComboBox _playMode = new() { ItemsSource = new[] { "한 번", "루프", "왕복" }, SelectedIndex = 1, FontSize = 11 };
@@ -105,6 +109,10 @@ public partial class MainWindow : Window
         _graph.Selection = _selection;
         _dope.Selection = _selection;
         _viewport.Selection = _selection;
+        _graph.Flags = _flags;
+        _dope.Flags = _flags;
+        _viewport.Flags = _flags;
+        _flags.Changed += (_, _) => RefreshChannels();
         GraphHost.Child = BuildCenter();
 
         _session.DocumentReplaced += (_, _) => OnDocumentReplaced();
@@ -153,6 +161,8 @@ public partial class MainWindow : Window
     internal DopeSheetView Dope => _dope;
 
     internal KeySelection SharedSelection => _selection;
+
+    internal CurveFlags SharedFlags => _flags;
 
     internal bool AutoKeyChecked
     {
@@ -634,6 +644,14 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(_snap);
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
+        RightPanel.Children.Add(Labeled("그래프 보기", _viewMode));
+        _viewMode.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _viewMode.SelectedIndex >= 0)
+            {
+                _graph.ViewMode = (GraphViewMode)_viewMode.SelectedIndex;
+            }
+        };
         _newKeyTangent.SelectionChanged += (_, _) => _viewport.DefaultTangent = DefaultTangent;
         OnCommit(_currentTime, text => { if (TryFloat(text, out float v)) _graph.CurrentTime = v; });
         RightPanel.Children.Add(new StackPanel
@@ -814,6 +832,29 @@ public partial class MainWindow : Window
                 MaxWidth = 150,
             };
             ToolTip.SetTip(label, $"{node}\n{kind} · {channel.Mode}\n클릭: mode 바꾸기");
+            CurveRef[] axesOfChannel = new[] { Axis.X, Axis.Y, Axis.Z }
+                .Where(a => a != Axis.Z || kind == MotionChannelKind.Euler)
+                .Select(a => new CurveRef(node, kind, a)).ToArray();
+            bool anyLocked = axesOfChannel.Any(_flags.IsLocked);
+            bool anyMuted = axesOfChannel.Any(_flags.IsMuted);
+            Button lockButton = SmallButton(anyLocked ? "🔒" : "🔓", (_, _) =>
+            {
+                foreach (CurveRef c in axesOfChannel)
+                {
+                    _flags.SetLocked(c, !anyLocked);
+                }
+            });
+            ToolTip.SetTip(lockButton, anyLocked ? "잠금 풀기 — 다시 고르고 끌 수 있다" : "잠금 — 보이되 고르거나 끌 수 없다");
+            Button muteButton = SmallButton(anyMuted ? "🔇" : "🔊", (_, _) =>
+            {
+                foreach (CurveRef c in axesOfChannel)
+                {
+                    _flags.SetMuted(c, !anyMuted);
+                }
+            });
+            ToolTip.SetTip(muteButton, anyMuted ? "뮤트 풀기" : "뮤트 — 뷰포트 재생에서 이 채널을 뺀다(저장되지 않는다)");
+            row.Children.Add(lockButton);
+            row.Children.Add(muteButton);
             MotionChannelMode flipped = channel.Mode == MotionChannelMode.Relative ? MotionChannelMode.Absolute : MotionChannelMode.Relative;
             label.PointerPressed += (_, _) => Guard("채널 mode", () => _session.Editor.SetChannelMode(current.Name, node, kind, flipped));
             row.Children.Add(label);
