@@ -149,11 +149,26 @@ public sealed class KeyAsset
     };
 }
 
-/// <summary>마야의 탄젠트 종류 중 v1이 아는 것. auto·flat·linear의 산수는 M2(그래프 편집기)에서 온다.</summary>
+/// <summary>
+/// 마야의 탄젠트 종류 중 규약 안에서 가능한 것(가중·계단은 규약이 거부한다). 산수는 <c>TangentMath</c>.
+/// 이름이 곧 저작 원본의 글자(소문자)다 — 바꾸면 옛 파일을 못 읽는다.
+/// </summary>
 public enum TangentMode
 {
+    /// <summary>이웃 할선, 극값·끝은 평평, 가파른 쪽의 3배 안으로(마야 auto에 가깝다).</summary>
     Auto,
+
     Flat,
+
+    /// <summary>앞·뒤 키와의 할선(끊김).</summary>
     Linear,
+
+    /// <summary>손으로 둔 값 그대로.</summary>
     Free,
+
+    /// <summary>이웃을 잇는 할선 그대로(Catmull-Rom). 부드럽지만 넘칠 수 있다 — 마야 spline.</summary>
+    Spline,
+
+    /// <summary>auto보다 더 눌러 이웃 값을 넘지 않게. 이웃과 같은 값이면 평평 — 마야 plateau.</summary>
+    Plateau,
 }

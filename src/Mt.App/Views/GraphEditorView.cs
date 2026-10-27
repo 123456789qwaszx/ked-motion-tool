@@ -1169,6 +1169,12 @@ public sealed class GraphEditorView : Control
             case Key.D4:
                 SetTangentMode(TangentMode.Free);
                 break;
+            case Key.D5:
+                SetTangentMode(TangentMode.Spline);
+                break;
+            case Key.D6:
+                SetTangentMode(TangentMode.Plateau);
+                break;
             case Key.OemPeriod:
                 JumpToKey(forward: true);
                 break;

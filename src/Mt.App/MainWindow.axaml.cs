@@ -55,6 +55,11 @@ public partial class MainWindow : Window
     private readonly CheckBox _autoKey = new() { Content = "Auto Key", FontSize = 11 };
     private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
     private readonly Button[] _manipulatorButtons = new Button[4];
+    private static readonly TangentMode[] NewKeyTangentChoices = { TangentMode.Auto, TangentMode.Spline, TangentMode.Plateau, TangentMode.Flat, TangentMode.Linear };
+    private readonly ComboBox _newKeyTangent = new() { ItemsSource = new[] { "auto", "spline", "plateau", "flat", "linear" }, SelectedIndex = 0, FontSize = 11 };
+
+    /// <summary>새 키(뷰포트 키·성분 토글)의 탄젠트 — 설정. 곡선 위에 끼우는 I·더블클릭은 모양을 지키는 free다.</summary>
+    private TangentMode DefaultTangent => NewKeyTangentChoices[Math.Max(0, _newKeyTangent.SelectedIndex)];
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
@@ -188,7 +193,7 @@ public partial class MainWindow : Window
         {
             T = (float)_graph.CurrentTime,
             V = MotionMath.Neutral(kind),
-            Tangent = TangentMode.Auto,
+            Tangent = DefaultTangent,
         });
     }
 
@@ -521,6 +526,8 @@ public partial class MainWindow : Window
                 SmallButton("flat (2)", (_, _) => _graph.SetTangentMode(TangentMode.Flat)),
                 SmallButton("linear (3)", (_, _) => _graph.SetTangentMode(TangentMode.Linear)),
                 SmallButton("free (4)", (_, _) => _graph.SetTangentMode(TangentMode.Free)),
+                SmallButton("spline (5)", (_, _) => _graph.SetTangentMode(TangentMode.Spline)),
+                SmallButton("plateau (6)", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
             },
         });
         RightPanel.Children.Add(SmallButton("선택 키 삭제 (Delete)", (_, _) => _graph.DeleteSelection()));
@@ -597,6 +604,8 @@ public partial class MainWindow : Window
         };
         RightPanel.Children.Add(_snap);
         RightPanel.Children.Add(Labeled("현재 시각", _currentTime));
+        RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
+        _newKeyTangent.SelectionChanged += (_, _) => _viewport.DefaultTangent = DefaultTangent;
         OnCommit(_currentTime, text => { if (TryFloat(text, out float v)) _graph.CurrentTime = v; });
         RightPanel.Children.Add(new StackPanel
         {
@@ -754,7 +763,7 @@ public partial class MainWindow : Window
                             {
                                 T = (float)_graph.CurrentTime,
                                 V = MotionMath.Neutral(kind),
-                                Tangent = TangentMode.Auto,
+                                Tangent = DefaultTangent,
                             }));
                         }
 

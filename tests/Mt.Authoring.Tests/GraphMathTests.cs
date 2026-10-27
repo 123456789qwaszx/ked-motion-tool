@@ -194,6 +194,46 @@ public class TangentMathTests
     }
 
     [Fact]
+    public void spline은_할선_그대로라_넘칠_수_있고_끝은_이웃과의_할선이다()
+    {
+        var keys = new List<KeyAsset> { K(0, 0, TangentMode.Spline), K(1, 1, TangentMode.Spline), K(1.01f, 100, TangentMode.Spline) };
+        TangentMath.Recompute(keys);
+
+        Assert.Equal(1f, keys[0].OutTangent, 3);          // 끝: (0,0)→(1,1)
+        Assert.Equal(100f / 1.01f, keys[1].OutTangent, 2); // 가운데: 이웃 할선 그대로(auto면 3으로 눌렸다)
+        Assert.Equal(99f / 0.01f, keys[2].InTangent, 0);   // 끝: (1,1)→(1.01,100)
+        Assert.False(keys[1].Broken);
+    }
+
+    [Fact]
+    public void plateau는_이웃을_넘지_않고_같은_값이면_평평하다()
+    {
+        var rising = new List<KeyAsset> { K(0, 0, TangentMode.Plateau), K(1, 1, TangentMode.Plateau), K(2, 10, TangentMode.Plateau) };
+        TangentMath.Recompute(rising);
+        Assert.Equal(1f, rising[1].OutTangent, 3); // 할선 5를 작은 쪽 구간(1)으로 눌렀다
+        Assert.Equal(0f, rising[0].OutTangent);
+
+        var flatNeighbor = new List<KeyAsset> { K(0, 0, TangentMode.Plateau), K(1, 1, TangentMode.Plateau), K(2, 1, TangentMode.Plateau), K(3, 5, TangentMode.Plateau) };
+        TangentMath.Recompute(flatNeighbor);
+        Assert.Equal(0f, flatNeighbor[1].OutTangent);
+        Assert.Equal(0f, flatNeighbor[2].OutTangent);
+
+        var peak = new List<KeyAsset> { K(0, 0, TangentMode.Plateau), K(1, 5, TangentMode.Plateau), K(2, 0, TangentMode.Plateau) };
+        TangentMath.Recompute(peak);
+        Assert.Equal(0f, peak[1].InTangent);
+    }
+
+    [Fact]
+    public void 새_키_탄젠트를_정하면_끼운_키가_그_모드다()
+    {
+        var keys = new List<KeyAsset> { K(0, 0, TangentMode.Flat), K(1, 10, TangentMode.Flat) };
+
+        Assert.Equal(TangentMode.Free, KeyOps.WithKeyOnCurve(keys, 0.5f).Single(k => k.T == 0.5f).Tangent);
+        Assert.Equal(TangentMode.Plateau, KeyOps.WithKeyOnCurve(keys, 0.5f, TangentMode.Plateau).Single(k => k.T == 0.5f).Tangent);
+        Assert.Equal(TangentMode.Spline, KeyOps.WithKeyOnCurve(new List<KeyAsset>(), 0.5f, TangentMode.Spline).Single().Tangent);
+    }
+
+    [Fact]
     public void free는_손대지_않는다()
     {
         var keys = new List<KeyAsset> { K(0, 0, TangentMode.Free), new() { T = 1, V = 1, InTangent = 7, OutTangent = -7, Tangent = TangentMode.Free, Broken = true } };

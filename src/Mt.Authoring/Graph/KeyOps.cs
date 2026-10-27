@@ -12,8 +12,11 @@ namespace Mt.Authoring.Graph;
 /// </summary>
 public static class KeyOps
 {
-    /// <summary>곡선 위의 값·접선으로 키를 끼운 목록. 같은 시각에 키가 있으면 그 키를 대신한다.</summary>
-    public static List<KeyAsset> WithKeyOnCurve(IReadOnlyList<KeyAsset> keys, float t)
+    /// <summary>
+    /// 곡선 위의 값·접선으로 키를 끼운 목록(마야 Insert Key — 모양이 안 변한다). 같은 시각에 키가 있으면 그 키를 대신한다.
+    /// <paramref name="newKeyTangent"/>를 주면 그 모드로(키가 없던 커브의 첫 키도 그 모드). null이면 접선을 지키는 free.
+    /// </summary>
+    public static List<KeyAsset> WithKeyOnCurve(IReadOnlyList<KeyAsset> keys, float t, TangentMode? newKeyTangent = null)
     {
         ArgumentNullException.ThrowIfNull(keys);
         (float value, float slope) = TangentMath.OnCurve(keys, t);
@@ -25,7 +28,7 @@ public static class KeyOps
             V = value,
             InTangent = slope,
             OutTangent = slope,
-            Tangent = keys.Count == 0 ? TangentMode.Auto : TangentMode.Free,
+            Tangent = newKeyTangent ?? (keys.Count == 0 ? TangentMode.Auto : TangentMode.Free),
         });
 
         return result;

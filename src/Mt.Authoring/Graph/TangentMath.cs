@@ -49,6 +49,24 @@ public static class TangentMath
                     break;
                 }
 
+                case TangentMode.Spline:
+                {
+                    float slope = SplineSlope(keys, i);
+                    key.InTangent = slope;
+                    key.OutTangent = slope;
+                    key.Broken = false;
+                    break;
+                }
+
+                case TangentMode.Plateau:
+                {
+                    float slope = PlateauSlope(keys, i);
+                    key.InTangent = slope;
+                    key.OutTangent = slope;
+                    key.Broken = false;
+                    break;
+                }
+
                 case TangentMode.Free:
                 default:
                     break;
@@ -81,6 +99,55 @@ public static class TangentMath
 
         // 가파른 쪽 구간의 3배를 넘지 않게 — 모노톤 보간의 Fritsch–Carlson 한계와 같은 발상.
         float limit = 3f * Math.Min(Math.Abs(left), Math.Abs(right));
+        return Math.Clamp(secant, -limit, limit);
+    }
+
+    /// <summary>spline — 이웃 둘을 잇는 할선 그대로. 끝 키는 하나뿐인 이웃과의 할선(마야 spline 끝과 같다). 넘칠 수 있다.</summary>
+    public static float SplineSlope(IReadOnlyList<KeyAsset> keys, int index)
+    {
+        if (keys.Count < 2)
+        {
+            return 0f;
+        }
+
+        if (index <= 0)
+        {
+            return Secant(keys[0], keys[1]);
+        }
+
+        if (index >= keys.Count - 1)
+        {
+            return Secant(keys[^2], keys[^1]);
+        }
+
+        return Secant(keys[index - 1], keys[index + 1]);
+    }
+
+    /// <summary>
+    /// plateau — auto처럼 극값·끝은 평평하고, 이웃과 같은 값이어도 평평하다. 가운데는 이웃 할선을
+    /// 양쪽 구간 기울기 중 작은 쪽을 넘지 않게 눌러 이웃 값을 절대 넘지 않는다.
+    /// </summary>
+    public static float PlateauSlope(IReadOnlyList<KeyAsset> keys, int index)
+    {
+        if (index <= 0 || index >= keys.Count - 1)
+        {
+            return 0f;
+        }
+
+        KeyAsset prev = keys[index - 1];
+        KeyAsset key = keys[index];
+        KeyAsset next = keys[index + 1];
+
+        float left = Secant(prev, key);
+        float right = Secant(key, next);
+
+        if (left * right <= 0f || Math.Abs(prev.V - key.V) <= MotionRules.Tolerance || Math.Abs(next.V - key.V) <= MotionRules.Tolerance)
+        {
+            return 0f;
+        }
+
+        float secant = Secant(prev, next);
+        float limit = Math.Min(Math.Abs(left), Math.Abs(right));
         return Math.Clamp(secant, -limit, limit);
     }
 

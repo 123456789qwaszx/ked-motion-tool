@@ -60,6 +60,27 @@ public class MotionDocumentJsonTests
     }
 
     [Fact]
+    public void 새_탄젠트_모드도_소문자로_왕복한다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddMotion("a", "character", 1f);
+        editor.AddChannel("a", "N", MotionChannelKind.Position);
+        editor.SetKeys("a", "N", MotionChannelKind.Position, Axis.X, new[]
+        {
+            new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Spline },
+            new KeyAsset { T = 1f, V = 1f, Tangent = TangentMode.Plateau },
+        });
+
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Contains("\"tangent\": \"spline\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"tangent\": \"plateau\"", json, StringComparison.Ordinal);
+
+        List<KeyAsset> keys = MotionDocumentJson.Read(json).Find("a")!.Channels[0].X!.Keys;
+        Assert.Equal(TangentMode.Spline, keys[0].Tangent);
+        Assert.Equal(TangentMode.Plateau, keys[1].Tangent);
+    }
+
+    [Fact]
     public void 다른_스키마는_거부한다()
     {
         Assert.Throws<JsonException>(() => MotionDocumentJson.Read("""{ "schema": "motion-authoring/0", "motions": [] }"""));
