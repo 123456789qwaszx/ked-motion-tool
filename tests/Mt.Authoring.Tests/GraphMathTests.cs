@@ -345,7 +345,7 @@ public class CurveViewTransformTests
         Assert.Equal(1, n.Scale, 9);
         Assert.Equal(0.5, n.ToView(5), 9);
         Assert.Equal(6, n.ToValue(1.5), 9);
-        Assert.Equal(1, CurveViewTransform.For(new List<KeyAsset>(), GraphViewMode.Stacked, 1).ToView(0.5), 9);
+        Assert.Equal(1.5, CurveViewTransform.For(new List<KeyAsset>(), GraphViewMode.Stacked, 1).ToView(0), 9); // 빈 커브: 0이 띠 가운데
     }
 }
 
