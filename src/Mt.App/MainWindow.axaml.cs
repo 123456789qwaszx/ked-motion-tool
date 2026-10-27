@@ -1326,7 +1326,11 @@ public partial class MainWindow : Window
     internal string OutlinerQuery
     {
         get => _outlinerSearch.Text ?? "";
-        set => _outlinerSearch.Text = value;
+        set
+        {
+            _outlinerSearch.Text = value;
+            RefreshChannels();
+        }
     }
 
     private void RefreshMotionInspector()
