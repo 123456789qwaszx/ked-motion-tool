@@ -33,7 +33,7 @@ public partial class MainWindow : Window
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
-    private readonly TextBox _newMotionName = new() { Watermark = "이름 (a-z0-9_)", FontSize = 11 };
+    private readonly TextBox _newMotionName = new() { PlaceholderText = "이름 (a-z0-9_)", FontSize = 11 };
     private readonly ComboBox _newMotionRig = new() { FontSize = 11, MinWidth = 100 };
     private readonly TextBox _newMotionDuration = new() { Text = "1", Width = 56, FontSize = 11 };
     private readonly ComboBox _newMotionEnd = new() { ItemsSource = EndTokens, SelectedIndex = 0, FontSize = 11 };
@@ -47,7 +47,7 @@ public partial class MainWindow : Window
     private readonly TextBox _motionDuration = new() { FontSize = 11 };
     private readonly ComboBox _motionEnd = new() { ItemsSource = EndTokens, FontSize = 11 };
     private readonly ComboBox _motionDefaultMode = new() { ItemsSource = ModeTokens, FontSize = 11 };
-    private readonly TextBox _motionNotes = new() { FontSize = 11, AcceptsReturn = true, MinHeight = 48, Watermark = "메모" };
+    private readonly TextBox _motionNotes = new() { FontSize = 11, AcceptsReturn = true, MinHeight = 48, PlaceholderText = "메모" };
 
     // 오른쪽 — 키
     private readonly TextBlock _selectionSummary = new() { FontSize = 11, Opacity = 0.8 };
