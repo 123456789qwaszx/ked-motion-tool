@@ -23,17 +23,30 @@ public static class MotionPreview
         RectNodeTree tree = template.Clone();
         MotionClip clip = MotionAssetCodec.ToClip(motion);
 
-        if (isMuted is not null && clip.Channels is not null)
+        MotionChannel[] channels = clip.Channels ?? Array.Empty<MotionChannel>();
+
+        if (isMuted is not null)
         {
-            for (int i = 0; i < clip.Channels.Length; i++)
+            for (int i = 0; i < channels.Length; i++)
             {
-                MotionChannel ch = clip.Channels[i];
+                MotionChannel ch = channels[i];
 
-                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.X))) ch.X = null;
-                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Y))) ch.Y = null;
-                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Z))) ch.Z = null;
+                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.X)))
+                {
+                    ch.X = null;
+                }
 
-                clip.Channels[i] = ch;
+                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Y)))
+                {
+                    ch.Y = null;
+                }
+
+                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Z)))
+                {
+                    ch.Z = null;
+                }
+
+                channels[i] = ch;
             }
         }
         bool ended = seconds >= motion.Duration - 1e-6;
@@ -45,7 +58,7 @@ public static class MotionPreview
 
         float t = (float)Math.Max(0, seconds);
 
-        foreach (MotionChannel channel in clip.Channels)
+        foreach (MotionChannel channel in channels)
         {
             // 덤프에 없는 노드는 건너뛴다 — 검증이 이미 소리를 낸다. 여기서 던지면 편집 중 화면이 죽는다.
             if (string.IsNullOrEmpty(channel.Node) || !tree.Contains(channel.Node))
