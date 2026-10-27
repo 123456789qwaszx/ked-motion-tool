@@ -313,6 +313,14 @@ public sealed class MotionEditor
         return result;
     }
 
+    /// <summary>선택 키의 값을 바꾼다(한 번의 조작). 시각은 그대로라 선택이 그대로 유효하다.</summary>
+    public void SetKeyValues(string name, IEnumerable<KeyRef> keys, Func<KeyAsset, float> map)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        MotionAsset motion = Require(name);
+        SetKeysMany(name, KeyOps.MapValues(motion, keys.ToList(), map));
+    }
+
     /// <summary>선택 키를 delta초 옮긴다(한 번의 조작). 돌려주는 것은 옮긴 뒤의 (커브, 시각) — 선택을 다시 푸는 데 쓴다.</summary>
     public List<(CurveRef Curve, float T)> MoveKeys(string name, IEnumerable<KeyRef> keys, float deltaSeconds, Func<float, float>? snap = null)
     {

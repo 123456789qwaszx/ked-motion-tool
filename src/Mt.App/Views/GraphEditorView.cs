@@ -10,6 +10,13 @@ using Mt.Authoring.Model;
 
 namespace Mt.App.Views;
 
+public enum GraphTool
+{
+    Select,
+    Move,
+    Scale,
+}
+
 /// <summary>그래프에 올라가는 성분 커브 하나의 표시 상태. 색은 축(x·y·z)이 정하고 채널 순서가 색조를 조금 돌린다.</summary>
 public sealed class CurveSlot
 {
@@ -58,6 +65,8 @@ public sealed class GraphEditorView : Control
     private static readonly IBrush SelectedKeyBrush = new SolidColorBrush(Color.FromArgb(255, 250, 204, 21));
     private static readonly Pen HandlePen = new(new SolidColorBrush(Color.FromArgb(210, 125, 211, 252)), 1);
     private static readonly IBrush HandleBrush = new SolidColorBrush(Color.FromArgb(235, 125, 211, 252));
+    private static readonly IBrush ValueLabelBrush = new SolidColorBrush(Color.FromArgb(230, 250, 204, 21));
+    private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromArgb(230, 251, 146, 60));
 
     private readonly List<CurveSlot> _curves = new();
     private KeySelection _selection = new();
@@ -68,7 +77,13 @@ public sealed class GraphEditorView : Control
     private bool _cameraFitted;
     private double _currentTime;
 
-    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan, Scrub }
+    private enum Drag { None, Keys, InHandle, OutHandle, Box, Pan, Scrub, Zoom, Scale, Lasso }
+
+    /// <summary>마야 그래프 에디터의 툴: 선택(Q)·이동(W)·스케일(R). MMB 드래그는 툴과 무관하게 이동이다.</summary>
+    public GraphTool Tool { get; set; } = GraphTool.Select;
+
+    private readonly List<Point> _lasso = new();
+    private GraphPoint _scalePivot;
 
     private Drag _drag = Drag.None;
     private Point _dragStart;
@@ -595,6 +610,7 @@ public sealed class GraphEditorView : Control
                     if (selected)
                     {
                         DrawHandles(context, keys, i, center);
+                        DrawLabel(context, $"{keys[i].T:0.###}s  {keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10);
                     }
 
                     context.FillRectangle(selected ? SelectedKeyBrush : keyBrush, new Rect(center.X - 4, center.Y - 4, 8, 8));
@@ -606,6 +622,17 @@ public sealed class GraphEditorView : Control
                 var box = new Rect(_dragStart, _dragNow);
                 context.FillRectangle(BoxFill, box);
                 context.DrawRectangle(BoxPen, box);
+            }
+
+            if (_drag == Drag.Lasso && _lasso.Count > 1)
+            {
+                context.DrawGeometry(BoxFill, BoxPen, new PolylineGeometry(_lasso, true));
+            }
+
+            if (_drag == Drag.Scale && _dragMoved)
+            {
+                Point pivot = ToScreen(_scalePivot);
+                context.DrawEllipse(PivotBrush, null, pivot, 4, 4);
             }
         }
     }
@@ -757,13 +784,33 @@ public sealed class GraphEditorView : Control
         bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
 
-        if (point.Properties.IsMiddleButtonPressed || (point.Properties.IsLeftButtonPressed && alt))
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        MotionAsset? pressedMotion = Motion;
+
+        // 마야 내비게이션: Alt+MMB 팬 · Alt+RMB 줌 드래그 · Alt+LMB 팬(호환).
+        if (alt && (point.Properties.IsMiddleButtonPressed || point.Properties.IsLeftButtonPressed))
         {
-            _drag = Drag.Pan;
-            _dragStart = position;
+            StartDrag(Drag.Pan, position, e);
             _panStart = _camera;
-            e.Pointer.Capture(this);
-            e.Handled = true;
+            return;
+        }
+
+        if (alt && point.Properties.IsRightButtonPressed)
+        {
+            StartDrag(Drag.Zoom, position, e);
+            _panStart = _camera;
+            return;
+        }
+
+        // MMB 드래그 = 선택 키 이동(마야). 툴과 무관하다.
+        if (point.Properties.IsMiddleButtonPressed)
+        {
+            if (pressedMotion is not null && _selection.Count > 0)
+            {
+                BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
+                StartDrag(Drag.Keys, position, e);
+            }
+
             return;
         }
 
@@ -810,6 +857,29 @@ public sealed class GraphEditorView : Control
             return;
         }
 
+        // 스케일 툴(R): LMB 드래그 = 선택 키를 선택 중심 기준으로 값·시간 스케일.
+        if (Tool == GraphTool.Scale && _selection.Count > 0 && !ctrl)
+        {
+            _scalePivot = SelectionCenter(motion);
+            BeginPreview(motion, _selection.Select(k => k.Curve).Distinct());
+            StartDrag(Drag.Scale, position, e);
+            return;
+        }
+
+        // 라소(Ctrl+LMB).
+        if (ctrl)
+        {
+            if (!shift)
+            {
+                _selection.Clear();
+            }
+
+            _lasso.Clear();
+            _lasso.Add(position);
+            StartDrag(Drag.Lasso, position, e);
+            return;
+        }
+
         if (GraphHitTest.TryNearest(KeyCandidates(motion), at, GraphHitTest.KeyRadius, out KeyRef hit))
         {
             if (shift)
@@ -821,13 +891,12 @@ public sealed class GraphEditorView : Control
                 _selection.Set(new[] { hit });
             }
 
-            if (_selection.Contains(hit))
+            // 이동 툴(W)에서만 LMB 드래그가 이동이다. 선택 툴(Q)은 고르기만 — 마야처럼 MMB로 옮긴다.
+            if (Tool == GraphTool.Move && _selection.Contains(hit))
             {
-                _drag = Drag.Keys;
                 BeginPreview(motion, _selection.Select(k => k.Curve).Distinct());
-                _dragStart = position;
-                _dragMoved = false;
-                e.Pointer.Capture(this);
+                StartDrag(Drag.Keys, position, e);
+                return;
             }
 
             InvalidateVisual();
@@ -841,12 +910,36 @@ public sealed class GraphEditorView : Control
             _selection.Clear();
         }
 
-        _drag = Drag.Box;
+        StartDrag(Drag.Box, position, e);
+    }
+
+    private void StartDrag(Drag drag, Point position, PointerPressedEventArgs e)
+    {
+        _drag = drag;
         _dragStart = position;
         _dragNow = position;
+        _dragMoved = false;
         e.Pointer.Capture(this);
         InvalidateVisual();
         e.Handled = true;
+    }
+
+    /// <summary>선택 키들의 가운데(시각·값) — 스케일 툴의 피벗.</summary>
+    private GraphPoint SelectionCenter(MotionAsset motion)
+    {
+        var keys = new List<KeyAsset>();
+
+        foreach (KeyRef keyRef in _selection)
+        {
+            if (keyRef.Resolve(motion) is { } k)
+            {
+                keys.Add(k);
+            }
+        }
+
+        return CurveSampler.TryBounds(keys, out double t0, out double t1, out double v0, out double v1)
+            ? new GraphPoint((t0 + t1) / 2, (v0 + v1) / 2)
+            : new GraphPoint(CurrentTime, 0);
     }
 
     /// <summary>더블클릭 — 가장 가까운 보이는 커브 위, 그 시각(스냅)에 키.</summary>
@@ -928,7 +1021,16 @@ public sealed class GraphEditorView : Control
         double dx = position.X - _dragStart.X;
         double dy = position.Y - _dragStart.Y;
 
-        if (!_dragMoved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold && _drag != Drag.Pan && _drag != Drag.Box && _drag != Drag.Scrub)
+        if (_drag == Drag.Lasso)
+        {
+            _lasso.Add(position);
+            _dragMoved = true;
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        if (!_dragMoved && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold && _drag != Drag.Pan && _drag != Drag.Box && _drag != Drag.Scrub && _drag != Drag.Zoom)
         {
             return;
         }
@@ -944,6 +1046,23 @@ public sealed class GraphEditorView : Control
 
             case Drag.Scrub:
                 CurrentTime = Math.Max(0, SnapTime(ToGraph(position).T));
+                break;
+
+            case Drag.Zoom:
+            {
+                // 마야 Alt+RMB: 오른쪽으로 끌면 시간 확대, 위로 끌면 값 확대. 누른 자리를 고정한다.
+                double timeFactor = Math.Pow(1.01, dx);
+                double valueFactor = Math.Pow(1.01, -dy);
+                _camera = _panStart.ZoomAt(ToPlotPixel(_dragStart), Plot.Height, timeFactor, valueFactor);
+                break;
+            }
+
+            case Drag.Scale:
+                if (motion is not null)
+                {
+                    ScaleSelectionPreview(motion, dx, dy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                }
+
                 break;
 
             case Drag.Keys:
@@ -999,6 +1118,36 @@ public sealed class GraphEditorView : Control
         }
     }
 
+    /// <summary>스케일 툴 — 오른쪽으로 끌면 시간이, 위로 끌면 값이 피벗 기준으로 늘어난다(1px = 1%). Shift = 한 축만.</summary>
+    private void ScaleSelectionPreview(MotionAsset motion, double dx, double dy, bool axisLock)
+    {
+        if (axisLock)
+        {
+            if (Math.Abs(dx) >= Math.Abs(dy))
+            {
+                dy = 0;
+            }
+            else
+            {
+                dx = 0;
+            }
+        }
+
+        double timeFactor = Math.Max(0.01, 1 + dx / 100.0);
+        double valueFactor = 1 - dy / 100.0;
+
+        foreach (KeyRef keyRef in _selection)
+        {
+            if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
+            {
+                continue;
+            }
+
+            preview.T = (float)Math.Max(0, SnapTime(_scalePivot.T + (original.T - _scalePivot.T) * timeFactor));
+            preview.V = (float)(_scalePivot.V + (original.V - _scalePivot.V) * valueFactor);
+        }
+    }
+
     private void DragHandlePreview(MotionAsset motion, Point position, bool inward)
     {
         if (_handleKey.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(_handleKey, out KeyAsset? preview))
@@ -1046,11 +1195,21 @@ public sealed class GraphEditorView : Control
             switch (drag)
             {
                 case Drag.Keys:
+                case Drag.Scale:
                     if (_dragMoved && motion is not null)
                     {
                         CommitMove(motion);
                     }
 
+                    break;
+
+                case Drag.Lasso:
+                    if (motion is not null)
+                    {
+                        _selection.AddRange(GraphHitTest.InPolygon(KeyCandidates(motion), _lasso.Select(ToPixel).ToList()));
+                    }
+
+                    _lasso.Clear();
                     break;
 
                 case Drag.InHandle:
@@ -1174,6 +1333,15 @@ public sealed class GraphEditorView : Control
                 break;
             case Key.D6:
                 SetTangentMode(TangentMode.Plateau);
+                break;
+            case Key.Q:
+                Tool = GraphTool.Select;
+                break;
+            case Key.W:
+                Tool = GraphTool.Move;
+                break;
+            case Key.R:
+                Tool = GraphTool.Scale;
                 break;
             case Key.OemPeriod:
                 JumpToKey(forward: true);

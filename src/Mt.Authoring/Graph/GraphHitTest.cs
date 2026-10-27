@@ -48,6 +48,45 @@ public static class GraphHitTest
         return hits;
     }
 
+    /// <summary>라소 — 다각형 안의 것들(짝수-홀수 규칙). 점이 셋 미만이면 아무것도 없다.</summary>
+    public static List<T> InPolygon<T>(IReadOnlyList<(T Item, Pixel At)> candidates, IReadOnlyList<Pixel> polygon)
+    {
+        var hits = new List<T>();
+
+        if (polygon.Count < 3)
+        {
+            return hits;
+        }
+
+        foreach ((T item, Pixel at) in candidates)
+        {
+            if (Contains(polygon, at))
+            {
+                hits.Add(item);
+            }
+        }
+
+        return hits;
+    }
+
+    public static bool Contains(IReadOnlyList<Pixel> polygon, Pixel p)
+    {
+        bool inside = false;
+
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            Pixel a = polygon[i];
+            Pixel b = polygon[j];
+
+            if ((a.Y > p.Y) != (b.Y > p.Y) && p.X < (b.X - a.X) * (p.Y - a.Y) / (b.Y - a.Y) + a.X)
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
+    }
+
     /// <summary>점과 폴리라인의 거리 — 더블클릭으로 "이 커브 위에" 키를 끼울 때 어느 커브인지 고른다.</summary>
     public static double DistanceToPolyline(IReadOnlyList<Pixel> polyline, Pixel at)
     {

@@ -95,6 +95,7 @@ public class GraphEditorViewTests
 
         try
         {
+            view.Tool = GraphTool.Move; // 이동 툴(W)에서만 LMB 드래그가 이동이다
             Point middle = InWindow(window, view, At(view, 1));
             long before = editor.Revision;
             float valueBefore = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V;
@@ -114,6 +115,109 @@ public class GraphEditorViewTests
 
             editor.Undo();
             Assert.Equal(valueBefore, Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void 선택_툴에서_LMB_드래그는_옮기지_않고_MMB_드래그가_옮긴다_마야_관습() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            Assert.Equal(GraphTool.Select, view.Tool);
+            Point middle = InWindow(window, view, At(view, 1));
+            long before = editor.Revision;
+
+            window.MouseDown(middle, MouseButton.Left);
+            window.MouseMove(new Point(middle.X, middle.Y - 40), RawInputModifiers.LeftMouseButton);
+            window.MouseUp(new Point(middle.X, middle.Y - 40), MouseButton.Left);
+            Assert.Equal(before, editor.Revision);
+            Assert.Equal(new[] { new KeyRef(Y, 1) }, view.Selection);
+
+            window.MouseDown(middle, MouseButton.Middle);
+            window.MouseMove(new Point(middle.X, middle.Y - 40), RawInputModifiers.MiddleMouseButton);
+            window.MouseUp(new Point(middle.X, middle.Y - 40), MouseButton.Middle);
+            Assert.Equal(before + 1, editor.Revision);
+            Assert.True(Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V > -18f);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void Alt_MMB는_팬이고_Alt_RMB는_줌_드래그다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, _) = Show();
+
+        try
+        {
+            GraphCamera before = view.Camera;
+            Point start = InWindow(window, view, new Point(view.Bounds.Width / 2, view.Bounds.Height / 2));
+
+            window.MouseDown(start, MouseButton.Middle, RawInputModifiers.Alt);
+            window.MouseMove(new Point(start.X + 50, start.Y), RawInputModifiers.Alt | RawInputModifiers.MiddleMouseButton);
+            window.MouseUp(new Point(start.X + 50, start.Y), MouseButton.Middle, RawInputModifiers.Alt);
+            Assert.True(view.Camera.TimeOrigin < before.TimeOrigin);
+            Assert.Equal(before.PixelsPerSecond, view.Camera.PixelsPerSecond, 6);
+
+            GraphCamera panned = view.Camera;
+            window.MouseDown(start, MouseButton.Right, RawInputModifiers.Alt);
+            window.MouseMove(new Point(start.X + 60, start.Y), RawInputModifiers.Alt | RawInputModifiers.RightMouseButton);
+            window.MouseUp(new Point(start.X + 60, start.Y), MouseButton.Right, RawInputModifiers.Alt);
+            Assert.True(view.Camera.PixelsPerSecond > panned.PixelsPerSecond);
+            Assert.Equal(panned.PixelsPerValue, view.Camera.PixelsPerValue, 6);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void 스케일_툴은_선택_중심_기준으로_값을_늘리고_라소는_다각형으로_고른다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            view.SelectAll();
+            view.Tool = GraphTool.Scale;
+            Point start = InWindow(window, view, new Point(view.Bounds.Width / 2, view.Bounds.Height / 2));
+            long before = editor.Revision;
+
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(new Point(start.X, start.Y - 50), RawInputModifiers.LeftMouseButton | RawInputModifiers.Shift);
+            window.MouseUp(new Point(start.X, start.Y - 50), MouseButton.Left, RawInputModifiers.Shift);
+
+            Assert.Equal(before + 1, editor.Revision);
+            List<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+            Assert.Equal(new[] { 0f, 0.3f, 0.6f }, keys.Select(k => (float)Math.Round(k.T, 4))); // Shift: 값만
+            Assert.True(keys[0].V > 0f && keys[1].V < -18f, "피벗(가운데 -9)에서 멀어져야 한다");
+
+            view.Tool = GraphTool.Select;
+            view.ClearSelection();
+            Point first = At(view, 0);
+            Point middle = At(view, 1);
+            Point a = InWindow(window, view, new Point(first.X - 12, Math.Min(first.Y, middle.Y) - 12));
+            Point b = InWindow(window, view, new Point(middle.X + 12, Math.Min(first.Y, middle.Y) - 12));
+            Point c = InWindow(window, view, new Point(middle.X + 12, Math.Max(first.Y, middle.Y) + 12));
+            Point d = InWindow(window, view, new Point(first.X - 12, Math.Max(first.Y, middle.Y) + 12));
+            window.MouseDown(a, MouseButton.Left, RawInputModifiers.Control);
+            window.MouseMove(b, RawInputModifiers.Control | RawInputModifiers.LeftMouseButton);
+            window.MouseMove(c, RawInputModifiers.Control | RawInputModifiers.LeftMouseButton);
+            window.MouseMove(d, RawInputModifiers.Control | RawInputModifiers.LeftMouseButton);
+            window.MouseUp(d, MouseButton.Left, RawInputModifiers.Control);
+
+            Assert.Equal(2, view.Selection.Count);
+            Assert.Contains(new KeyRef(Y, 0), view.Selection);
+            Assert.Contains(new KeyRef(Y, 1), view.Selection);
         }
         finally
         {

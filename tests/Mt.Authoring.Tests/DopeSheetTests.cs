@@ -183,3 +183,59 @@ public class DopeSheetRowsTests
         Assert.Empty(DopeSheetRows.Build(new MotionAsset { Name = "a", Rig = "character", Duration = 1f }));
     }
 }
+
+public class RelativeInputTests
+{
+    [Theory]
+    [InlineData("5", 2f, 5f)]
+    [InlineData(" +=3 ", 2f, 5f)]
+    [InlineData("-=0.5", 2f, 1.5f)]
+    [InlineData("*=2", 2f, 4f)]
+    [InlineData("/=4", 2f, 0.5f)]
+    [InlineData("/=0", 2f, 2f)]
+    public void 절대와_상대(string text, float current, float expected)
+    {
+        Assert.True(RelativeInput.TryParse(text, out Func<float, float> apply));
+        Assert.Equal(expected, apply(current), 5);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("abc")]
+    [InlineData("+=x")]
+    [InlineData("^=2")]
+    public void 못_읽으면_false(string text)
+    {
+        Assert.False(RelativeInput.TryParse(text, out _));
+    }
+}
+
+public class KeyValueOpsTests
+{
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+
+    [Fact]
+    public void 값만_바꾸고_시각은_그대로라_선택이_유효하다()
+    {
+        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        long before = editor.Revision;
+
+        editor.SetKeyValues("nod", new[] { new KeyRef(Y, 1), new KeyRef(Y, 9) }, k => k.V * 2f);
+
+        Assert.Equal(before + 1, editor.Revision);
+        List<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+        Assert.Equal(new[] { 0f, 0.3f, 0.6f }, keys.Select(k => (float)Math.Round(k.T, 4)));
+        Assert.Equal(-36f, keys[1].V);
+        Assert.Equal(0f, keys[0].V);
+    }
+
+    [Fact]
+    public void 라소는_다각형_안만_고른다()
+    {
+        var candidates = new List<(int, Pixel)> { (1, new Pixel(5, 5)), (2, new Pixel(50, 50)), (3, new Pixel(20, 8)) };
+        var triangle = new List<Pixel> { new(0, 0), new(30, 0), new(0, 30) };
+
+        Assert.Equal(new[] { 1, 3 }, GraphHitTest.InPolygon(candidates, triangle));
+        Assert.Empty(GraphHitTest.InPolygon(candidates, new List<Pixel> { new(0, 0), new(1, 1) }));
+    }
+}

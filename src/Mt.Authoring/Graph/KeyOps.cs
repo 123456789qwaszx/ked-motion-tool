@@ -56,6 +56,57 @@ public static class KeyOps
         MotionAsset motion, IEnumerable<KeyRef> keys, float offsetSeconds, Func<float, float>? snap = null)
         => Transform(motion, keys, t => t + offsetSeconds, snap, keepOriginals: true);
 
+    /// <summary>선택 키의 값만 바꾼다(시각은 그대로). 값 스케일·상대 입력이 쓴다.</summary>
+    public static List<(CurveRef Curve, IEnumerable<KeyAsset> Keys)> MapValues(
+        MotionAsset motion, IEnumerable<KeyRef> keys, Func<KeyAsset, float> map)
+    {
+        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(map);
+
+        var byCurve = new Dictionary<CurveRef, HashSet<int>>();
+
+        foreach (KeyRef key in keys)
+        {
+            if (key.Resolve(motion) is null)
+            {
+                continue;
+            }
+
+            if (!byCurve.TryGetValue(key.Curve, out HashSet<int>? indices))
+            {
+                indices = new HashSet<int>();
+                byCurve[key.Curve] = indices;
+            }
+
+            indices.Add(key.Index);
+        }
+
+        var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
+
+        foreach ((CurveRef curveRef, HashSet<int> indices) in byCurve)
+        {
+            ComponentCurve curve = curveRef.Resolve(motion)!;
+            var result = new List<KeyAsset>();
+
+            for (int i = 0; i < curve.Keys.Count; i++)
+            {
+                KeyAsset copy = Clone(curve.Keys[i]);
+
+                if (indices.Contains(i))
+                {
+                    copy.V = map(curve.Keys[i]);
+                }
+
+                result.Add(copy);
+            }
+
+            edits.Add((curveRef, result));
+        }
+
+        return edits;
+    }
+
     /// <summary>변환 뒤 선택이 가리킬 (커브, 시각) — 편집 뒤 자리를 다시 푸는 데 쓴다.</summary>
     public static List<(CurveRef Curve, float T)> ResultingTimes(
         MotionAsset motion, IEnumerable<KeyRef> keys, Func<float, float> map, Func<float, float>? snap = null)

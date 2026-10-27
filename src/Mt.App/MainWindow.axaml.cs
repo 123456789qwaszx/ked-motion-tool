@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private readonly CheckBox _autoKey = new() { Content = "Auto Key", FontSize = 11 };
     private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
     private readonly Button[] _manipulatorButtons = new Button[4];
+    private readonly Button[] _toolButtons = new Button[3];
     private static readonly TangentMode[] NewKeyTangentChoices = { TangentMode.Auto, TangentMode.Spline, TangentMode.Plateau, TangentMode.Flat, TangentMode.Linear };
     private readonly ComboBox _newKeyTangent = new() { ItemsSource = new[] { "auto", "spline", "plateau", "flat", "linear" }, SelectedIndex = 0, FontSize = 11 };
 
@@ -281,6 +282,16 @@ public partial class MainWindow : Window
         Grid.SetRow(tabs, 3);
         grid.Children.Add(tabs);
         return grid;
+    }
+
+    private void RefreshToolButtons()
+    {
+        for (int i = 0; i < _toolButtons.Length; i++)
+        {
+            bool active = (int)_graph.Tool == i;
+            _toolButtons[i].Opacity = active ? 1 : 0.55;
+            _toolButtons[i].FontWeight = active ? FontWeight.Bold : FontWeight.Normal;
+        }
     }
 
     private void RefreshManipulatorButtons()
@@ -510,6 +521,23 @@ public partial class MainWindow : Window
         OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
 
         RightPanel.Children.Add(Header("키"));
+        var tools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)" };
+
+        for (int i = 0; i < toolLabels.Length; i++)
+        {
+            var tool = (GraphTool)i;
+            Button button = SmallButton(toolLabels[i], (_, _) =>
+            {
+                _graph.Tool = tool;
+                RefreshToolButtons();
+            });
+            _toolButtons[i] = button;
+            tools.Children.Add(button);
+        }
+
+        RightPanel.Children.Add(tools);
+        RightPanel.Children.Add(new TextBlock { Text = "그래프: LMB 선택 · MMB 드래그 이동 · Alt+MMB 팬 · Alt+RMB 줌 · Ctrl+드래그 라소. 칸에 +=3 · *=2 식 상대 입력.", FontSize = 10, Opacity = 0.6, TextWrapping = TextWrapping.Wrap });
         RightPanel.Children.Add(_selectionSummary);
         RightPanel.Children.Add(Labeled("시각(초)", _keyTime));
         RightPanel.Children.Add(Labeled("값", _keyValue));
@@ -532,8 +560,8 @@ public partial class MainWindow : Window
         });
         RightPanel.Children.Add(SmallButton("선택 키 삭제 (Delete)", (_, _) => _graph.DeleteSelection()));
 
-        OnCommit(_keyTime, text => WithSingleKey((key, k) => { if (TryFloat(text, out float v) && v != k.T) UpdateKey(key, k, t: v); }));
-        OnCommit(_keyValue, text => WithSingleKey((key, k) => { if (TryFloat(text, out float v) && v != k.V) UpdateKey(key, k, value: v); }));
+        OnCommit(_keyTime, text => ApplyToSelectedKeys(text, time: true));
+        OnCommit(_keyValue, text => ApplyToSelectedKeys(text, time: false));
         OnCommit(_keyIn, text => WithSingleKey((key, k) =>
         {
             if (TryFloat(text, out float v) && v != k.InTangent)
@@ -594,6 +622,7 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(_pendingText);
         _viewport.PendingChanged += (_, _) => RefreshPending();
         RefreshManipulatorButtons();
+        RefreshToolButtons();
 
         RightPanel.Children.Add(Header("보기"));
         _snap.IsCheckedChanged += (_, _) =>
@@ -836,14 +865,14 @@ public partial class MainWindow : Window
             bool editable = single is not null;
 
             _selectionSummary.Text = count == 0 ? "선택 없음" : count == 1 ? $"키 1개 — {_graph.Selection.First().Curve}" : $"키 {count}개";
-            _keyTime.IsEnabled = editable;
-            _keyValue.IsEnabled = editable;
+            _keyTime.IsEnabled = count > 0;
+            _keyValue.IsEnabled = count > 0;
             _keyIn.IsEnabled = editable;
             _keyOut.IsEnabled = editable;
             _keyBroken.IsEnabled = count > 0;
 
-            _keyTime.Text = single is null ? "" : F(single.T);
-            _keyValue.Text = single is null ? "" : F(single.V);
+            _keyTime.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.T);
+            _keyValue.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.V);
             _keyIn.Text = single is null ? "" : F(single.InTangent);
             _keyOut.Text = single is null ? "" : F(single.OutTangent);
             _keyBroken.IsChecked = single?.Broken ?? false;
@@ -925,6 +954,51 @@ public partial class MainWindow : Window
         var kind = (MotionChannelKind)Math.Max(0, _newChannelKind.SelectedIndex);
         MotionChannelMode? mode = _newChannelMode.SelectedIndex switch { 1 => MotionChannelMode.Relative, 2 => MotionChannelMode.Absolute, _ => null };
         _session.Editor.AddChannel(motion.Name, node, kind, mode);
+    }
+
+    /// <summary>
+    /// 시각·값 칸: 숫자는 절대값, <c>+=</c>·<c>-=</c>·<c>*=</c>·<c>/=</c>는 상대. 선택 키 전부에 적용한다.
+    /// 시각의 절대값은 키 하나일 때만(여러 키를 한 시각에 겹칠 수 없다).
+    /// </summary>
+    private void ApplyToSelectedKeys(string text, bool time)
+    {
+        if (_refreshing || _graph.Motion is not { } motion || _graph.Selection.Count == 0 || !RelativeInput.TryParse(text, out Func<float, float> apply))
+        {
+            return;
+        }
+
+        List<KeyRef> keys = _graph.Selection.ToList();
+
+        Guard(time ? "키 시각" : "키 값", () =>
+        {
+            if (!time)
+            {
+                _session.Editor.SetKeyValues(motion.Name, keys, k => apply(k.V));
+                return;
+            }
+
+            bool relative = text.TrimStart().Length >= 2 && text.TrimStart()[1] == '=';
+
+            if (relative)
+            {
+                float probe = 1f;
+                float delta = apply(probe) - probe; // +=·-=는 상수 변위; *=·/=는 시각에 쓰지 않는다
+                _graph.Select(_session.Editor.MoveKeys(motion.Name, keys, delta, _graph.SnapEnabled ? t => (float)TimeSnap.Snap(t, _graph.SnapStep) : null)
+                    .Select(m => new KeyRef(m.Curve, m.Curve.Resolve(_session.Editor.Document.Find(motion.Name)!)!.Keys.FindIndex(k => Math.Abs(k.T - m.T) <= MotionRules.Tolerance)))
+                    .Where(k => k.Index >= 0), additive: false);
+                return;
+            }
+
+            if (keys.Count == 1 && keys[0].Resolve(motion) is { } single)
+            {
+                float t = apply(single.T);
+
+                if (t != single.T)
+                {
+                    UpdateKey(keys[0], single, t: t);
+                }
+            }
+        });
     }
 
     private void UpdateKey(KeyRef key, KeyAsset current, float? t = null, float? value = null)
