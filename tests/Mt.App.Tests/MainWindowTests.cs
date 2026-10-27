@@ -86,6 +86,41 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 뷰포트와_그래프의_현재_시각은_하나이고_리그를_실으면_뷰포트에_초상이_선다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            var window = new MainWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+
+                Assert.Equal("nod", window.Viewport.MotionName);
+                Assert.True(window.Viewport.HasRig);
+                Assert.NotNull(window.Viewport.CurrentPortraitQuad());
+
+                window.Viewport.ScrubTo(0.25);
+                Assert.Equal(0.25, window.Graph.CurrentTime, 9);
+
+                window.Graph.CurrentTime = 0.5;
+                Assert.Equal(0.5, window.Viewport.Time, 9);
+
+                // 길이 밖은 뷰포트가 길이로 죈다 — 그래프는 그대로.
+                window.Graph.CurrentTime = 2;
+                Assert.Equal(0.6, window.Viewport.Time, 9);
+                Assert.Equal(2, window.Graph.CurrentTime, 9);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 되돌리기는_툴바_없이도_편집기를_지난다_그리고_문제는_아래에_보인다()
     {
         HeadlessUi.Run(() =>

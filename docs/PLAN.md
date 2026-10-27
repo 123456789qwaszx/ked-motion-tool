@@ -162,7 +162,7 @@ tests: Ked.Presentation.Core.Tests(그대로) · Mt.Authoring.Tests(xunit) · Mt
 | **M0** 뼈대 — 완료 | 저장소 `ked-motion-tool` · 솔루션 · Core 반입 + `vendoring.md` · 빈 창 · 헤드리스 테스트 1개 · CI(`dotnet test`) | 열리고 테스트가 돈다 |
 | **M1** 데이터 — 완료 | 제작 원본 모델 · `MotionEditor`(undo) · 가져오기/내보내기 · 정규 직렬화 · `MotionRules` 연결 | `nod`·`bow` 왕복 바이트 동일 테스트 통과 |
 | **M2** 그래프(단일 커브) — 완료 | `EaseCurveEditor` 이식 → 초 단위·값 범위·팬/줌·키 추가/삭제/드래그·탄젠트 모드·스냅 | 키보드·마우스만으로 `nod`를 처음부터 만든다 |
-| **M3** 뷰포트 | `rig-schemas.json` → 트리 → 초상 배치 · 스크럽·재생·루프 · restore/commit 끝 처리 · 어니언 스킨 | 만들면서 본다 |
+| **M3** 뷰포트 — 완료 | `rig-schemas.json` → 트리 → 초상 배치 · 스크럽·재생·루프 · restore/commit 끝 처리 · 어니언 스킨 | 만들면서 본다 |
 | **M4** 도프시트·다채널 | 노드/채널 트리 · 채널 추가 · 블록 이동/스케일 · 그래프와 선택 공유 · 여러 커브 겹쳐 보기 | `bow`(회전) + 위치 + 배율을 한 모션에 |
 | **M5** 사용감 | 단축키 전부 · 인스펙터 · 검증 패널과 돕는 손 · 자동저장 · 이징 프리셋 굽기 · 설정 | 연출자가 Unity를 안 연다 |
 | **M6** 연결 | 재생 저장소 데모의 `motions.json`을 툴로 재생산(바이트 동일) · VnTool `<<motion>>` 자동완성(그쪽) · 하네스 0 | 파이프라인이 닫힌다 |

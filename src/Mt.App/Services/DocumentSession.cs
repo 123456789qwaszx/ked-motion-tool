@@ -31,12 +31,21 @@ public sealed class DocumentSession
 
     public string Status { get; private set; } = "";
 
+    /// <summary>미리보기 초상 PNG의 절대 경로. 문서에는 문서 기준 상대 경로로 적힌다.</summary>
+    public string? PortraitPath { get; private set; }
+
+    /// <summary>기준 해상도(무대 크기). base-resolution.json이 없으면 1920×1080.</summary>
+    public Vec2 StageSize { get; private set; } = BaseResolutionFile.Default;
+
     public bool IsDirty => Editor.Revision != _savedRevision;
 
     /// <summary>문서·편집기가 통째로 갈렸다(새로/열기). 화면은 편집기를 다시 묶는다.</summary>
     public event EventHandler? DocumentReplaced;
 
     public event EventHandler? StatusChanged;
+
+    /// <summary>리그 덤프·초상·기준 해상도가 바뀌었다. 뷰포트가 다시 싣는다.</summary>
+    public event EventHandler? AssetsChanged;
 
     public IReadOnlyDictionary<string, ICollection<string>>? RigNodeIds => Rig?.NodeIds;
 
@@ -59,6 +68,8 @@ public sealed class DocumentSession
         MotionDocument document = MotionDocumentJson.Read(File.ReadAllText(path));
         Replace(document, path);
         TryLoadRigFromDocument();
+        TryLoadAssetsFromDocument();
+        AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus($"열었다: {path}");
     }
 
@@ -78,7 +89,33 @@ public sealed class DocumentSession
         Rig = rig;
         RigPath = path;
         Editor.SetRigSchemas(RelativeToDocument(path), rig.Sha256);
-        SetStatus($"리그 덤프: {string.Join(", ", rig.RigKinds)} ({Path.GetFileName(path)})");
+
+        // 덤프 옆의 base-resolution.json을 같이 싣는다 — ExportedTuning 폴더를 통째로 복사하는 관례.
+        string? baseResolution = BaseResolutionFile.TryFindBeside(path);
+
+        if (baseResolution is not null)
+        {
+            StageSize = BaseResolutionFile.Load(baseResolution);
+            Editor.SetBaseResolution(RelativeToDocument(baseResolution));
+        }
+
+        AssetsChanged?.Invoke(this, EventArgs.Empty);
+        SetStatus($"리그 덤프: {string.Join(", ", rig.RigKinds)} ({Path.GetFileName(path)})"
+                  + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}"));
+    }
+
+    /// <summary>미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
+    public void SetPortrait(string? path)
+    {
+        if (path is not null && !File.Exists(path))
+        {
+            throw new FileNotFoundException("초상 파일이 없다.", path);
+        }
+
+        PortraitPath = path is null ? null : Path.GetFullPath(path);
+        Editor.SetPreviewPortrait(path is null ? null : RelativeToDocument(path));
+        AssetsChanged?.Invoke(this, EventArgs.Empty);
+        SetStatus(path is null ? "초상을 뺐다." : $"초상: {Path.GetFileName(path)}");
     }
 
     /// <summary><c>motions/1</c>을 읽어 문서로 올린다. 이름이 겹치면 바꿔 넣는다.</summary>
@@ -118,7 +155,43 @@ public sealed class DocumentSession
         _savedRevision = Editor.Revision;
         Rig = null;
         RigPath = null;
+        PortraitPath = null;
+        StageSize = BaseResolutionFile.Default;
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>문서가 적어 둔 초상·기준 해상도를 찾아 싣는다. 없는 파일은 상태 줄에 남기고 넘어간다.</summary>
+    private void TryLoadAssetsFromDocument()
+    {
+        MotionDocument document = Editor.Document;
+
+        if (document.BaseResolution is { Path: { Length: > 0 } basePath })
+        {
+            string resolved = ResolveFromDocument(basePath);
+
+            if (File.Exists(resolved))
+            {
+                StageSize = BaseResolutionFile.Load(resolved);
+            }
+            else
+            {
+                SetStatus($"기준 해상도 파일을 찾지 못했다: {resolved} — 1920×1080으로 둔다.");
+            }
+        }
+
+        if (document.Preview is { Portrait: { Length: > 0 } portrait })
+        {
+            string resolved = ResolveFromDocument(portrait);
+
+            if (File.Exists(resolved))
+            {
+                PortraitPath = resolved;
+            }
+            else
+            {
+                SetStatus($"초상 파일을 찾지 못했다: {resolved} — 자리표시로 보인다.");
+            }
+        }
     }
 
     /// <summary>문서가 적어 둔 리그 덤프를 찾아 싣는다. 해시가 다르면 알린다 — 조용히 맞는 척하지 않는다.</summary>

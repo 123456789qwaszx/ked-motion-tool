@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Ked.Presentation.Core;
 using Mt.App.Services;
@@ -30,6 +31,15 @@ public partial class MainWindow : Window
 
     private readonly DocumentSession _session = new();
     private readonly GraphEditorView _graph = new();
+    private readonly ViewportView _viewport = new();
+
+    // 트랜스포트
+    private readonly Button _playButton = new() { Content = "▶ 재생 (Space)", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
+    private readonly CheckBox _loop = new() { Content = "루프", IsChecked = true, FontSize = 11 };
+    private readonly CheckBox _onion = new() { Content = "어니언 스킨", FontSize = 11 };
+    private readonly TextBlock _stageInfo = new() { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
+    private Bitmap? _portrait;
+    private bool _syncingTime;
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
@@ -71,13 +81,28 @@ public partial class MainWindow : Window
         BuildToolbar();
         BuildLeft();
         BuildRight();
-        GraphHost.Child = _graph;
+        GraphHost.Child = BuildCenter();
 
         _session.DocumentReplaced += (_, _) => OnDocumentReplaced();
         _session.StatusChanged += (_, _) => StatusText.Text = _session.Status;
-        _graph.SelectionChanged += (_, _) => RefreshKeyInspector();
-        _graph.CurrentTimeChanged += (_, _) => _currentTime.Text = _graph.CurrentTime.ToString("0.###", CultureInfo.InvariantCulture);
-        _graph.CurvesChanged += (_, _) => RefreshChannels();
+        _session.AssetsChanged += (_, _) => RefreshAssets();
+        _graph.SelectionChanged += (_, _) =>
+        {
+            RefreshKeyInspector();
+            RefreshSelectedNode();
+        };
+        _graph.CurrentTimeChanged += (_, _) =>
+        {
+            _currentTime.Text = _graph.CurrentTime.ToString("0.###", CultureInfo.InvariantCulture);
+            SyncTime(() => _viewport.ScrubTo(_graph.CurrentTime));
+        };
+        _graph.CurvesChanged += (_, _) =>
+        {
+            RefreshChannels();
+            RefreshSelectedNode();
+        };
+        _viewport.TimeChanged += (_, _) => SyncTime(() => _graph.CurrentTime = _viewport.Time);
+        _viewport.PlayStateChanged += (_, _) => _playButton.Content = _viewport.IsPlaying ? "❚❚ 일시정지 (Space)" : "▶ 재생 (Space)";
 
         OnDocumentReplaced();
     }
@@ -85,6 +110,8 @@ public partial class MainWindow : Window
     internal DocumentSession Session => _session;
 
     internal GraphEditorView Graph => _graph;
+
+    internal ViewportView Viewport => _viewport;
 
     internal string? SelectedMotion => _motionList.SelectedItem as string;
 
@@ -134,6 +161,130 @@ public partial class MainWindow : Window
     internal IReadOnlyList<MotionProblem> ProblemsShown => _session.Problems;
 
     // ── 구성 ──────────────────────────────────────────────────────────
+
+    /// <summary>가운데: 위 뷰포트, 트랜스포트 줄, 아래 그래프. 사이에 스플리터.</summary>
+    private Control BuildCenter()
+    {
+        var grid = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,4,3*") };
+
+        Grid.SetRow(_viewport, 0);
+        grid.Children.Add(_viewport);
+
+        _playButton.Click += (_, _) => _viewport.TogglePlay();
+        _loop.IsCheckedChanged += (_, _) => _viewport.Loop = _loop.IsChecked == true;
+        _onion.IsCheckedChanged += (_, _) =>
+        {
+            _viewport.OnionSkinEnabled = _onion.IsChecked == true;
+            _viewport.InvalidateVisual();
+        };
+
+        var transport = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Avalonia.Thickness(4, 2),
+            Children =
+            {
+                _playButton,
+                SmallButton("■ 처음으로", (_, _) => _viewport.Stop()),
+                _loop,
+                _onion,
+                SmallButton("초상 PNG…", OnPickPortraitClick),
+                _stageInfo,
+            },
+        };
+        Grid.SetRow(transport, 1);
+        grid.Children.Add(transport);
+
+        var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, Background = Brushes.Transparent };
+        Grid.SetRow(splitter, 2);
+        grid.Children.Add(splitter);
+
+        Grid.SetRow(_graph, 3);
+        grid.Children.Add(_graph);
+        return grid;
+    }
+
+    /// <summary>그래프와 뷰포트의 현재 시각은 하나다 — 서로를 되부르지 않게 한쪽만 민다.</summary>
+    private void SyncTime(Action push)
+    {
+        if (_syncingTime)
+        {
+            return;
+        }
+
+        _syncingTime = true;
+
+        try
+        {
+            push();
+        }
+        finally
+        {
+            _syncingTime = false;
+        }
+    }
+
+    private void BindMotion(string? name)
+    {
+        _graph.Bind(_session.Editor, name);
+        _viewport.Bind(_session.Editor, name);
+        RefreshSelectedNode();
+    }
+
+    /// <summary>뷰포트가 축을 그릴 노드 — 선택한 키의 노드, 없으면 첫 채널의 노드.</summary>
+    private void RefreshSelectedNode()
+    {
+        MotionAsset? motion = _graph.Motion;
+        string? node = _graph.Selection.Count > 0
+            ? _graph.Selection.First().Curve.Node
+            : motion?.Channels.FirstOrDefault()?.Node;
+        _viewport.SelectedNode = node;
+        _viewport.InvalidateVisual();
+    }
+
+    private void RefreshAssets()
+    {
+        _viewport.SetRig(_session.Rig);
+        _viewport.StageSize = _session.StageSize;
+        _portrait = null;
+
+        if (_session.PortraitPath is { } portraitPath)
+        {
+            try
+            {
+                _portrait = new Bitmap(portraitPath);
+            }
+            catch (Exception exception)
+            {
+                _session.SetStatus($"초상을 읽지 못했다: {exception.Message}");
+            }
+        }
+
+        _viewport.SetPortrait(_portrait);
+        _stageInfo.Text = $"무대 {_session.StageSize.X:0}×{_session.StageSize.Y:0}"
+                          + (_session.Rig is null ? " · 리그 없음" : "")
+                          + (_portrait is null ? " · 초상 없음(자리표시)" : $" · 초상 {_portrait.PixelSize.Width}×{_portrait.PixelSize.Height}");
+        RefreshNewForms();
+        RefreshProblems();
+    }
+
+    private async void OnPickPortraitClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string? path = await PickOpenAsync("초상 PNG", new FilePickerFileType("PNG") { Patterns = new[] { "*.png" } });
+
+            if (path is not null)
+            {
+                _session.SetPortrait(path);
+            }
+        }
+        catch (Exception exception)
+        {
+            _session.SetStatus($"초상 실패: {exception.Message}");
+        }
+    }
 
     private void BuildToolbar()
     {
@@ -296,8 +447,9 @@ public partial class MainWindow : Window
     private void OnDocumentReplaced()
     {
         _session.Editor.Changed += (_, _) => OnEditorChanged();
-        _graph.Bind(_session.Editor, null);
+        BindMotion(null);
         RefreshAll();
+        RefreshAssets();
     }
 
     private void OnEditorChanged()
@@ -334,11 +486,11 @@ public partial class MainWindow : Window
 
             if (index < 0 && _graph.MotionName is not null)
             {
-                _graph.Bind(_session.Editor, null);
+                BindMotion(null);
             }
             else if (index >= 0 && _graph.MotionName != names[index])
             {
-                _graph.Bind(_session.Editor, names[index]);
+                BindMotion(names[index]);
             }
         }
         finally
@@ -354,7 +506,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _graph.Bind(_session.Editor, SelectedMotion);
+        BindMotion(SelectedMotion);
         RefreshMotionInspector();
         RefreshKeyInspector();
         RefreshNewForms();

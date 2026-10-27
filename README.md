@@ -19,7 +19,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 |---|---|
 | `src/Ked.Presentation.Core` | 무대 런타임의 연출 코어 복사본. 모션 규약·수학·검증·리그 수학의 유일한 출처. 출처와 동기화 절차는 [`vendoring.md`](src/Ked.Presentation.Core/vendoring.md) |
 | `src/Mt.Authoring` | 저작 도메인. Avalonia를 모른다. `Model/`(저작 원본 `*.motion-authoring.json`) · `Editing/MotionEditor`(모든 편집의 통로, 스냅샷 undo) · `Serialization/`(`MotionDocumentJson` 저작 원본, `MotionsJson` 산출물 `motions/1` 정규 쓰기·관용 읽기) · `Validation/`(코어 `MotionRules`로 편집 중 검증, 0건일 때만 내보내기) · `Rig/RigSchemaFile`(리그 덤프 + SHA-256) |
-| `src/Mt.App` | 그리기와 입력. `Views/GraphEditorView`(그래프 에디터 — 드래그 중간값은 렌더만, 놓는 순간이 편집 하나) · `MainWindow`(셸: 모션·채널 목록, 인스펙터, 파일) · `Services/DocumentSession`(경로·리그 덤프·저장·내보내기). 좌표 변환·히트 테스트·탄젠트 산수는 `Mt.Authoring/Graph`의 순수 함수다 |
+| `src/Mt.App` | 그리기와 입력. `Views/ViewportView`(무대 — 포즈는 `Mt.Authoring/Preview`의 코어 수학, 재생 시계·스크럽·어니언 스킨) · `Views/GraphEditorView`(그래프 에디터 — 드래그 중간값은 렌더만, 놓는 순간이 편집 하나) · `MainWindow`(셸: 모션·채널 목록, 인스펙터, 파일) · `Services/DocumentSession`(경로·리그 덤프·저장·내보내기). 좌표 변환·히트 테스트·탄젠트 산수는 `Mt.Authoring/Graph`의 순수 함수다 |
 
 ## 그래프 에디터 조작
 
@@ -32,6 +32,14 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 | 핸들 드래그 · **1 2 3 4** | 기울기(끊긴 키는 한쪽만) · auto / flat / linear / free |
 | 휠 (Ctrl = 시간만 · Shift = 값만) · 가운데 버튼/Alt+드래그 · **A** · **F** | 줌 · 팬 · 전체 맞춤 · 선택 맞춤 |
 | 채널 행의 x · y · z | 보이기. 없는 성분은 켜는 순간 현재 시각의 중립값 키 하나로 생긴다 — 성분은 키가 생기면 생긴다 |
+
+## 뷰포트
+
+- 리그 덤프(`rig-schemas.json`)로 세운 트리 위에 초상 PNG 한 장. 사이징은 런타임 `HeightFitPreserveAspect`와 같다. 깊이 mid, 카메라 없음(v1).
+- 포즈 = 코어 `MotionMath.Compose`. 길이를 지나면 restore는 시작 상태, commit은 마지막 키 — 재생도 그 규칙을 보여 준다.
+- **Space** 재생/일시정지 · **Home/End** 처음/끝 · **←/→** 한 프레임(24fps) · 아래 띠 드래그 = 스크럽. 그래프의 현재 시각과 하나다.
+- 어니언 스킨: 앞뒤 2프레임 반투명. 선택한 키의 노드에 피벗·x(빨강)·y(초록) 축.
+- `base-resolution.json`은 리그 덤프 옆에서 자동으로 싣는다(없으면 1920×1080).
 
 ## 빌드·테스트
 
@@ -57,5 +65,6 @@ dotnet run --project src/Mt.App/Mt.App.csproj
 | M0 뼈대 — 솔루션 · Core 반입 · 빈 창 · 헤드리스 테스트 · CI | 완료 |
 | M1 데이터 — 저작 원본 모델 · `MotionEditor`(undo) · 가져오기/내보내기 · 정규 직렬화 · 검증 · 리그 덤프 | 완료 — `nod`·`bow` 바이트 동일 테스트 |
 | M2 그래프 편집기 — 초 단위·팬/줌·키 선택/박스/드래그/끼우기/삭제·탄젠트 모드와 핸들·스냅·셸(모션·채널·인스펙터·파일) | 완료 — 빈 문서에서 `nod`를 처음부터 만들어 내보낸 바이트가 Unity 산출물과 같은 테스트 |
-| M3 뷰포트 | 다음 |
-| M4 도프 시트 · M5 UX · M6 통합 | [`docs/PLAN.md`](docs/PLAN.md) |
+| M3 뷰포트 — 리그 덤프 트리 · 기준 해상도 무대 · 초상 PNG(런타임 사이징) · 재생/루프/스크럽 · 어니언 스킨 · 노드 축 · restore/commit 끝 규칙 | 완료 |
+| M4 도프 시트 | 다음 |
+| M5 UX · M6 통합 | [`docs/PLAN.md`](docs/PLAN.md) |
