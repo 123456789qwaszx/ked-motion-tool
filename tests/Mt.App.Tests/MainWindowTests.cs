@@ -313,9 +313,9 @@ public class MainWindowTests
                 Assert.Equal(0.3f, y.Resolve(Nod())!.Keys[1].T, 4);
 
                 // Alt+Q 재생 토글
-                window.KeyPressQwerty(PhysicalKey.KeyQ, RawInputModifiers.Alt);
+                window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.Alt);
                 Assert.True(window.Viewport.IsPlaying);
-                window.KeyPressQwerty(PhysicalKey.KeyQ, RawInputModifiers.Alt);
+                window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.Alt);
                 Assert.False(window.Viewport.IsPlaying);
             }
             finally

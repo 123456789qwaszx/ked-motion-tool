@@ -216,16 +216,16 @@ public partial class MainWindow : Window
             case PhysicalKey.Digit2 when alt:
                 StepFrame(+1);
                 break;
-            case PhysicalKey.KeyQ when alt:
+            case PhysicalKey.Q when alt:
                 _viewport.TogglePlay();
                 break;
-            case PhysicalKey.KeyW when shift:
+            case PhysicalKey.W when shift:
                 Guard("키 복사", CopyKeysAtCurrentTime);
                 break;
-            case PhysicalKey.KeyE when shift:
+            case PhysicalKey.E when shift:
                 Guard("키 붙여넣기", PasteKeysAtCurrentTime);
                 break;
-            case PhysicalKey.KeyF when shift:
+            case PhysicalKey.F when shift:
                 Guard("키 지우기", ClearKeysAtCurrentTime);
                 break;
             case PhysicalKey.Digit1 when shift:
