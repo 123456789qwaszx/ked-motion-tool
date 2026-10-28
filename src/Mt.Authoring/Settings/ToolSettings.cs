@@ -39,6 +39,15 @@ public sealed class ToolSettings
     /// <summary>하이어아키에 컨트롤러(자리·깊이·연기) 대신 덤프의 리그 노드 26단을 보인다. 리거용 — 기본은 끔.</summary>
     public bool ShowRigNodes { get; set; }
 
+    /// <summary>오른쪽 인스펙터의 마지막 탭(0 채널 박스 · 1 씬 · 2 모션).</summary>
+    public int InspectorTab { get; set; }
+
+    /// <summary>채널 박스에서 접어 둔 묶음 id(placement·depth·acting).</summary>
+    public List<string> CollapsedChannelBoxGroups { get; set; } = new();
+
+    /// <summary>하이어아키에 무대 뼈대(Shot/Pan/Zoom/Mask/DepthSystem/Framing…)를 전부 보인다. 기본은 Scene › 무대 › 층만.</summary>
+    public bool ShowStageSkeleton { get; set; }
+
     /// <summary>창 배치 — 왼쪽(씬·모션) 패널 폭(px). 스플리터로 끌면 저장된다.</summary>
     public double LeftPanelWidth { get; set; } = 280;
 
@@ -90,6 +99,8 @@ public sealed class ToolSettings
         {
             ToolSettings settings = JsonSerializer.Deserialize<ToolSettings>(File.ReadAllText(path), Options) ?? new ToolSettings();
             settings.RecentFiles ??= new List<string>();
+            settings.CollapsedChannelBoxGroups ??= new List<string>();
+            settings.InspectorTab = Math.Clamp(settings.InspectorTab, 0, 2);
             settings.SnapStep = settings.SnapStep > 0 ? settings.SnapStep : 1.0 / 60.0;
             settings.AutoSaveMinutes = Math.Clamp(settings.AutoSaveMinutes, 0, 120);
             settings.LeftPanelWidth = Math.Clamp(settings.LeftPanelWidth, MinPanelWidth, 800);

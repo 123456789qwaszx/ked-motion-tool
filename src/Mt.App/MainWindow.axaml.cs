@@ -89,10 +89,14 @@ public partial class MainWindow : Window
     private static readonly IBrush ChannelBoxKeyedHere = new SolidColorBrush(Color.FromArgb(150, 0xC8, 0x3C, 0x3C)); // 이 시각에 키(마야 빨강)
     private static readonly IBrush ChannelBoxKeyed = new SolidColorBrush(Color.FromArgb(110, 0xB4, 0x5A, 0x5A)); // 어딘가에 키(마야 연한 빨강)
     private static readonly IBrush ChannelBoxPending = new SolidColorBrush(Color.FromArgb(120, 0xD0, 0x8A, 0x28)); // 키 없는 포즈
-    private readonly CheckBox _followSelection = new() { Content = "선택 키의 노드 따라가기", IsChecked = true, FontSize = 11 };
-    private readonly CheckBox _autoKey = new() { Content = "Auto Key", FontSize = 11 };
+    /// <summary>선택 키의 노드 따라가기 — 하이어아키·아웃라이너에서 고르면 꺼지고, 모션을 바꾸면 켜진다(설정 아님).</summary>
+    private bool _followSelection = true;
+    private readonly TabControl _inspectorTabs = new() { Padding = new Avalonia.Thickness(0) };
+    private readonly HashSet<string> _collapsedGroups = new(StringComparer.Ordinal);
+    private Window? _settingsWindow;
+    private Window? _shortcutsWindow;
+    private readonly List<Panel> _settingsRows = new();
     private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
-    private readonly Button[] _manipulatorButtons = new Button[4];
     private readonly Button[] _toolButtons = new Button[4];
     private readonly CheckBox _valueSnap = new() { Content = "값 스냅", FontSize = 11 };
     private static readonly string[] InfinityTokens = { "상수", "사이클", "사이클+오프셋", "왕복", "직선" };
@@ -148,6 +152,9 @@ public partial class MainWindow : Window
     private const string NoParentToken = "(없음 — 최상위)";
     private const string RootNodeToken = "(루트)";
     private readonly TextBlock _objSummary = new() { FontSize = 11, Opacity = 0.8, TextWrapping = TextWrapping.Wrap };
+    private readonly Expander _placementExpander = new() { Header = "시작 배치", FontSize = 11, IsExpanded = false };
+    private readonly Expander _attachExpander = new() { Header = "붙이기 · 배역", FontSize = 11, IsExpanded = false };
+    private readonly Expander _cameraExpander = new() { Header = "카메라(샷)", FontSize = 11, IsExpanded = false };
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
@@ -170,16 +177,15 @@ public partial class MainWindow : Window
     private readonly TextBox _motionNotes = new() { FontSize = 11, AcceptsReturn = true, MinHeight = 48, PlaceholderText = "메모" };
 
     // 오른쪽 — 키
-    private readonly TextBlock _selectionSummary = new() { FontSize = 11, Opacity = 0.8 };
     private readonly TextBox _keyTime = new() { FontSize = 11 };
     private readonly TextBox _keyValue = new() { FontSize = 11 };
     private readonly TextBox _keyIn = new() { FontSize = 11 };
     private readonly TextBox _keyOut = new() { FontSize = 11 };
-    private readonly CheckBox _keyBroken = new() { Content = "끊긴 탄젠트", FontSize = 11 };
 
     // 오른쪽 — 보기
     private readonly CheckBox _snap = new() { Content = "시간 스냅 1/60초", IsChecked = true, FontSize = 11 };
     private readonly CheckBox _showRigNodes = new() { Content = "리그 노드 보기 (컨트롤러 대신 덤프 노드)", FontSize = 11 };
+    private readonly CheckBox _showStageSkeleton = new() { Content = "무대 뼈대 보기 (Shot·Pan·Zoom·Mask·Framing… 전부)", FontSize = 11 };
     private readonly ComboBox _presetCombo = new() { ItemsSource = MotionPresets.All.Select(p => p.Name).ToArray(), SelectedIndex = 0, FontSize = 11, MinWidth = 120 };
     private readonly TextBox _currentTime = new() { Text = "0", FontSize = 11, Width = 72 };
 
@@ -302,6 +308,9 @@ public partial class MainWindow : Window
             case PhysicalKey.Q when alt:
                 _viewport.TogglePlay();
                 break;
+            case PhysicalKey.F1 when none:
+                OpenShortcuts();
+                break;
             case PhysicalKey.Backquote when alt:
                 _viewport.PlayFromStart();
                 break;
@@ -365,7 +374,6 @@ public partial class MainWindow : Window
         _viewport.Manipulator = mode;
         RetargetManipulator(mode);
         _viewport.InvalidateVisual();
-        RefreshManipulatorButtons();
     }
 
     /// <summary>
@@ -392,7 +400,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _followSelection.IsChecked = false;
+        _followSelection = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, fallback);
         RefreshChannelBox();
         RefreshChannels();
@@ -524,7 +532,12 @@ public partial class MainWindow : Window
             _snapStepCombo.SelectedIndex = snapIndex < 0 ? 0 : snapIndex;
             int tangentIndex = Array.IndexOf(NewKeyTangentChoices, _settings.DefaultTangent);
             _newKeyTangent.SelectedIndex = tangentIndex < 0 ? 0 : tangentIndex;
-            _autoKey.IsChecked = _settings.AutoKey;
+            _autoKeyToggle.IsChecked = _settings.AutoKey;
+            _autoKeyToggle.Foreground = _settings.AutoKey ? AutoKeyOnBrush : null;
+            _showStageSkeleton.IsChecked = _settings.ShowStageSkeleton;
+            _collapsedGroups.Clear();
+            _collapsedGroups.UnionWith(_settings.CollapsedChannelBoxGroups);
+            _inspectorTabs.SelectedIndex = Math.Clamp(_settings.InspectorTab, 0, 2);
             int autoSaveIndex = Array.IndexOf(AutoSaveMinutes, _settings.AutoSaveMinutes);
             _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
             _timeDisplayCombo.SelectedIndex = (int)_settings.TimeDisplay;
@@ -632,8 +645,8 @@ public partial class MainWindow : Window
 
     internal bool AutoKeyChecked
     {
-        get => _autoKey.IsChecked == true;
-        set => _autoKey.IsChecked = value;
+        get => _autoKeyToggle.IsChecked == true;
+        set => _autoKeyToggle.IsChecked = value;
     }
 
     internal string? SelectedMotion => _motionList.SelectedItem as string;
@@ -912,6 +925,39 @@ public partial class MainWindow : Window
     /// <summary>마야 그래프 에디터 툴바: 툴 · 맞춤 · 탄젠트 · 버퍼 · 스냅/보기 · Stats.</summary>
     private Control BuildGraphToolbar()
     {
+        string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)", "리전" };
+
+        for (int i = 0; i < toolLabels.Length; i++)
+        {
+            var tool = (GraphTool)i;
+            Button button = SmallButton(toolLabels[i], (_, _) =>
+            {
+                _graph.Tool = tool;
+                RefreshToolButtons();
+            });
+            _toolButtons[i] = button;
+        }
+
+        _keyIn.Width = 56;
+        _keyOut.Width = 56;
+        ToolTip.SetTip(_keyIn, "선택 키 하나의 in 기울기(초당 값). 끊기지 않은 키는 out도 같이 바뀐다");
+        ToolTip.SetTip(_keyOut, "선택 키 하나의 out 기울기(초당 값)");
+        OnCommit(_keyTime, text => ApplyToSelectedKeys(text, time: true));
+        OnCommit(_keyValue, text => ApplyToSelectedKeys(text, time: false));
+        OnCommit(_keyIn, text => WithSingleKey((key, k) =>
+        {
+            if (TryFloat(text, out float v) && v != k.InTangent)
+            {
+                _session.Editor.SetTangents(_graph.MotionName!, key, v, k.Broken ? k.OutTangent : v);
+            }
+        }));
+        OnCommit(_keyOut, text => WithSingleKey((key, k) =>
+        {
+            if (TryFloat(text, out float v) && v != k.OutTangent)
+            {
+                _session.Editor.SetTangents(_graph.MotionName!, key, k.Broken ? k.InTangent : v, v);
+            }
+        }));
         _snap.Content = "시간 스냅";
         _valueSnap.IsCheckedChanged += (_, _) =>
         {
@@ -978,7 +1024,9 @@ public partial class MainWindow : Window
         Add(_snap, _valueSnap, _viewMode, Separator());
         Add(new TextBlock { Text = "무한", FontSize = 10, Opacity = 0.7 }, _preInfinity, _postInfinity, Separator());
         Add(new TextBlock { Text = "Stats", FontSize = 10, Opacity = 0.7 }, _keyTime, _keyValue);
+        Add(new TextBlock { Text = "기울기 in/out", FontSize = 10, Opacity = 0.7 }, _keyIn, _keyOut);
         ToolTip.SetTip(bar, "탄젠트 Ctrl+1 auto · 2 flat · 3 linear · 4 free · 5 spline · 6 plateau · 버퍼 Ctrl+B / Ctrl+Shift+B");
+        RefreshToolButtons();
         return bar;
     }
 
@@ -999,14 +1047,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshManipulatorButtons()
-    {
-        for (int i = 0; i < _manipulatorButtons.Length; i++)
-        {
-            _manipulatorButtons[i].Opacity = (int)_viewport.Manipulator == i ? 1 : 0.55;
-            _manipulatorButtons[i].FontWeight = (int)_viewport.Manipulator == i ? FontWeight.Bold : FontWeight.Normal;
-        }
-    }
 
     private void RefreshPending()
     {
@@ -1151,15 +1191,23 @@ public partial class MainWindow : Window
 
         foreach (ControllerGroup group in table.Groups)
         {
+            bool collapsed = _collapsedGroups.Contains(group.Id);
+            string groupId = group.Id;
             var header = new TextBlock
             {
-                Text = $"{group.Label}   ·   {MotionModeToken.Of(group.Mode)}",
+                Text = $"{(collapsed ? "▸" : "▾")} {group.Label}   ·   {MotionModeToken.Of(group.Mode)}",
                 FontSize = 11,
                 FontWeight = FontWeight.SemiBold,
                 Margin = new Avalonia.Thickness(0, 6, 0, 1),
                 Foreground = group.Mode == MotionChannelMode.Absolute ? PlacementNodeBrush : ActingNodeBrush,
+                Cursor = new Cursor(StandardCursorType.Hand),
             };
-            ToolTip.SetTip(header, (group.Note ?? "") + $"\n재생: <<motion slot 이름 {MotionModeToken.Of(group.Mode)}>>");
+            ToolTip.SetTip(header, (group.Note ?? "") + $"\n재생: <<motion slot 이름 {MotionModeToken.Of(group.Mode)}>>\n클릭: 접기/펼치기");
+            header.PointerPressed += (_, e) =>
+            {
+                ToggleChannelBoxGroup(groupId);
+                e.Handled = true;
+            };
             _channelBoxPanel.Children.Add(header);
 
             foreach (Controller c in table.InGroup(group))
@@ -1214,16 +1262,30 @@ public partial class MainWindow : Window
                         };
                     }
 
+                    row.IsVisible = !collapsed;
                     _controllerRows[(c.Id, axis)] = (row, box, slider);
                 }
             }
         }
     }
 
+    /// <summary>채널 박스 묶음 접기/펼치기 — 설정에 남는다. 접힌 묶음의 칸은 있되 안 보인다(값 입력 손잡이는 그대로).</summary>
+    internal void ToggleChannelBoxGroup(string groupId)
+    {
+        if (!_collapsedGroups.Remove(groupId))
+        {
+            _collapsedGroups.Add(groupId);
+        }
+
+        _settings.CollapsedChannelBoxGroups = _collapsedGroups.OrderBy(g => g, StringComparer.Ordinal).ToList();
+        _channelBoxLayout = null;
+        RefreshChannelBox();
+    }
+
     /// <summary>채널 박스 한 줄: 이름(클릭 = 그 커브를 그래프에) · 값 칸 · ●. <paramref name="extra"/>는 칸 왼쪽(깊이 슬라이더).</summary>
     private (Border Row, TextBox Box) ChannelBoxRow(string label, string? tip, Control? extra, Action<string> commit, Action key, Action<bool> showCurves)
     {
-        var box = new TextBox { FontSize = 11, MinWidth = 70, Padding = new Avalonia.Thickness(4, 1), IsEnabled = false };
+        var box = new TextBox { FontSize = 11, MinWidth = 70, MinHeight = 22, Padding = new Avalonia.Thickness(4, 1), IsEnabled = false };
         var title = new TextBlock { Text = label, FontSize = 11, Width = 76, VerticalAlignment = VerticalAlignment.Center, Cursor = new Cursor(StandardCursorType.Hand) };
 
         if (!string.IsNullOrWhiteSpace(tip))
@@ -1483,6 +1545,7 @@ public partial class MainWindow : Window
 
     private void BindMotion(string? name)
     {
+        _followSelection = true; // 모션을 바꾸면 다시 따라간다
         _graph.Bind(_session.Editor, name);
         _dope.Controllers = _session.ControllersOf(name is null ? null : _session.Editor.Document.Find(name)?.Rig);
         _dope.Bind(_session.Editor, name);
@@ -1499,7 +1562,7 @@ public partial class MainWindow : Window
             ? _graph.Selection.First().Curve.Node
             : motion?.Channels.FirstOrDefault()?.Node;
 
-        if (_followSelection.IsChecked == true || _viewport.SelectedNode is null)
+        if (_followSelection || _viewport.SelectedNode is null)
         {
             _viewport.SelectedNode = node ?? _viewport.SelectedNode;
         }
@@ -1574,6 +1637,9 @@ public partial class MainWindow : Window
         Toolbar.Children.Add(Separator());
         Toolbar.Children.Add(ToolButton("되돌리기", (_, _) => _session.Editor.Undo()));
         Toolbar.Children.Add(ToolButton("다시하기", (_, _) => _session.Editor.Redo()));
+        Toolbar.Children.Add(Separator());
+        Toolbar.Children.Add(ToolButton("설정…", (_, _) => OpenSettings()));
+        Toolbar.Children.Add(ToolButton("단축키 (F1)", (_, _) => OpenShortcuts()));
     }
 
     private void BuildLeft()
@@ -1647,45 +1713,65 @@ public partial class MainWindow : Window
         });
     }
 
+    /// <summary>
+    /// 오른쪽 = 탭 셋(PLAN-inspector): 채널 박스(기본, 애니메이터) · 씬(무대 세팅) · 모션(속성). 설정·단축키는 툴바의 창으로,
+    /// 단축키의 그림자 버튼(Q/W/E/R·S·Esc·복사·붙여넣기…)은 없다. 마지막 탭·접힌 묶음은 설정에 남는다.
+    /// </summary>
     private void BuildRight()
     {
-        RightPanel.Children.Add(Header("오브젝트 (채널 박스 — 배치, 모션 키가 아니다)"));
-        RightPanel.Children.Add(_objSummary);
-        RightPanel.Children.Add(new StackPanel
+        _inspectorTabs.ItemsSource = new[]
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children = { Small("id"), _objId, Small("부모"), _objParent, Small("노드"), _objParentNode },
-        });
-        ToolTip.SetTip(_objId, "이름 바꾸기 — [a-z0-9_]+. 자식의 부모 참조도 따라간다");
-        ToolTip.SetTip(_objParent, "부모 오브젝트 — 그 오브젝트의 노드 밑에 붙는다(유니티 자식). 자식은 부모의 레이어·깊이를 따른다");
-        ToolTip.SetTip(_objParentNode, "부모 리그에서 붙는 노드. (루트)면 리그 루트");
-        OnCommit(_objId, _ => RenameSelectedObject());
-        _objParent.SelectionChanged += (_, _) =>
+            new TabItem { Header = "채널 박스", Content = BuildChannelBoxTab(), FontSize = 12 },
+            new TabItem { Header = "씬", Content = BuildSceneTab(), FontSize = 12 },
+            new TabItem { Header = "모션", Content = BuildMotionTab(), FontSize = 12 },
+        };
+        _inspectorTabs.SelectionChanged += (_, _) =>
         {
-            if (!_refreshing && _viewport.SelectedObject is { } o && _objParent.SelectedItem is string chosen)
+            if (!_refreshing && _inspectorTabs.SelectedIndex >= 0)
             {
-                string? parent = chosen == NoParentToken ? null : chosen;
-
-                if (parent != o.Parent)
-                {
-                    Guard("부모", () => _session.Editor.SetObjectParent(null, o.Id, parent, null, null, _viewport.PlacementKeepingWorld(o.Id, parent, null)));
-                }
+                _settings.InspectorTab = _inspectorTabs.SelectedIndex;
             }
         };
-        _objParentNode.SelectionChanged += (_, _) =>
-        {
-            if (!_refreshing && _viewport.SelectedObject is { Parent: { } parent } o && _objParentNode.SelectedItem is string chosen)
-            {
-                string? node = chosen == RootNodeToken ? null : chosen;
+        RightPanel.Children.Add(_inspectorTabs);
+        WireSettingsControls();
+    }
 
-                if (node != o.ParentNode)
-                {
-                    Guard("부모 노드", () => _session.Editor.SetObjectParent(null, o.Id, parent, node, null, _viewport.PlacementKeepingWorld(o.Id, parent, node)));
-                }
+    private Control BuildChannelBoxTab()
+    {
+        var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
+        panel.Children.Add(_channelBoxTitle);
+        ToolTip.SetTip(_channelBoxTitle, "고른 오브젝트의 컨트롤러(자리·깊이·연기 — 리거의 표 presets/controllers.json). 표가 없는 리그는 고른 노드의 Translate·Rotate·Scale. 칸에 값을 넣으면(+=·-=·*=·/= 는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: Auto Key거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 묶음 제목 클릭 = 접기/펼치기 · 글자 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기) · ● = 이 성분을 지금 키");
+        panel.Children.Add(_channelBoxPanel);
+        panel.Children.Add(_pendingText);
+
+        _autoKeyToggle.IsCheckedChanged += (_, _) =>
+        {
+            _viewport.AutoKey = _autoKeyToggle.IsChecked == true;
+            _autoKeyToggle.Foreground = _viewport.AutoKey ? AutoKeyOnBrush : null;
+
+            if (!_refreshing)
+            {
+                _settings.AutoKey = _viewport.AutoKey;
             }
         };
-        RightPanel.Children.Add(new StackPanel
+        ToolTip.SetTip(_autoKeyToggle, "Auto Key — 매니퓰레이터를 놓거나 채널 박스에 값을 넣는 순간 키가 들어간다(마야 빨간 키). 꺼져 있으면 키 없는 포즈 → S");
+        _viewport.PendingChanged += (_, _) =>
+        {
+            RefreshPending();
+            RefreshChannelBox();
+        };
+        _viewport.PoseKeyed += (_, _) => RefreshChannelBox();
+        return panel;
+    }
+
+    /// <summary>씬 탭 — 고른 오브젝트의 배치(모션 키가 아니다). 자주 쓰는 자리·층은 펼쳐 두고, 시작 배치·붙이기·카메라는 접는다(기본값이 아니면 펼친다).</summary>
+    private Control BuildSceneTab()
+    {
+        var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
+        panel.Children.Add(_objSummary);
+        ToolTip.SetTip(_objSummary, "고른 오브젝트 · 리그 · 무대 층. 이름 바꾸기는 하이어아키에서 F2");
+
+        panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 4,
@@ -1712,19 +1798,21 @@ public partial class MainWindow : Window
                 Guard("focus", () => _session.Editor.SetObjectPlace(null, o.Id, o.Place, chosen));
             }
         };
-        RightPanel.Children.Add(new StackPanel
+
+        panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 4,
-            Children = { Small("오프셋 X"), _objX, Small("Y"), _objY, Small("Rot Z"), _objRot },
+            Children = { Small("Layer"), _objLayer, Small("Stage"), _objStage, _objVisible },
         });
-        ToolTip.SetTip(_objX, "오프셋(move) — CharSlot_Track. 자리(place)와 별개로 더해진다");
-        RightPanel.Children.Add(new StackPanel
+        ToolTip.SetTip(_objLayer, "층(far·back·mid·front·close) — 깊이의 진실. 하이어아키에서 층 폴더로 끌어다 놓아도 된다");
+        _objLayer.SelectionChanged += (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children = { Small("Scale X"), _objSx, Small("Y"), _objSy, Small("Stage"), _objStage, Small("Layer"), _objLayer, _objVisible },
-        });
+            if (!_refreshing && _objLayer.SelectedItem is string layer && _viewport.SelectedObject is { } o && o.Layer != layer)
+            {
+                Guard("레이어", () => _session.Editor.SetObjectLayer(null, o.Id, layer));
+            }
+        };
         _objStage.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _objStage.SelectedItem is string stage && _viewport.SelectedObject is { } o && o.Stage != stage)
@@ -1732,13 +1820,71 @@ public partial class MainWindow : Window
                 Guard("무대", () => _session.Editor.SetObjectStage(null, o.Id, stage));
             }
         };
-        RightPanel.Children.Add(new StackPanel
+        _objVisible.IsCheckedChanged += (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
+            if (!_refreshing && _viewport.SelectedObject is { } o)
+            {
+                Guard("보이기", () => _session.Editor.SetObjectVisible(null, o.Id, _objVisible.IsChecked == true));
+            }
+        };
+
+        _placementExpander.Content = new StackPanel
+        {
             Spacing = 4,
-            Children = { Small("배역"), _objCharacter },
-        });
+            Children =
+            {
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("오프셋 X"), _objX, Small("Y"), _objY, Small("Rot Z"), _objRot } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("Scale X"), _objSx, Small("Y"), _objSy } },
+            },
+        };
+        ToolTip.SetTip(_placementExpander, "모션이 없을 때의 자리 — CharSlot_Track(move)·SwayPivot(rotate)·Scale에 그대로 들어간다. 채널 박스의 자리 키는 여기서 출발한다. 모션 키가 아니다");
+        panel.Children.Add(_placementExpander);
+
+        foreach (TextBox box in new[] { _objX, _objY, _objRot, _objSx, _objSy })
+        {
+            OnCommit(box, _ => CommitObjectPlacement());
+        }
+
+        _attachExpander.Content = new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("id"), _objId, Small("배역"), _objCharacter } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("부모"), _objParent, Small("노드"), _objParentNode } },
+            },
+        };
+        ToolTip.SetTip(_attachExpander, "붙이기 — 다른 오브젝트의 컨트롤러·노드 밑에 붙는다(소품). 하이어아키 드래그로도 된다. 배역은 focus 표의 캐릭터별 오프셋");
+        panel.Children.Add(_attachExpander);
+        ToolTip.SetTip(_objId, "이름 바꾸기 — [a-z0-9_]+. 자식의 부모 참조도 따라간다");
+        ToolTip.SetTip(_objParent, "부모 오브젝트 — 그 오브젝트의 노드 밑에 붙는다(유니티 자식). 자식은 부모의 레이어·깊이를 따른다");
+        ToolTip.SetTip(_objParentNode, "부모 리그에서 붙는 노드. (루트)면 리그 루트");
         ToolTip.SetTip(_objCharacter, "배역(characterKey) — presets/focus.json의 entries 키. 깊이 폴드의 focus 오프셋이 배역을 따른다(런타임 cast와 같은 뜻)");
+        OnCommit(_objId, _ => RenameSelectedObject());
+        _objParent.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _viewport.SelectedObject is { } o && _objParent.SelectedItem is string chosen)
+            {
+                string? parent = chosen == NoParentToken ? null : chosen;
+
+                if (parent != o.Parent)
+                {
+                    Guard("부모", () => _session.Editor.SetObjectParent(null, o.Id, parent, null, null, _viewport.PlacementKeepingWorld(o.Id, parent, null)));
+                }
+            }
+        };
+        _objParentNode.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _viewport.SelectedObject is { Parent: { } parent } o && _objParentNode.SelectedItem is string chosen)
+            {
+                string? node = chosen == RootNodeToken ? null : chosen;
+
+                if (node != o.ParentNode)
+                {
+                    Guard("부모 노드", () => _session.Editor.SetObjectParent(null, o.Id, parent, node, null, _viewport.PlacementKeepingWorld(o.Id, parent, node)));
+                }
+            }
+        };
         _objCharacter.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _viewport.SelectedObject is { } o && _objCharacter.SelectedItem is string chosen)
@@ -1752,47 +1898,34 @@ public partial class MainWindow : Window
             }
         };
 
-        foreach (TextBox box in new[] { _objX, _objY, _objRot, _objSx, _objSy })
-        {
-            OnCommit(box, _ => CommitObjectPlacement());
-        }
-
-        _objLayer.SelectionChanged += (_, _) =>
-        {
-            if (!_refreshing && _objLayer.SelectedItem is string layer && _viewport.SelectedObject is { } o && o.Layer != layer)
-            {
-                Guard("레이어", () => _session.Editor.SetObjectLayer(null, o.Id, layer));
-            }
-        };
-        _objVisible.IsCheckedChanged += (_, _) =>
-        {
-            if (!_refreshing && _viewport.SelectedObject is { } o)
-            {
-                Guard("보이기", () => _session.Editor.SetObjectVisible(null, o.Id, _objVisible.IsChecked == true));
-            }
-        };
-        _viewport.ObjectSelected += (_, _) => RefreshObjects();
-
-        RightPanel.Children.Add(new StackPanel
+        _cameraExpander.Content = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 4,
-            Children = { Small("카메라(보기) zoom"), _camZoom, Small("pan X"), _camPanX, Small("Y"), _camPanY },
-        });
+            Children = { Small("zoom"), _camZoom, Small("pan X"), _camPanX, Small("Y"), _camPanY },
+        };
+        ToolTip.SetTip(_cameraExpander, "무대 카메라(샷 커맨드 shot_zoom·shot_track) — 뼈대의 StageZoom/StagePan에 들어간다. 뷰포트 확대(휠·MMB)와는 다르다");
         ToolTip.SetTip(_camZoom, "샷 zoom — 1당 배율 +0.05(코어 규약). 보기만 바뀐다");
+        panel.Children.Add(_cameraExpander);
 
         foreach (TextBox box in new[] { _camZoom, _camPanX, _camPanY })
         {
             OnCommit(box, _ => CommitCamera());
         }
 
-        RightPanel.Children.Add(Header("모션"));
-        RightPanel.Children.Add(Labeled("이름", _motionName));
-        RightPanel.Children.Add(Labeled("길이(초)", _motionDuration));
-        RightPanel.Children.Add(Labeled("끝", _motionEnd));
-        RightPanel.Children.Add(Labeled("미리보기 mode", _motionDefaultMode));
+        _viewport.ObjectSelected += (_, _) => RefreshObjects();
+        return panel;
+    }
+
+    private Control BuildMotionTab()
+    {
+        var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
+        panel.Children.Add(Labeled("이름", _motionName));
+        panel.Children.Add(Labeled("길이(초)", _motionDuration));
+        panel.Children.Add(Labeled("끝", _motionEnd));
+        panel.Children.Add(Labeled("미리보기 mode", _motionDefaultMode));
         ToolTip.SetTip(_motionDefaultMode, "뷰포트가 키 값을 읽는 렌즈 — relative = 시작값 + 키(배율은 ×) · absolute = 키 그대로. 파일(motions/2)에는 안 나간다: 재생은 대본의 <<motion slot 이름 relative|absolute>>가 정한다(생략 = relative). 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때도 이 렌즈를 쓴다");
-        RightPanel.Children.Add(_motionNotes);
+        panel.Children.Add(_motionNotes);
 
         OnCommit(_motionName, text => WithMotion(m =>
         {
@@ -1818,127 +1951,12 @@ public partial class MainWindow : Window
             }
         });
         OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
+        return panel;
+    }
 
-        RightPanel.Children.Add(Header("키"));
-        string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)", "리전" };
-
-        for (int i = 0; i < toolLabels.Length; i++)
-        {
-            var tool = (GraphTool)i;
-            Button button = SmallButton(toolLabels[i], (_, _) =>
-            {
-                _graph.Tool = tool;
-                RefreshToolButtons();
-            });
-            _toolButtons[i] = button;
-        }
-
-        RightPanel.Children.Add(_selectionSummary);
-        RightPanel.Children.Add(Labeled("in 기울기", _keyIn));
-        RightPanel.Children.Add(Labeled("out 기울기", _keyOut));
-        RightPanel.Children.Add(_keyBroken);
-        RightPanel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children =
-            {
-                SmallButton("복사 (Ctrl+C)", (_, _) => _graph.CopySelection()),
-                SmallButton("잘라내기 (Ctrl+X)", (_, _) => _graph.CutSelection()),
-                SmallButton("붙여넣기 (Ctrl+V)", (_, _) => _graph.Paste()),
-                SmallButton("삭제 (Del)", (_, _) => _graph.DeleteSelection()),
-            },
-        });
-        RightPanel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children =
-            {
-                new TextBlock { Text = "현재 시각", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 },
-                SmallButton("복사 (Shift+W)", (_, _) => Guard("키 복사", CopyKeysAtCurrentTime)),
-                SmallButton("붙여넣기 (Shift+E)", (_, _) => Guard("키 붙여넣기", PasteKeysAtCurrentTime)),
-                SmallButton("지우기 (Shift+F)", (_, _) => Guard("키 지우기", ClearKeysAtCurrentTime)),
-                SmallButton("인비트윈 − (Shift+1)", (_, _) => Guard("인비트윈 빼기", RemoveInbetween)),
-                SmallButton("인비트윈 + (Shift+2)", (_, _) => Guard("인비트윈 넣기", AddInbetween)),
-            },
-        });
-
-        OnCommit(_keyTime, text => ApplyToSelectedKeys(text, time: true));
-        OnCommit(_keyValue, text => ApplyToSelectedKeys(text, time: false));
-        OnCommit(_keyIn, text => WithSingleKey((key, k) =>
-        {
-            if (TryFloat(text, out float v) && v != k.InTangent)
-            {
-                _session.Editor.SetTangents(_graph.MotionName!, key, v, k.Broken ? k.OutTangent : v);
-            }
-        }));
-        OnCommit(_keyOut, text => WithSingleKey((key, k) =>
-        {
-            if (TryFloat(text, out float v) && v != k.OutTangent)
-            {
-                _session.Editor.SetTangents(_graph.MotionName!, key, k.Broken ? k.InTangent : v, v);
-            }
-        }));
-        _keyBroken.IsCheckedChanged += (_, _) =>
-        {
-            if (!_refreshing)
-            {
-                _graph.SetBroken(_keyBroken.IsChecked == true);
-            }
-        };
-
-        RightPanel.Children.Add(Header("채널 박스"));
-        RightPanel.Children.Add(_channelBoxTitle);
-        ToolTip.SetTip(_channelBoxTitle, "고른 오브젝트의 컨트롤러(자리·깊이·연기 — 리거의 표 presets/controllers.json). 표가 없는 리그는 고른 노드의 Translate·Rotate·Scale. 칸에 값을 넣으면(+=·-=·*=·/= 는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: Auto Key거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 글자 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기) · ● = 이 성분을 지금 키");
-        RightPanel.Children.Add(_channelBoxPanel);
-
-        RightPanel.Children.Add(_followSelection);
-        var modes = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-        string[] modeLabels = { "선택 (Q)", "이동 (W)", "회전 (E)", "배율 (R)" };
-
-        for (int i = 0; i < modeLabels.Length; i++)
-        {
-            var mode = (ManipulatorMode)i;
-            Button button = SmallButton(modeLabels[i], (_, _) =>
-            {
-                SetManipulator(mode);
-            });
-            _manipulatorButtons[i] = button;
-            modes.Children.Add(button);
-        }
-
-        RightPanel.Children.Add(modes);
-        _autoKey.IsCheckedChanged += (_, _) =>
-        {
-            _viewport.AutoKey = _autoKey.IsChecked == true;
-            _autoKeyToggle.IsChecked = _autoKey.IsChecked;
-            _autoKeyToggle.Foreground = _autoKey.IsChecked == true ? AutoKeyOnBrush : null;
-
-            if (!_refreshing)
-            {
-                _settings.AutoKey = _viewport.AutoKey;
-            }
-        };
-        _autoKeyToggle.IsCheckedChanged += (_, _) => _autoKey.IsChecked = _autoKeyToggle.IsChecked;
-        ToolTip.SetTip(_autoKeyToggle, "Auto Key — 매니퓰레이터를 놓는 순간 키가 들어간다(마야 빨간 키)");
-        RightPanel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            Children = { _autoKey, SmallButton("키 놓기 (S)", (_, _) => SetKeySelected()), SmallButton("버리기 (Esc)", (_, _) => _viewport.DiscardPending()) },
-        });
-        RightPanel.Children.Add(_pendingText);
-        _viewport.PendingChanged += (_, _) =>
-        {
-            RefreshPending();
-            RefreshChannelBox();
-        };
-        _viewport.PoseKeyed += (_, _) => RefreshChannelBox();
-        RefreshManipulatorButtons();
-        RefreshToolButtons();
-
-        RightPanel.Children.Add(Header("보기"));
+    /// <summary>설정 창의 컨트롤들은 미리 묶어 두고(창을 열 때마다 같은 인스턴스), 바꾸는 즉시 적용한다.</summary>
+    private void WireSettingsControls()
+    {
         _showRigNodes.IsCheckedChanged += (_, _) =>
         {
             if (_refreshing)
@@ -1951,7 +1969,17 @@ public partial class MainWindow : Window
             PushSettingsToViews();
         };
         ToolTip.SetTip(_showRigNodes, "하이어아키의 오브젝트 밑에 컨트롤러(자리·깊이·연기) 대신 덤프의 리그 노드 26단을 보인다 — 리거용. 표가 없는 리그는 늘 노드다");
-        RightPanel.Children.Add(_showRigNodes);
+        _showStageSkeleton.IsCheckedChanged += (_, _) =>
+        {
+            if (_refreshing)
+            {
+                return;
+            }
+
+            _settings.ShowStageSkeleton = _showStageSkeleton.IsChecked == true;
+            RebuildHierarchy();
+        };
+        ToolTip.SetTip(_showStageSkeleton, "하이어아키에 PresentataionUIRoot 뼈대 전체를 보인다. 끄면 Scene › 무대 › 층 › 오브젝트만");
         _snap.IsCheckedChanged += (_, _) =>
         {
             if (_refreshing)
@@ -1978,10 +2006,6 @@ public partial class MainWindow : Window
                 PushSettingsToViews();
             }
         };
-        RightPanel.Children.Add(Labeled("스냅 간격", _snapStepCombo));
-        RightPanel.Children.Add(Labeled("자동 저장", _autoSaveCombo));
-        RightPanel.Children.Add(Labeled("시간 표시", _timeDisplayCombo));
-        RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));
         _viewMode.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _viewMode.SelectedIndex >= 0)
@@ -2006,16 +2030,133 @@ public partial class MainWindow : Window
                 PushSettingsToViews();
             }
         };
-        RightPanel.Children.Add(new TextBlock
-        {
-            FontSize = 10,
-            Opacity = 0.6,
-            TextWrapping = TextWrapping.Wrap,
-            Text = "그래프(마야): 아웃라이너 행 클릭 = 그 커브만, Shift/Ctrl = 더하기 · LMB 선택 · MMB 이동 · Alt+MMB 팬 · Alt+RMB 줌 · 위 눈금자 = 스크럽 · " +
-                   "더블클릭 = 커브 위에 키 · 핸들 드래그 = 기울기 · Stats 칸 +=3 · Ctrl+Z/Y\n" +
-                   "도프 시트: 블록 드래그 = 시간 이동 · Alt+드래그 = 복제 · 범위 띠 양끝 = 시간 스케일 · 더블클릭 = 키 · 눈금자 = 스크럽 · 노드 행 = 접기",
-        });
     }
+
+    /// <summary>설정 창(마야 Preferences) — 툴바 "설정…". 바꾸는 즉시 적용, 닫을 때 저장. 컨트롤은 같은 인스턴스를 붙였다 뗀다.</summary>
+    private void OpenSettings()
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        var panel = new StackPanel { Margin = new Avalonia.Thickness(12), Spacing = 8 };
+        _settingsRows.Clear();
+
+        void Row(string label, Control control)
+        {
+            var row = (Panel)Labeled(label, control);
+            _settingsRows.Add(row);
+            panel.Children.Add(row);
+        }
+
+        panel.Children.Add(Header("하이어아키"));
+        panel.Children.Add(_showRigNodes);
+        panel.Children.Add(_showStageSkeleton);
+        panel.Children.Add(Header("키"));
+        Row("스냅 간격", _snapStepCombo);
+        Row("새 키 탄젠트", _newKeyTangent);
+        panel.Children.Add(Header("표시 · 저장"));
+        Row("시간 표시", _timeDisplayCombo);
+        Row("자동 저장", _autoSaveCombo);
+        panel.Children.Add(new TextBlock { Text = "바꾸는 즉시 적용되고, 창을 닫을 때 설정 파일에 남는다.", FontSize = 10, Opacity = 0.6, Margin = new Avalonia.Thickness(0, 6, 0, 0) });
+
+        _settingsWindow = new Window { Title = "설정", Width = 400, SizeToContent = SizeToContent.Height, CanResize = false, Content = panel, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        _settingsWindow.Closed += (_, _) =>
+        {
+            foreach (Panel row in _settingsRows)
+            {
+                row.Children.Clear();
+            }
+
+            panel.Children.Clear();
+            _settingsWindow = null;
+            SaveSettings();
+        };
+        _settingsWindow.Show(this);
+    }
+
+    /// <summary>단축키 창 — 툴바 "단축키" · F1. 읽기만.</summary>
+    private void OpenShortcuts()
+    {
+        if (_shortcutsWindow is not null)
+        {
+            _shortcutsWindow.Activate();
+            return;
+        }
+
+        var text = new TextBlock { FontSize = 11, TextWrapping = TextWrapping.Wrap, Text = ShortcutsText };
+        _shortcutsWindow = new Window
+        {
+            Title = "단축키",
+            Width = 560,
+            Height = 620,
+            Content = new ScrollViewer { Content = text, Padding = new Avalonia.Thickness(14) },
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        _shortcutsWindow.Closed += (_, _) => _shortcutsWindow = null;
+        _shortcutsWindow.Show(this);
+    }
+
+    internal const string ShortcutsText =
+        "전역 (창 어디서나 · 글 입력 칸 제외)\n" +
+        "  1 / 2  이전·다음 키        Alt+1 / Alt+2  이전·다음 프레임\n" +
+        "  `  첫 프레임               Alt+`  처음부터 재생        Alt+Q  재생/일시정지\n" +
+        "  S  키 놓기 — 키 없는 포즈가 있으면 그것을, 없으면 고른 컨트롤러의 지금 값을 현재 시각에\n" +
+        "  Esc  키 없는 포즈 버리기\n" +
+        "  Q / W / E / R  뷰포트 선택·이동·회전·배율 (W 몸 · E 숙임 · R 크기 — 컨트롤러 표의 기본 손잡이)\n" +
+        "  Shift+W / E / F  현재 시각의 키 복사·붙여넣기·지우기      Shift+1 / 2  인비트윈 빼기·넣기\n" +
+        "  Ctrl+C / X / V · Del  키 복사·잘라내기·붙여넣기·삭제      Ctrl+Z / Y  되돌리기·다시 하기\n" +
+        "  F1  이 창\n\n" +
+        "뷰포트\n" +
+        "  휠  커서 축으로 확대·축소      MMB 드래그  보기 이동      F  보기 맞춤\n" +
+        "  LMB  오브젝트 고르기 · 기즈모 끌기(Auto Key면 놓는 순간 키)      Home / End  처음·끝      ← / →  한 프레임\n\n" +
+        "그래프 에디터 (마야)\n" +
+        "  LMB  키 선택 · 빈 자리 드래그 박스 선택(키가 들면 키만, 커브만 지나면 커브) · Ctrl+드래그 라소\n" +
+        "  MMB 드래그  선택 키 이동(핸들을 골랐으면 핸들 회전)      MMB 클릭  고른 커브에 키 끼우기\n" +
+        "  RMB 드래그  선택 키 둘레면 한 축만 이동, 빈 자리면 팬      Alt+MMB  팬      Alt+RMB  줌 드래그      휠  줌\n" +
+        "  더블클릭  커브 위에 키      I  현재 시각에 키      A / F  전체 · 선택 맞춤\n" +
+        "  Q / W / R  선택·이동·스케일 툴(그래프 안)      Ctrl+1…6  탄젠트 auto·flat·linear·free·spline·plateau\n" +
+        "  Ctrl+B / Ctrl+Shift+B  버퍼 커브 찍기·바꾸기\n\n" +
+        "도프 시트\n" +
+        "  블록 드래그  시간 이동      Alt+드래그  복제      범위 띠 양끝  시간 스케일      더블클릭  키      노드 행 클릭  접기\n\n" +
+        "타임 슬라이더\n" +
+        "  클릭·드래그  스크럽      Shift+드래그  프레임 범위 선택      범위 안 MMB  범위의 키 이동      범위 밖 MMB  포즈 들고 스크럽(S로 키)\n" +
+        "  우클릭  복사·붙여넣기·삭제·스냅 · 재생 범위 · 재생 모드 메뉴\n\n" +
+        "하이어아키\n" +
+        "  클릭  오브젝트·컨트롤러 고르기      우클릭  만들기·복제·삭제·층·부모 메뉴      드래그  붙이기/층 옮기기\n" +
+        "  F2  이름 바꾸기      Ctrl+D  복제      Del  삭제      Ctrl+Shift+N  캐릭터 리그 만들기";
+
+    /// <summary>테스트 손잡이.</summary>
+    internal int InspectorTabCount => _inspectorTabs.ItemCount;
+
+    internal int InspectorTab
+    {
+        get => _inspectorTabs.SelectedIndex;
+        set => _inspectorTabs.SelectedIndex = value;
+    }
+
+    internal Window? SettingsWindow => _settingsWindow;
+
+    internal Window? ShortcutsWindow => _shortcutsWindow;
+
+    internal void OpenSettingsFromMenu() => OpenSettings();
+
+    internal void OpenShortcutsFromMenu() => OpenShortcuts();
+
+    internal bool ShowStageSkeleton
+    {
+        get => _settings.ShowStageSkeleton;
+        set
+        {
+            _settings.ShowStageSkeleton = value;
+            ApplySettings();
+            RebuildHierarchy();
+        }
+    }
+
+    internal IReadOnlyCollection<string> CollapsedChannelBoxGroups => _collapsedGroups;
 
     // ── 문서·목록 갱신 ─────────────────────────────────────────────────
 
@@ -2119,6 +2260,11 @@ public partial class MainWindow : Window
             _camZoom.Text = camera is null ? "" : F(camera.Zoom);
             _camPanX.Text = camera is null ? "" : F(camera.PanX);
             _camPanY.Text = camera is null ? "" : F(camera.PanY);
+
+            // 접힌 묶음은 값이 기본이 아닐 때만 스스로 펼친다(닫지는 않는다).
+            _placementExpander.IsExpanded |= selected is not null && (selected.PositionX != 0 || selected.PositionY != 0 || selected.RotationZ != 0 || selected.ScaleX != 1 || selected.ScaleY != 1);
+            _attachExpander.IsExpanded |= selected?.Parent is not null || selected?.Character is not null;
+            _cameraExpander.IsExpanded |= camera is not null && (camera.Zoom != 0 || camera.PanX != 0 || camera.PanY != 0);
         }
         finally
         {
@@ -2192,10 +2338,29 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            TreeViewItem parentItem = itemsByNode.GetValueOrDefault(parentOf[node.id]) ?? root;
             bool isStageRoot = StageNodes.Stages.Any(st => StageNodes.StageRootOf(st) == node.id);
             bool isContent = StageNodes.TryParseContent(node.id, out string stage, out string layer);
-            string header = node.id;
+
+            // 기본은 Scene › 무대 › 층만 — 뼈대의 다른 노드(Shot/Pan/Zoom/Mask/Framing…)는 "무대 뼈대 보기"를 켜야 보인다.
+            if (!_settings.ShowStageSkeleton && !isStageRoot && !isContent)
+            {
+                continue;
+            }
+
+            TreeViewItem parentItem = root;
+
+            for (string up = parentOf[node.id]; up != RigSchemaLoader.RootKey && parentOf.ContainsKey(up); up = parentOf[up])
+            {
+                if (itemsByNode.TryGetValue(up, out TreeViewItem? found))
+                {
+                    parentItem = found;
+                    break;
+                }
+            }
+
+            string header = _settings.ShowStageSkeleton ? node.id
+                : isStageRoot ? StageNodes.StageName(StageNodes.Stages.First(st => StageNodes.StageRootOf(st) == node.id))
+                : layer;
 
             if (node.id == StageNodes.ZoomRoot)
             {
@@ -2730,7 +2895,7 @@ public partial class MainWindow : Window
         }
 
         _viewport.SelectedObjectId = tag.ObjectId;
-        _followSelection.IsChecked = false;
+        _followSelection = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
         ShowControllerCurves(c);
         RefreshChannels();
@@ -2743,7 +2908,6 @@ public partial class MainWindow : Window
                 MotionChannelKind.Scale => ManipulatorMode.Scale,
                 _ => ManipulatorMode.Move,
             };
-            RefreshManipulatorButtons();
         }
 
         _viewport.InvalidateVisual();
@@ -2765,7 +2929,7 @@ public partial class MainWindow : Window
     private void SelectNodeInHierarchy(HierarchyNode node)
     {
         _viewport.SelectedObjectId = node.ObjectId;
-        _followSelection.IsChecked = false;
+        _followSelection = false;
         _viewport.SelectedNode = node.NodeId;
         ShowCurves(_graph.Curves.Select(s => s.Curve).Where(cr => cr.Node == node.NodeId).ToList(), additive: false);
         _viewport.InvalidateVisual();
@@ -3331,7 +3495,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void SelectController(Controller c, bool showCurves = true)
     {
-        _followSelection.IsChecked = false;
+        _followSelection = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
         SyncHierarchySelection(c);
 
@@ -3535,18 +3699,15 @@ public partial class MainWindow : Window
             KeyAsset? single = count == 1 && motion is not null ? _graph.Selection.First().Resolve(motion) : null;
             bool editable = single is not null;
 
-            _selectionSummary.Text = count == 0 ? "선택 없음" : count == 1 ? $"키 1개 — {_graph.Selection.First().Curve}" : $"키 {count}개";
             _keyTime.IsEnabled = count > 0;
             _keyValue.IsEnabled = count > 0;
             _keyIn.IsEnabled = editable;
             _keyOut.IsEnabled = editable;
-            _keyBroken.IsEnabled = count > 0;
 
             _keyTime.Text = single is null ? (count > 0 ? "+=0" : "") : TimeText.Format(single.T, Display);
             _keyValue.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.V);
             _keyIn.Text = single is null ? "" : F(single.InTangent);
             _keyOut.Text = single is null ? "" : F(single.OutTangent);
-            _keyBroken.IsChecked = single?.Broken ?? false;
         }
         finally
         {

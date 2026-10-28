@@ -748,6 +748,65 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 인스펙터는_탭_셋이고_설정_단축키는_창이며_채널_박스_묶음은_접히고_뼈대는_기본_숨김이다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+
+                // 탭 셋, 기본은 채널 박스. 마지막 탭은 설정에 남는다.
+                Assert.Equal(3, window.InspectorTabCount);
+                Assert.Equal(0, window.InspectorTab);
+                window.InspectorTab = 2;
+                Assert.Equal(2, window.Settings.InspectorTab);
+                window.InspectorTab = 0;
+
+                // 설정 창은 같은 컨트롤을 붙였다 떼므로 두 번 열어도 된다. 닫으면 저장.
+                window.OpenSettingsFromMenu();
+                Assert.NotNull(window.SettingsWindow);
+                window.SettingsWindow!.Close();
+                Assert.Null(window.SettingsWindow);
+                window.OpenSettingsFromMenu();
+                Assert.NotNull(window.SettingsWindow);
+                window.SettingsWindow!.Close();
+
+                // 단축키 창 = F1.
+                window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
+                Assert.NotNull(window.ShortcutsWindow);
+                window.ShortcutsWindow!.Close();
+                Assert.Null(window.ShortcutsWindow);
+
+                // 채널 박스 묶음 접기 — 설정에 남고, 접힌 묶음에도 값은 들어간다.
+                window.AddMotionFromForm("step", "character", "0.5", MotionEnd.Commit);
+                window.SelectInHierarchy("s1", null);
+                window.ToggleChannelBoxGroup("placement");
+                Assert.Contains("placement", window.Settings.CollapsedChannelBoxGroups);
+                window.AutoKeyChecked = true;
+                window.SetControllerValue("place", Axis.X, "40");
+                Assert.Equal(40.0, window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_Track", MotionChannelKind.Position)!.X!.Keys.Single().V, 3);
+                window.ToggleChannelBoxGroup("placement");
+                Assert.DoesNotContain("placement", window.Settings.CollapsedChannelBoxGroups);
+
+                // 뼈대는 기본 숨김: Scene › Stage00 › mid › s1. 켜면 26단 뼈대.
+                Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "Stage00", "mid" }, window.HierarchyPathOf("s1", null).Take(3));
+                window.ShowStageSkeleton = true;
+                Assert.Contains("StageZoom_Root  ·  zoom 0", window.HierarchyPathOf("s1", null));
+                window.ShowStageSkeleton = false;
+                Assert.Equal(4, window.HierarchyPathOf("s1", null).Count);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 하이어아키는_덤프의_부모자식_계층_그대로이고_메뉴로_자식을_만들며_이름바꾸기_복제가_된다()
     {
         HeadlessUi.Run(() =>
@@ -759,6 +818,7 @@ public class MainWindowTests
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
                 window.ShowRigNodes = true; // 기본은 컨트롤러 보기 — 이 테스트는 리거의 노드 보기
+                window.ShowStageSkeleton = true; // 기본은 Scene › 무대 › 층만 — 이 테스트는 뼈대 전체
 
                 // 리그 노드는 연기/배치 폴더가 아니라 덤프의 parent 사슬이다. 오브젝트 항목이 곧 __root.
                 IReadOnlyList<string> path = window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move_Y");
