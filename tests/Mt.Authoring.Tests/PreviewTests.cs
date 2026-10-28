@@ -308,7 +308,7 @@ public class WholeFramePlaybackTests
 
         clock.WholeFrames = false;
         clock.Advance(0.01);
-        Assert.Equal(0.55, clock.Time, 9); // 연속으로 돌아가면 흐른 시간 그대로
+        Assert.Equal(13.0 / 24.0 + 0.01, clock.Time, 9); // 연속으로 돌아가면 보이던 시각에서 흐른 시간 그대로
 
         clock.ScrubTo(0.3);
         Assert.Equal(0.3, clock.Time, 9); // 스크럽은 프레임에 안 맞춘다(슬라이더가 스냅한다)
