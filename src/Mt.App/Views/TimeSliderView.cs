@@ -687,6 +687,11 @@ public sealed class TimeSliderView : Control
 
         menu.Items.Add(speed);
 
+        var step = new MenuItem { Header = "재생 단위", FontSize = 11 };
+        step.Items.Add(Item("연속", () => { if (_viewport is not null) { _viewport.PlayWholeFrames = false; } }));
+        step.Items.Add(Item("1프레임", () => { if (_viewport is not null) { _viewport.PlayWholeFrames = true; } }));
+        menu.Items.Add(step);
+
         var ticks = new MenuItem { Header = "키 틱 표시", FontSize = 11 };
         ticks.Items.Add(Item("전체", () => { KeyTicks = KeyTickMode.All; InvalidateVisual(); }));
         ticks.Items.Add(Item("선택 키만", () => { KeyTicks = KeyTickMode.Selected; InvalidateVisual(); }));

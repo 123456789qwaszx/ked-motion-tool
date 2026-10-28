@@ -47,6 +47,18 @@ public sealed class PlaybackClock
     /// <summary>재생 속도 배율(0.25·0.5·1·2…). 양수.</summary>
     public double Speed { get; set; } = 1;
 
+    /// <summary>
+    /// 1프레임 단위 재생(마야 Real-time 24fps 표시) — 속도는 실제 시간을 따르되 보이는 시각은 정수 프레임(24fps)이다.
+    /// 꺼져 있으면 흐른 시간 그대로(연속).
+    /// </summary>
+    public bool WholeFrames { get; set; }
+
+    /// <summary>24fps 프레임 길이(초).</summary>
+    public static double Frame => 1.0 / Ked.Presentation.Core.DurationToken.FramesPerSecond;
+
+    // 1프레임 단위 재생일 때 실제로 흐른 시각 — Time은 이것을 프레임에 맞춘 값이다.
+    private double _exact;
+
     public void SetDuration(double seconds)
     {
         Duration = Math.Max(1e-3, seconds);
@@ -94,6 +106,7 @@ public sealed class PlaybackClock
             Time = RangeStart;
         }
 
+        _exact = Time;
         IsPlaying = true;
     }
 
@@ -107,6 +120,7 @@ public sealed class PlaybackClock
             Time = RangeEnd;
         }
 
+        _exact = Time;
         IsPlaying = true;
     }
 
@@ -131,7 +145,11 @@ public sealed class PlaybackClock
         Time = RangeStart;
     }
 
-    public void ScrubTo(double seconds) => Time = Math.Clamp(seconds, 0, Duration);
+    public void ScrubTo(double seconds)
+    {
+        Time = Math.Clamp(seconds, 0, Duration);
+        _exact = Time;
+    }
 
     /// <summary>재생 중이면 흐른 시간 × 속도만큼 간다. 바뀌었으면 true.</summary>
     public bool Advance(double deltaSeconds)
@@ -142,7 +160,7 @@ public sealed class PlaybackClock
         }
 
         double span = RangeEnd - RangeStart;
-        double next = Time + deltaSeconds * Math.Max(0, Speed) * _direction;
+        double next = (WholeFrames ? _exact : Time) + deltaSeconds * Math.Max(0, Speed) * _direction;
 
         switch (Mode)
         {
@@ -190,7 +208,17 @@ public sealed class PlaybackClock
                 break;
         }
 
-        Time = next;
-        return true;
+        _exact = next;
+
+        if (!WholeFrames || !IsPlaying)
+        {
+            Time = next;
+            return true;
+        }
+
+        double snapped = Math.Clamp(Math.Round(next / Frame) * Frame, RangeStart, RangeEnd);
+        bool changed = Math.Abs(snapped - Time) > 1e-12;
+        Time = snapped;
+        return changed;
     }
 }

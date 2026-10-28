@@ -290,6 +290,42 @@ public class PlaybackBackwardTests
     }
 }
 
+public class WholeFramePlaybackTests
+{
+    [Fact]
+    public void 프레임_단위_재생은_실제_시간을_따르되_보이는_시각은_정수_프레임이다()
+    {
+        var clock = new PlaybackClock { WholeFrames = true };
+        clock.SetDuration(1);
+        clock.Play();
+
+        Assert.False(clock.Advance(0.02)); // 0.48프레임 → 0프레임, 안 바뀜
+        Assert.Equal(0, clock.Time, 9);
+        Assert.True(clock.Advance(0.02)); // 0.96프레임 → 1프레임
+        Assert.Equal(1.0 / 24.0, clock.Time, 9);
+        clock.Advance(0.5); // 실제 0.54초 = 12.96프레임 → 13프레임 (0.04초가 사라지지 않는다)
+        Assert.Equal(13.0 / 24.0, clock.Time, 9);
+
+        clock.WholeFrames = false;
+        clock.Advance(0.01);
+        Assert.Equal(0.55, clock.Time, 9); // 연속으로 돌아가면 흐른 시간 그대로
+
+        clock.ScrubTo(0.3);
+        Assert.Equal(0.3, clock.Time, 9); // 스크럽은 프레임에 안 맞춘다(슬라이더가 스냅한다)
+    }
+
+    [Fact]
+    public void 프레임_단위_재생도_한_번이면_범위_끝에서_정확히_멈춘다()
+    {
+        var clock = new PlaybackClock { WholeFrames = true, Mode = PlaybackMode.Once };
+        clock.SetDuration(0.55);
+        clock.Play();
+        clock.Advance(1);
+        Assert.Equal(0.55, clock.Time, 6);
+        Assert.False(clock.IsPlaying);
+    }
+}
+
 public class KeyTimesTests
 {
     [Fact]

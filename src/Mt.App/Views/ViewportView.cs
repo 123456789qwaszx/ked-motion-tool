@@ -392,6 +392,17 @@ public sealed class ViewportView : Control
         }
     }
 
+    /// <summary>1프레임 단위 재생 — 보이는 시각이 정수 프레임이다. 꺼지면 연속.</summary>
+    public bool PlayWholeFrames
+    {
+        get => _clock.WholeFrames;
+        set
+        {
+            _clock.WholeFrames = value;
+            RangeChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     public double Speed
     {
         get => _clock.Speed;

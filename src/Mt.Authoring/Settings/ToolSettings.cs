@@ -34,6 +34,9 @@ public sealed class ToolSettings
 
     public bool AutoKey { get; set; }
 
+    /// <summary>1프레임 단위 재생(마야 Real-time 24fps 표시). 꺼지면 연속.</summary>
+    public bool PlayWholeFrames { get; set; }
+
     /// <summary>시간 표시 — 마야처럼 프레임이 기본.</summary>
     public Graph.TimeDisplay TimeDisplay { get; set; } = Graph.TimeDisplay.Frames;
 

@@ -59,6 +59,7 @@ public partial class MainWindow : Window
     private readonly Button _playButton = new() { Content = "▶", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
     private readonly ComboBox _playMode = new() { ItemsSource = new[] { "한 번", "루프", "왕복" }, SelectedIndex = 1, FontSize = 11 };
     private readonly ComboBox _playSpeed = new() { ItemsSource = new[] { "×0.25", "×0.5", "×1", "×2" }, SelectedIndex = 2, FontSize = 11 };
+    private readonly ComboBox _playStep = new() { ItemsSource = new[] { "연속 재생", "1프레임 재생" }, SelectedIndex = 0, FontSize = 11 };
     private readonly TextBox _rangeStart = new() { Text = "0", Width = 56, FontSize = 11 };
     private readonly TextBox _rangeEnd = new() { Text = "1", Width = 56, FontSize = 11 };
     private readonly TextBox _animEnd = new() { Width = 56, FontSize = 11 };
@@ -366,6 +367,7 @@ public partial class MainWindow : Window
             int autoSaveIndex = Array.IndexOf(AutoSaveMinutes, _settings.AutoSaveMinutes);
             _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
             _timeDisplayCombo.SelectedIndex = (int)_settings.TimeDisplay;
+            _playStep.SelectedIndex = _settings.PlayWholeFrames ? 1 : 0;
         }
         finally
         {
@@ -387,6 +389,7 @@ public partial class MainWindow : Window
         _viewport.DefaultTangent = _settings.DefaultTangent;
         _viewport.OnionSkinFrames = _settings.OnionSkinFrames;
         _viewport.AutoKey = _settings.AutoKey;
+        _viewport.PlayWholeFrames = _settings.PlayWholeFrames;
         _graph.TimeDisplay = _settings.TimeDisplay;
         _dope.TimeDisplay = _settings.TimeDisplay;
         _timeSlider.SnapEnabled = _settings.SnapEnabled;
@@ -536,6 +539,15 @@ public partial class MainWindow : Window
                 _viewport.Mode = (PlaybackMode)_playMode.SelectedIndex;
             }
         };
+        _playStep.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _playStep.SelectedIndex >= 0)
+            {
+                _settings.PlayWholeFrames = _playStep.SelectedIndex == 1;
+                PushSettingsToViews();
+            }
+        };
+        ToolTip.SetTip(_playStep, "연속: 흐른 시간 그대로 · 1프레임: 보이는 시각을 정수 프레임(24fps)에 맞춘다(마야 Real-time)");
         _playSpeed.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _playSpeed.SelectedIndex >= 0)
@@ -639,6 +651,7 @@ public partial class MainWindow : Window
                 _animEnd,
                 _playMode,
                 _playSpeed,
+                _playStep,
                 new TextBlock { Text = "24 fps", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 },
                 _autoKeyToggle,
                 _onion,
