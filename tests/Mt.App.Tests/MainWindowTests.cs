@@ -894,4 +894,54 @@ public class MainWindowTests
             }
         });
     }
+
+    [Fact]
+    public void Ctrl_Z_Y는_창_어디에_포커스가_있든_한_번만_돌고_글_입력_칸에서는_문서를_안_건드린다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                var editor = window.Session.Editor;
+
+                foreach (Control focus in new Control[] { window.Graph, window.Dope, window.Viewport, window.Hierarchy })
+                {
+                    editor.SetDuration("nod", 1.5f);
+                    long after = editor.Revision;
+                    focus.Focus();
+
+                    window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+                    Assert.Equal(0.6f, editor.Document.Find("nod")!.Duration);
+                    Assert.Equal(after + 1, editor.Revision); // 정확히 한 번(두 번이면 +2)
+
+                    window.KeyPressQwerty(PhysicalKey.Y, RawInputModifiers.Control);
+                    Assert.Equal(1.5f, editor.Document.Find("nod")!.Duration);
+                    Assert.Equal(after + 2, editor.Revision);
+
+                    window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+                    window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control | RawInputModifiers.Shift); // Ctrl+Shift+Z = 다시하기
+                    Assert.Equal(1.5f, editor.Document.Find("nod")!.Duration);
+                    Assert.Equal(after + 4, editor.Revision);
+                }
+
+                // 글 입력 칸에 포커스가 있으면 Ctrl+Z는 글자 되돌리기 — 문서는 그대로.
+                long revision = editor.Revision;
+                TextBox box = window.ObjectXBox;
+                box.Focus();
+                window.KeyTextInput("5");
+                window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+                Assert.Equal(revision, editor.Revision);
+                Assert.Equal(1.5f, editor.Document.Find("nod")!.Duration);
+                Assert.True(box.IsFocused);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

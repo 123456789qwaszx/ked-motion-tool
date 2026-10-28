@@ -921,13 +921,6 @@ public sealed class DopeSheetView : Control
             case Key.Escape:
                 _selection.Clear();
                 break;
-            case Key.Z when ctrl && shift:
-            case Key.Y when ctrl:
-                _editor?.Redo();
-                break;
-            case Key.Z when ctrl:
-                _editor?.Undo();
-                break;
             case Key.D when ctrl:
                 DuplicateSelection(1.0 / TimeSnap.FramesPerSecond);
                 break;

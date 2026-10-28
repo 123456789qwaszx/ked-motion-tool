@@ -325,6 +325,14 @@ public partial class MainWindow : Window
             case PhysicalKey.Digit2 when shift:
                 Guard("인비트윈 넣기", AddInbetween);
                 break;
+            // 되돌리기·다시하기 — 창 어디에 포커스가 있든 한 경로(툴바 버튼도 같다). 글 입력 칸은 위에서 빠졌으니 거기서는 글자 되돌리기다.
+            case PhysicalKey.Z when mods == (KeyModifiers.Control | KeyModifiers.Shift):
+            case PhysicalKey.Y when mods == KeyModifiers.Control:
+                RedoCommand();
+                break;
+            case PhysicalKey.Z when mods == KeyModifiers.Control:
+                UndoCommand();
+                break;
             // 키 복사·잘라내기·붙여넣기 — 창 어디에 포커스가 있든(그래프·도프 시트의 선택 키). 붙이는 커브는 그래프가 정한다(고른 커브 › 보이는 커브 › 원래 커브).
             case PhysicalKey.C when mods == KeyModifiers.Control:
                 _graph.CopySelection();
@@ -361,6 +369,28 @@ public partial class MainWindow : Window
 
     private bool InsideGraph(object? source)
         => source is Visual v && (ReferenceEquals(v, _graph) || v.FindAncestorOfType<GraphEditorView>() is not null);
+
+    /// <summary>되돌리기 — Ctrl+Z와 툴바의 한 경로. 뷰포트가 포즈를 든 채 스크럽 중이면 그것부터 놓는다.</summary>
+    private void UndoCommand()
+    {
+        _viewport.EndHoldScrub();
+        Guard("되돌리기", _session.Editor.Undo);
+    }
+
+    private void RedoCommand()
+    {
+        _viewport.EndHoldScrub();
+        Guard("다시하기", _session.Editor.Redo);
+    }
+
+    /// <summary>테스트 손잡이 — 하이어아키 트리(포커스를 두고 단축키를 보내는 데).</summary>
+    internal Control Hierarchy => _hierarchy;
+
+    /// <summary>테스트 손잡이 — 그래프 툴바의 값 칸.</summary>
+    internal TextBox KeyValueBox => _keyValue;
+
+    /// <summary>테스트 손잡이 — 씬 탭의 오프셋 X 칸(글 입력 중 단축키 경계 검사).</summary>
+    internal TextBox ObjectXBox => _objX;
 
     private void SetManipulator(ManipulatorMode mode)
     {
@@ -1636,8 +1666,8 @@ public partial class MainWindow : Window
         ToolTip.SetTip(_exportScope, "내보낼 범위 — 전체 / 선택 오브젝트의 rigKind 모션만 / 선택 오브젝트가 입을 수 있는 모션만. 모션의 주인은 rigKind다");
         Toolbar.Children.Add(ToolButton("motions.json 내보내기…", OnExportClick));
         Toolbar.Children.Add(Separator());
-        Toolbar.Children.Add(ToolButton("되돌리기", (_, _) => _session.Editor.Undo()));
-        Toolbar.Children.Add(ToolButton("다시하기", (_, _) => _session.Editor.Redo()));
+        Toolbar.Children.Add(ToolButton("되돌리기", (_, _) => UndoCommand()));
+        Toolbar.Children.Add(ToolButton("다시하기", (_, _) => RedoCommand()));
         Toolbar.Children.Add(Separator());
         Toolbar.Children.Add(ToolButton("설정…", (_, _) => OpenSettings()));
         Toolbar.Children.Add(ToolButton("단축키 (F1)", (_, _) => OpenShortcuts()));

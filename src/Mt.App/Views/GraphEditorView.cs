@@ -2155,13 +2155,6 @@ public sealed class GraphEditorView : Control
             case Key.Escape:
                 ClearSelection();
                 break;
-            case Key.Z when ctrl && shift:
-            case Key.Y when ctrl:
-                _editor?.Redo();
-                break;
-            case Key.Z when ctrl:
-                _editor?.Undo();
-                break;
             case Key.D1 when ctrl:
                 SetTangentMode(TangentMode.Auto);
                 break;
