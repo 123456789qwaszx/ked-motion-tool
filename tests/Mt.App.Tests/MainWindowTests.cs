@@ -549,4 +549,107 @@ public class MainWindowTests
             }
         });
     }
+
+    [Fact]
+    public void 하이어아키는_덤프의_부모자식_계층_그대로이고_메뉴로_자식을_만들며_이름바꾸기_복제가_된다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+
+                // 리그 노드는 연기/배치 폴더가 아니라 덤프의 parent 사슬이다. 오브젝트 항목이 곧 __root.
+                IReadOnlyList<string> path = window.HierarchyPathOf("c1", "CharacterPortrait_Track_Move_Y");
+                Assert.Equal(new[] { "Scene  scene", "stage01", "mid", "c1  ·  character", "CharSlot_Track_Focus", "CharSlot_DepthY", "CharSlot_DepthScale", "CharSlot_Track_Idle", "CharSlot_Track", "CharSlot_Track_X", "CharSlot_Track_Y", "CharSlot_Rotation", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_Track", "CharacterPortrait_Rotation", "CharacterPortrait_Track_Move", "CharacterPortrait_Track_Move_X", "CharacterPortrait_Track_Move_Y" }, path);
+                Assert.DoesNotContain("연기 축", window.HierarchyPathOf("c1", "CharacterPortrait_SwayPivot"));
+
+                // 노드 위에서 "만들기" = 그 노드의 자식. 트리에서는 그 노드 밑에 보인다.
+                string prop = window.CreateObjectFromMenu("character", "c1", "CharacterPortrait_Track_Move");
+                Assert.Equal("c2", prop);
+                Assert.Equal(prop, window.Viewport.SelectedObjectId);
+                IReadOnlyList<string> propPath = window.HierarchyPathOf("c2", null);
+                Assert.Equal("CharacterPortrait_Track_Move", propPath[^2]);
+                Assert.StartsWith("c2  ·  character", propPath[^1], StringComparison.Ordinal);
+
+                // 빈 오브젝트 — 오브젝트 위에서 만들면 루트 자식.
+                string pivot = window.CreateObjectFromMenu("", "c1", null);
+                Assert.Equal("empty1", pivot);
+                Assert.Equal(new[] { "Scene  scene", "stage01", "mid", "c1  ·  character", "empty1  ·  빈 오브젝트" }, window.HierarchyPathOf("empty1", null));
+
+                // 이름 바꾸기(채널 박스 id) — 선택이 따라간다.
+                window.SelectInHierarchy("c2", null);
+                window.RenameSelectedFromForm("hand");
+                Assert.Equal("hand", window.Viewport.SelectedObjectId);
+                Assert.Equal("c1", window.Viewport.SelectedObject!.Parent);
+
+                // 복제 — 자손까지, 새 것이 선택된다.
+                window.SelectInHierarchy("c1", null);
+                window.DuplicateSelectedFromMenu();
+                Assert.Equal("c2", window.Viewport.SelectedObjectId);
+                Assert.Equal(6, window.HierarchyObjectCount);
+                Assert.Equal("c2", window.Viewport.Scene!.Find("hand_2")!.Parent);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 하이어아키에서_끌어다_놓으면_자식이_되거나_레이어가_바뀐다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddObjectFromForm("c2", "character", "front");
+                window.AddObjectFromForm("c3", "character", "close");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // c3를 c1 오브젝트 항목에 놓는다 → 루트 자식(노드 위에 놓으면 그 노드 — 같은 길, 메뉴 테스트가 덮는다).
+                Point from = window.HierarchyItemCenter("c3", null) ?? throw new InvalidOperationException("c3 항목이 없다");
+                Point to = window.HierarchyItemCenter("c1", null) ?? throw new InvalidOperationException("c1 항목이 없다");
+                Drag(window, from, to);
+                Mt.Authoring.Model.SceneObject c3 = window.Viewport.Scene!.Find("c3")!;
+                Assert.Equal("c1", c3.Parent);
+                Assert.Null(c3.ParentNode);
+                Assert.Equal("mid", c3.Layer);
+
+                // c2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
+                from = window.HierarchyItemCenter("c2", null) ?? throw new InvalidOperationException("c2 항목이 없다");
+                to = window.HierarchyItemCenter(null, null, "stage01", "mid") ?? throw new InvalidOperationException("레이어 항목이 없다");
+                Drag(window, from, to);
+                Assert.Equal("mid", window.Viewport.Scene!.Find("c2")!.Layer);
+                Assert.Null(window.Viewport.Scene!.Find("c2")!.Parent);
+
+                // 자기 자신에게 놓는 것은 아무 일도 아니다.
+                long before = window.Session.Editor.Revision;
+                from = window.HierarchyItemCenter("c2", null)!.Value;
+                Drag(window, from, from + new Point(0, 2));
+                Assert.Equal(before, window.Session.Editor.Revision);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    private static void Drag(Window window, Point from, Point to)
+    {
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(from + new Point(0, 10));
+        window.MouseMove(to);
+        window.MouseUp(to, MouseButton.Left);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    }
 }

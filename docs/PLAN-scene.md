@@ -134,6 +134,38 @@ Scene "scene_a"
 - 씬을 런타임 산출물로 내보내기 — 런타임 씬은 Yarn이 만든다.
 - 여러 오브젝트의 시간차 연출(연출 클립) — 별 규약이 먼저다(`PLAN.md` §8).
 
+---
+
+## 6. S6 — 리그 노드의 실제 계층 · 유니티식 오브젝트 계층 (소유자 요청, 2026-10-28)
+
+요청: ⓐ 캐릭터 리그의 하이어아키는 "연기 축/배치 축" 폴더가 아니라 **유니티에 실제로 정리된 부모–자식 계층 그대로** 보여야 한다(코어가 이미 그렇게 안다). ⓑ 유니티 하이어아키처럼 **우클릭 메뉴로 오브젝트를 편하게 더하며 계층을 잡고** 오브젝트 하나하나를 조작하고 싶다.
+
+### 6.1 조사
+
+- 덤프 `rig-schemas.json`의 노드마다 `parent`가 있고 "부모가 항상 자식보다 먼저"다. 코어 `RigSchemaLoader.AddRigTo`가 그 순서대로 `RectNodeTree.Add(key, parentKey, …)`를 부르고, `RectNodeTree.GetParentKey`로 되짚을 수 있다. 캐릭터 리그는 `__root › CharSlot_Track_Focus › CharSlot_DepthY › … › CharSlot_Scale › CharacterPortrait_VisualOffset › … › CharacterPortrait_ActingScale_Y › CharacterPortraitSprite_Root › CharacterPortraitSprite_Image`(+ `…Overlay_Root/Image`) 한 사슬이다. 툴이 `IsPlacementAxis`로 둘로 나눠 접은 것은 **툴의 임의 분류**였다 — 뺀다.
+- `AddRigTo(tree, rig, keyPrefix, attachParentKey)`는 리그를 **이미 있는 노드 밑에** 붙일 수 있다. 즉 코어는 "오브젝트 밑의 오브젝트"(소품이 캐릭터 손에, 오브젝트가 배경의 `Background_ObjectSlotRoot`에)를 이미 지원한다. 부모 노드가 움직이면 자식 리그는 코어 체인으로 따라온다 — 툴이 좌표를 더하지 않는다.
+- 유니티 "Create Empty"에 해당하는 것: 노드 하나짜리 오브젝트. 코어 `RectNodeTree.Add`에 빈 `RectNodeState`(가운데 앵커·피벗, 크기 0)를 넣으면 된다 — 그룹·피벗용.
+
+### 6.2 설계
+
+| 항목 | 결정 |
+|---|---|
+| 리그 노드 트리 | 덤프의 `parent` 그대로 중첩. 오브젝트 항목 자신이 `__root`다(유니티에서 리그 루트 GameObject가 곧 오브젝트이듯). 색은 유지: 연기 축 파랑·배치 축 회색·키잉 금지(`CharSlot_Track_Focus`) 흐림. 노드 항목은 기본 펼침, 오브젝트 항목은 기본 접힘(유니티). 우클릭 "노드 전부 펼치기/접기". |
+| 오브젝트 계층 | `SceneObject.parent`(부모 오브젝트 id) + `parentNode`(부모 리그의 노드 id, 비면 루트). 미리보기는 `AddRigTo(…, attachParentKey: 부모.KeyOf(parentNode))`. 부모 노드가 리그에 없으면 부모 루트로 떨어지고 상태 줄에 알린다. 자식은 **부모의 stage/layer·깊이를 따른다**(자기 layer는 무시, 채널 박스에서 잠김). |
+| 빈 오브젝트 | `rig = ""`. 트리에는 `{id}/__root` 하나(가운데 앵커, 크기 0). 배치 = 그 노드. 뷰포트에는 마름모 기즈모 + 이름. 모션은 못 입는다. |
+| 배치 축이 없는 리그 | (배경·화면 효과) 배치 값을 리그 `__root`에 넣는다 — 전에는 무시했다. |
+| 그리는 순서 | 최상위는 레이어 순(far→close)·목록 순, 자식은 부모 바로 뒤(부모 위에 그려진다). 클릭 선택은 그 역순. 부모가 숨으면 자손도 숨는다. |
+| 우클릭 메뉴(유니티) | 이름 바꾸기(F2) · 복제(Ctrl+D) · 삭제(Del) ─ 숨기기/보이기 · 레이어 › far…close · 부모에서 떼기 ─ 빈 오브젝트 만들기(Ctrl+Shift+N) · 리그 오브젝트 › rigKind… ─ 노드 전부 펼치기/접기. **오브젝트나 노드 위에서 만들면 그 자리의 자식**, 레이어 폴더 위에서는 그 레이어의 최상위, 빈자리에서는 선택 오브젝트의 레이어. 헤더의 `+` 버튼도 같은 메뉴. |
+| 드래그 | 하이어아키에서 오브젝트를 끌어 **다른 오브젝트/노드에 놓으면 자식**, **레이어 폴더에 놓으면 그 레이어의 최상위**, Scene/stage에 놓으면 최상위. 포인터 이벤트로 직접 구현(헤드리스 테스트 가능; OS 드래그 API는 안 쓴다). |
+| 채널 박스 | id(이름 바꾸기) · 부모 콤보 · 부모 노드 콤보 · X/Y/Rot Z/Scale · Layer(최상위만) · 보이기. 이름을 바꾸면 자식의 `parent`와 초상 매핑도 따라간다. |
+| 편집기 명령 | `AddSceneObject(scene, id, rig, layer, parent, parentNode)` · `RemoveSceneObject`(자손까지 한 번에) · `RenameSceneObject` · `DuplicateSceneObject`(자손까지, 새 id = 숫자 올림) · `SetObjectParent`(자기 자신·자손 금지) — 각각 되돌리기 한 번. 부모를 바꿀 때 배치 값은 그대로다(월드 위치 보존은 하지 않는다 — 유니티의 "Set Parent (world position stays)"와 다르다; 필요하면 다음). |
+| 저장 | `scenes[].objects[].parent / parentNode` 선택 항목. 없으면 최상위. 산출물 `motions/1`은 그대로. |
+
+### 6.3 하지 않는 것
+
+- 리그 노드 자체의 추가·삭제·재배치 — 리그는 덤프(유니티 익스포터)가 정한다. 툴은 그 밑에 **오브젝트**를 붙일 뿐이다.
+- 노드 단위 멀티 선택·복수 드래그 — 하나씩.
+
 ## 결정 (2026-10-28, 소유자)
 
 - 모션의 주인은 **rigKind**. 공통 스키마를 가진 리그끼리는 모션을 공유할 수 있다 → 툴은 "rigKind가 같거나 채널 노드가 전부 있으면" 그 오브젝트에 입혀 보인다(`ScenePreview.CanWear`).
@@ -146,4 +178,5 @@ Scene "scene_a"
 - **S2 완료**: 왼쪽 하이어아키 `TreeView`(Scene › stage › layer › 오브젝트 › 연기 축/배치 축 노드, 펼침 상태 기억) · 오브젝트 클릭 = 선택 · 노드 클릭 = 매니퓰레이터 노드 + 채널 추가 대상 · 더블클릭 = 채널 추가.
 - **S3 완료**: 모션 목록 rigKind 순 묶음·"안 맞음" 표시 · 새 모션 = 선택 오브젝트의 rigKind · 툴바 내보내기 범위(전체/이 rigKind/이 오브젝트가 입는 모션) — `MotionExport.TryExport(filter)`는 고른 모션의 문제만 막는다.
 - **S4 완료**: `DepthTuningFile`(덤프 옆 `presets/depth.json`) → 레이어 깊이를 코어 `SetDepthStageReduction`(focus 보존 bust, 캐릭터별 오프셋 없이)으로 — 런타임 size 폴드와 같은 값 · 카메라 zoom/pan 보기(`ShotIntentMath`)와 `SetCamera` 명령.
-- 남은 것: focus-tuning.json의 캐릭터별 오프셋(배역 개념이 툴에 없다 — 필요하면 오브젝트에 characterKey를 둔다) · 하이어아키 드래그로 레이어 옮기기 · 여러 씬 전환 UI(모델은 `scenes[]`로 이미 여럿).
+- **S6 완료**: 리그 노드를 덤프의 `parent` 그대로 중첩(연기/배치 폴더 제거, 오브젝트 항목 = `__root`) · `SceneObject.parent/parentNode`와 빈 오브젝트(`rig = ""`) · 편집기 `SetObjectParent`·`RenameSceneObject`·`DuplicateSceneObject`·자손까지 `RemoveSceneObject` · `ScenePreview`가 코어 `AddRigTo(attachParentKey)`로 자식을 부모 노드 밑에 세움(없는 노드는 부모 루트, `fallenBack`) · 배치 축 없는 리그는 루트에 배치 · 뷰포트 빈 오브젝트 기즈모·조상 가시성 · 하이어아키 우클릭 메뉴(만들기는 그 자리의 자식)·`+` 버튼·Del/Ctrl+D/Ctrl+Shift+N/F2·포인터 드래그로 부모/레이어 옮기기 · 채널 박스 id/부모/부모 노드.
+- 남은 것: focus-tuning.json의 캐릭터별 오프셋(배역 개념이 툴에 없다 — 필요하면 오브젝트에 characterKey를 둔다) · 여러 씬 전환 UI(모델은 `scenes[]`로 이미 여럿) · 부모 바꿀 때 월드 위치 보존(유니티 옵션) · 드래그 중 놓을 자리 강조 표시.

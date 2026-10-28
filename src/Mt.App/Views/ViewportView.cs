@@ -965,7 +965,7 @@ public sealed class ViewportView : Control
 
         foreach (SceneObject o in scene.DrawOrder())
         {
-            if (!o.Visible)
+            if (!scene.IsShown(o))
             {
                 continue;
             }
@@ -974,9 +974,30 @@ public sealed class ViewportView : Control
         }
     }
 
+    /// <summary>빈 오브젝트 기즈모 반지름(px) — 클릭 판정도 이 안.</summary>
+    public const double EmptyGizmoRadius = 9;
+
     private void DrawObject(DrawingContext context, RectNodeTree pose, SceneObject o, bool selected)
     {
         string? imageKey = ScenePreview.ImageKeyOf(pose, o);
+
+        if (o.IsEmpty)
+        {
+            // 빈 오브젝트(그룹·피벗): 마름모와 이름.
+            string rootKey = ScenePreview.RootKeyOf(o);
+
+            if (!pose.Contains(rootKey))
+            {
+                return;
+            }
+
+            Point c = ToControl(pose.TransformPoint(rootKey, Vec3.Zero).XY);
+            double r = EmptyGizmoRadius;
+            var diamond = new PolylineGeometry(new[] { new Point(c.X, c.Y - r), new Point(c.X + r, c.Y), new Point(c.X, c.Y + r), new Point(c.X - r, c.Y), new Point(c.X, c.Y - r) }, true);
+            context.DrawGeometry(selected ? PlaceholderFill : null, selected ? SelectedObjectPen : ObjectOutlinePen, diamond);
+            DrawLabel(context, o.Id, new Point(c.X + r + 3, c.Y - 6));
+            return;
+        }
 
         if (imageKey is null)
         {
@@ -1154,7 +1175,30 @@ public sealed class ViewportView : Control
 
         foreach (SceneObject o in scene.DrawOrder().Reverse())
         {
-            if (!o.Visible || ObjectQuad(o.Id) is not { } quad)
+            if (!scene.IsShown(o))
+            {
+                continue;
+            }
+
+            if (o.IsEmpty)
+            {
+                string rootKey = ScenePreview.RootKeyOf(o);
+
+                if (pose.Contains(rootKey))
+                {
+                    Point c = ToControl(pose.TransformPoint(rootKey, Vec3.Zero).XY);
+
+                    if (new Pixel(c.X, c.Y).DistanceTo(at) <= EmptyGizmoRadius + 2)
+                    {
+                        objectId = o.Id;
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            if (ObjectQuad(o.Id) is not { } quad)
             {
                 continue;
             }

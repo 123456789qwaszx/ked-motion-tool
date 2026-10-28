@@ -75,38 +75,219 @@ public sealed class MotionEditor
     private static SceneObject RequireObject(SceneAsset scene, string id)
         => scene.Find(id) ?? throw new KeyNotFoundException($"씬 '{scene.Name}'에 오브젝트 '{id}'가 없다.");
 
-    /// <summary>오브젝트(리그 인스턴스)를 더한다. id는 [a-z0-9_]+이고 씬 안에서 하나뿐이어야 한다.</summary>
-    public SceneObject AddSceneObject(string? sceneName, string id, string rig, string layer = SceneLayers.Mid)
+    private static void RequireObjectId(string id)
     {
-        ArgumentNullException.ThrowIfNull(id);
-        ArgumentNullException.ThrowIfNull(rig);
-        SceneAsset scene = RequireScene(sceneName);
-
         if (!MotionNames.IsValid(id))
         {
             throw new InvalidOperationException($"오브젝트 id는 영문 소문자·숫자·_ 만 쓸 수 있다 ('{id}')");
         }
+    }
+
+    private static void RequireLayer(string layer)
+    {
+        if (!SceneLayers.IsKnown(layer))
+        {
+            throw new InvalidOperationException($"레이어는 {string.Join("·", SceneLayers.Order)} 중 하나다 ('{layer}')");
+        }
+    }
+
+    /// <summary>
+    /// 오브젝트(리그 인스턴스, rig가 비면 빈 오브젝트)를 더한다. id는 [a-z0-9_]+이고 씬 안에서 하나뿐이어야 한다.
+    /// parent를 주면 그 오브젝트의 parentNode(없으면 루트) 밑에 붙는다 — 유니티에서 자식으로 만들기.
+    /// </summary>
+    public SceneObject AddSceneObject(string? sceneName, string id, string rig, string layer = SceneLayers.Mid, string? parent = null, string? parentNode = null)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(rig);
+        SceneAsset scene = RequireScene(sceneName);
+        RequireObjectId(id);
 
         if (scene.Find(id) is not null)
         {
             throw new InvalidOperationException($"오브젝트 '{id}'가 이미 있다.");
         }
 
-        if (!SceneLayers.IsKnown(layer))
-        {
-            throw new InvalidOperationException($"레이어는 {string.Join("·", SceneLayers.Order)} 중 하나다 ('{layer}')");
-        }
+        RequireLayer(layer);
+        SceneObject? parentObject = parent is null ? null : RequireObject(scene, parent);
 
-        var o = new SceneObject { Id = id, Rig = rig, Layer = layer };
+        var o = new SceneObject
+        {
+            Id = id,
+            Rig = rig,
+            Layer = parentObject?.Layer ?? layer,
+            Stage = parentObject?.Stage ?? new SceneObject().Stage,
+            Parent = parentObject?.Id,
+            ParentNode = parentObject is null ? null : NormalizeParentNode(parentNode),
+        };
         Mutate(MotionChangeKind.Scene, () => scene.Objects.Add(o));
         return o;
     }
 
+    private static string? NormalizeParentNode(string? node)
+        => string.IsNullOrEmpty(node) || node == RigSchemaLoader.RootKey ? null : node;
+
+    /// <summary>오브젝트와 그 자손을 한 번에 지운다(유니티 Delete).</summary>
     public void RemoveSceneObject(string? sceneName, string id)
     {
         SceneAsset scene = RequireScene(sceneName);
         SceneObject o = RequireObject(scene, id);
-        Mutate(MotionChangeKind.Scene, () => scene.Objects.Remove(o));
+        List<SceneObject> gone = scene.DescendantsOf(id).Prepend(o).ToList();
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            foreach (SceneObject g in gone)
+            {
+                scene.Objects.Remove(g);
+            }
+        });
+    }
+
+    /// <summary>이름(id) 바꾸기 — 자식의 parent 참조도 따라간다.</summary>
+    public void RenameSceneObject(string? sceneName, string id, string newId)
+    {
+        ArgumentNullException.ThrowIfNull(newId);
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+
+        if (string.Equals(id, newId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        RequireObjectId(newId);
+
+        if (scene.Find(newId) is not null)
+        {
+            throw new InvalidOperationException($"오브젝트 '{newId}'가 이미 있다.");
+        }
+
+        List<SceneObject> children = scene.ChildrenOf(id).ToList();
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            o.Id = newId;
+
+            foreach (SceneObject child in children)
+            {
+                child.Parent = newId;
+            }
+        });
+    }
+
+    /// <summary>
+    /// 복제(유니티 Ctrl+D) — 자손까지. 새 id는 끝 숫자를 올린 것(c1 → c2, 없으면 c1_2). 원본 바로 뒤에 들어간다.
+    /// 되돌리기 한 번. 새 루트 오브젝트를 돌려준다.
+    /// </summary>
+    public SceneObject DuplicateSceneObject(string? sceneName, string id)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject source = RequireObject(scene, id);
+        var taken = new HashSet<string>(scene.Objects.Select(o => o.Id), StringComparer.Ordinal);
+        var idMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        var copies = new List<SceneObject>();
+
+        foreach (SceneObject original in scene.DescendantsOf(id).Prepend(source))
+        {
+            string newId = NextObjectId(original.Id, taken);
+            taken.Add(newId);
+            idMap[original.Id] = newId;
+            copies.Add(new SceneObject
+            {
+                Id = newId,
+                Rig = original.Rig,
+                Stage = original.Stage,
+                Layer = original.Layer,
+                PositionX = original.PositionX,
+                PositionY = original.PositionY,
+                RotationZ = original.RotationZ,
+                ScaleX = original.ScaleX,
+                ScaleY = original.ScaleY,
+                Portrait = original.Portrait,
+                Visible = original.Visible,
+                Parent = original.Parent is { } p && idMap.TryGetValue(p, out string? mapped) ? mapped : original.Parent,
+                ParentNode = original.ParentNode,
+            });
+        }
+
+        int at = scene.Objects.IndexOf(source) + 1;
+        Mutate(MotionChangeKind.Scene, () => scene.Objects.InsertRange(at, copies));
+        return copies[0];
+    }
+
+    /// <summary>비어 있는 다음 id — 끝 숫자를 올린다(c1 → c2 → c3…), 숫자가 없으면 _2, _3….</summary>
+    public static string NextObjectId(string id, ICollection<string> taken)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(taken);
+        int digits = 0;
+
+        while (digits < id.Length && char.IsAsciiDigit(id[id.Length - 1 - digits]))
+        {
+            digits++;
+        }
+
+        string stem;
+        int n;
+
+        if (digits > 0 && digits < id.Length && int.TryParse(id[(id.Length - digits)..], out n))
+        {
+            stem = id[..(id.Length - digits)];
+        }
+        else
+        {
+            stem = id + "_";
+            n = 1;
+        }
+
+        string candidate;
+
+        do
+        {
+            n++;
+            candidate = stem + n;
+        }
+        while (taken.Contains(candidate));
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// 부모 설정(유니티에서 끌어다 놓기). parent가 null이면 최상위로(그때 layer를 주면 그 레이어로).
+    /// 자기 자신·자손 밑에는 못 간다. 배치 값은 그대로다(월드 위치 보존 아님).
+    /// </summary>
+    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+        SceneObject? parentObject = parent is null ? null : RequireObject(scene, parent);
+
+        if (parentObject is not null && scene.IsAncestorOrSelf(id, parentObject.Id))
+        {
+            throw new InvalidOperationException($"'{parent}'는 '{id}' 자신이거나 그 자손이라 부모가 될 수 없다.");
+        }
+
+        string? node = parentObject is null ? null : NormalizeParentNode(parentNode);
+        string newLayer = parentObject?.Layer ?? layer ?? o.Layer;
+        string newStage = parentObject?.Stage ?? o.Stage;
+        RequireLayer(newLayer);
+
+        if (o.Parent == parentObject?.Id && o.ParentNode == node && o.Layer == newLayer && o.Stage == newStage)
+        {
+            return;
+        }
+
+        List<SceneObject> subtree = scene.DescendantsOf(id).ToList();
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            o.Parent = parentObject?.Id;
+            o.ParentNode = node;
+            o.Layer = newLayer;
+            o.Stage = newStage;
+
+            foreach (SceneObject d in subtree)
+            {
+                d.Layer = newLayer;
+                d.Stage = newStage;
+            }
+        });
     }
 
     /// <summary>배치(위치·회전·배율) — 마야 채널 박스의 Translate/Rotate/Scale. 모션 키가 아니다.</summary>
@@ -130,19 +311,23 @@ public sealed class MotionEditor
         });
     }
 
+    /// <summary>레이어 — 자손도 같이 간다(자식은 부모의 레이어를 따른다).</summary>
     public void SetObjectLayer(string? sceneName, string id, string layer)
     {
-        if (!SceneLayers.IsKnown(layer))
-        {
-            throw new InvalidOperationException($"레이어는 {string.Join("·", SceneLayers.Order)} 중 하나다 ('{layer}')");
-        }
-
+        RequireLayer(layer);
         SceneAsset scene = RequireScene(sceneName);
         SceneObject o = RequireObject(scene, id);
 
         if (o.Layer != layer)
         {
-            Mutate(MotionChangeKind.Scene, () => o.Layer = layer);
+            List<SceneObject> subtree = scene.DescendantsOf(id).Prepend(o).ToList();
+            Mutate(MotionChangeKind.Scene, () =>
+            {
+                foreach (SceneObject s in subtree)
+                {
+                    s.Layer = layer;
+                }
+            });
         }
     }
 

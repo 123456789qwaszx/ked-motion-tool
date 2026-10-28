@@ -18,7 +18,8 @@ public static class ScenePreview
     public const string DepthScaleNode = SetDepthStageReduction.DepthScaleNodeId;
 
     /// <param name="depth">presets/depth.json. 있으면 레이어 라벨을 깊이(DepthY·DepthScale)로 — 런타임 size 폴드와 같은 함수(focus 보존 bust, 캐릭터별 오프셋 없이).</param>
-    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null)
+    /// <param name="fallenBack">부모 노드가 그 리그에 없어 부모 루트에 붙인 오브젝트들(알림용).</param>
+    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null, List<SceneObject>? fallenBack = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(scene);
@@ -26,33 +27,81 @@ public static class ScenePreview
         var space = new RectSpace(rig.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half);
         var state = new StageState(space);
 
+        // DrawOrder는 부모가 자식보다 먼저다 — 자식은 이미 선 부모의 노드 밑에 붙는다(코어 AddRigTo의 attachParentKey).
         foreach (SceneObject o in scene.DrawOrder())
         {
+            string? attach = null;
+
+            if (o.Parent is not null)
+            {
+                SceneObject? parent = scene.Find(o.Parent);
+
+                if (parent is null || !state.Nodes.Contains(RootKeyOf(parent)))
+                {
+                    missing?.Add(o);
+                    continue;
+                }
+
+                attach = o.ParentNode is null ? RootKeyOf(parent) : parent.KeyOf(o.ParentNode);
+
+                if (!state.Nodes.Contains(attach))
+                {
+                    fallenBack?.Add(o);
+                    attach = RootKeyOf(parent);
+                }
+            }
+
+            if (o.IsEmpty)
+            {
+                state.Nodes.Add(RootKeyOf(o), attach!, EmptyState(o));
+                continue;
+            }
+
             if (!rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
             {
                 missing?.Add(o);
                 continue;
             }
 
-            RigSchemaLoader.AddRigTo(state.Nodes, dto, o.Prefix);
+            RigSchemaLoader.AddRigTo(state.Nodes, dto, o.Prefix, attach!);
             state.RegisterSlot(o.Id);
             ApplyPlacement(state.Nodes, o);
             PortraitLayout.ApplySizing(state.Nodes, aspectOf?.Invoke(o) ?? PortraitLayout.PlaceholderAspect, o.Prefix);
-            ApplyDepth(state, o, depth);
+
+            // 깊이는 최상위에만 — 자식은 부모 사슬을 따라 같이 깊어진다.
+            if (o.Parent is null)
+            {
+                ApplyDepth(state, o, depth);
+            }
         }
 
         return state.Nodes;
     }
 
-    /// <summary>배치 값을 배치 축 노드에. 노드가 없는 리그면 그 값은 건너뛴다.</summary>
+    /// <summary>빈 오브젝트의 노드 하나 — 가운데 앵커·피벗, 크기 0, 배치 값 그대로(유니티 Create Empty).</summary>
+    public static RectNodeState EmptyState(SceneObject o)
+    {
+        ArgumentNullException.ThrowIfNull(o);
+        return new RectNodeState(
+            anchoredPosition: new Vec2(o.PositionX, o.PositionY),
+            anchorMin: Vec2.Half,
+            anchorMax: Vec2.Half,
+            pivot: Vec2.Half,
+            sizeDelta: Vec2.Zero,
+            localScale: new Vec3(o.ScaleX, o.ScaleY, 1f),
+            localEulerAngles: new Vec3(0f, 0f, o.RotationZ));
+    }
+
+    /// <summary>배치 값을 배치 축 노드에. 그 노드가 없는 리그(배경 등)면 루트 노드에 — 그래서 어느 오브젝트든 옮길 수 있다.</summary>
     public static void ApplyPlacement(RectNodeTree tree, SceneObject o)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(o);
 
-        string position = o.KeyOf(PlacementNodes.Position);
-        string rotation = o.KeyOf(PlacementNodes.Rotation);
-        string scale = o.KeyOf(PlacementNodes.Scale);
+        string root = RootKeyOf(o);
+        string position = tree.Contains(o.KeyOf(PlacementNodes.Position)) ? o.KeyOf(PlacementNodes.Position) : root;
+        string rotation = tree.Contains(o.KeyOf(PlacementNodes.Rotation)) ? o.KeyOf(PlacementNodes.Rotation) : root;
+        string scale = tree.Contains(o.KeyOf(PlacementNodes.Scale)) ? o.KeyOf(PlacementNodes.Scale) : root;
 
         if (tree.Contains(position))
         {
@@ -111,6 +160,11 @@ public static class ScenePreview
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(o);
         ArgumentNullException.ThrowIfNull(motion);
+
+        if (o.IsEmpty)
+        {
+            return false;
+        }
 
         if (string.Equals(o.Rig, motion.Rig, StringComparison.Ordinal))
         {

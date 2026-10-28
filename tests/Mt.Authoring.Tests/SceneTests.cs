@@ -178,4 +178,108 @@ public class SceneTests
         string json = MotionDocumentJson.Write(editor.Document);
         Assert.Equal(100f, MotionDocumentJson.Read(json).ActiveSceneAsset!.Camera.PanX);
     }
+
+    [Fact]
+    public void 오브젝트는_부모_노드_밑에_붙고_자식은_부모를_따라_움직인다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddSceneObject(null, "bg", "background", SceneLayers.Far);
+        editor.AddSceneObject(null, "prop", "character", SceneLayers.Close, parent: "c1", parentNode: "CharacterPortrait_Track_Move");
+        editor.AddSceneObject(null, "pivot", "", SceneLayers.Mid, parent: "bg"); // 빈 오브젝트, 부모 루트
+        SceneAsset scene = editor.Document.ActiveSceneAsset!;
+
+        SceneObject prop = scene.Find("prop")!;
+        Assert.Equal("c1", prop.Parent);
+        Assert.Equal("CharacterPortrait_Track_Move", prop.ParentNode);
+        Assert.Equal(SceneLayers.Mid, prop.Layer); // 자식은 부모의 레이어
+        Assert.True(scene.Find("pivot")!.IsEmpty);
+        Assert.Null(scene.Find("pivot")!.ParentNode);
+        Assert.Equal(new[] { "bg", "pivot", "c1", "prop" }, scene.DrawOrder().Select(o => o.Id)); // far 먼저, 자식은 부모 바로 뒤
+
+        var fallen = new List<SceneObject>();
+        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, null, null, fallen);
+        Assert.Empty(fallen);
+        Assert.Equal("c1/CharacterPortrait_Track_Move", tree.GetParentKey("prop/__root"));
+        Assert.Equal("bg/__root", tree.GetParentKey("pivot/__root"));
+
+        // 부모를 옮기면 자식의 월드 위치가 같이 간다 — 코어 체인.
+        Vec2 before = tree.TransformPoint("prop/CharacterPortraitSprite_Image", Vec3.Zero).XY;
+        editor.SetObjectPlacement(null, "c1", 200f, 0f, 0f, 1f, 1f);
+        RectNodeTree moved = ScenePreview.Build(RigFile, scene);
+        Vec2 after = moved.TransformPoint("prop/CharacterPortraitSprite_Image", Vec3.Zero).XY;
+        Assert.Equal(200f, after.X - before.X, 1);
+
+        // 부모 노드가 그 리그에 없으면 부모 루트로 떨어지고 알린다.
+        editor.SetObjectParent(null, "prop", "bg", "CharSlot_Track");
+        RectNodeTree fallback = ScenePreview.Build(RigFile, scene, null, null, null, fallen);
+        Assert.Equal("prop", Assert.Single(fallen).Id);
+        Assert.Equal("bg/__root", fallback.GetParentKey("prop/__root"));
+
+        // 배치 축이 없는 리그(배경)와 빈 오브젝트는 루트에 배치가 들어간다.
+        editor.SetObjectPlacement(null, "bg", 0f, 0f, 0f, 2f, 2f);
+        editor.SetObjectPlacement(null, "pivot", 30f, 40f, 0f, 1f, 1f);
+        RectNodeTree placed = ScenePreview.Build(RigFile, scene);
+        Assert.Equal(2f, placed.GetState("bg/__root").LocalScale.X);
+        Assert.Equal(30f, placed.GetState("pivot/__root").AnchoredPosition.X);
+
+        // 저장 왕복.
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Contains("\"parentNode\"", json, StringComparison.Ordinal);
+        SceneAsset back = MotionDocumentJson.Read(json).ActiveSceneAsset!;
+        Assert.Equal("bg", back.Find("prop")!.Parent);
+        Assert.True(back.Find("pivot")!.IsEmpty);
+    }
+
+    [Fact]
+    public void 부모_설정은_순환을_막고_삭제_복제_이름바꾸기는_자손까지_간다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddSceneObject(null, "c2", "character", SceneLayers.Front, parent: "c1");
+        editor.AddSceneObject(null, "c3", "character", SceneLayers.Front, parent: "c2", parentNode: "CharSlot_Scale");
+        SceneAsset scene = editor.Document.ActiveSceneAsset!;
+
+        Assert.Throws<InvalidOperationException>(() => editor.SetObjectParent(null, "c1", "c3")); // 자손 밑으로
+        Assert.Throws<InvalidOperationException>(() => editor.SetObjectParent(null, "c1", "c1")); // 자기 자신
+        Assert.Throws<KeyNotFoundException>(() => editor.SetObjectParent(null, "c1", "ghost"));
+
+        // 레이어는 최상위가 정하고 자손이 따라간다.
+        editor.SetObjectLayer(null, "c1", SceneLayers.Close);
+        Assert.All(scene.Objects, o => Assert.Equal(SceneLayers.Close, o.Layer));
+
+        // 이름 바꾸기 — 자식의 parent 참조가 따라간다.
+        editor.RenameSceneObject(null, "c2", "arm");
+        Assert.Equal("arm", scene.Find("c3")!.Parent);
+        Assert.Throws<InvalidOperationException>(() => editor.RenameSceneObject(null, "arm", "c1")); // 겹침
+        Assert.Throws<InvalidOperationException>(() => editor.RenameSceneObject(null, "arm", "Arm")); // 규칙 밖
+
+        // 복제 — 자손까지, 새 id는 숫자 올림, 원본 바로 뒤.
+        long before = editor.Revision;
+        SceneObject copy = editor.DuplicateSceneObject(null, "c1");
+        Assert.Equal(before + 1, editor.Revision);
+        Assert.Equal("c2", copy.Id); // c1 → c2 (비어 있다)
+        Assert.Equal(new[] { "c1", "c2", "arm_2", "c4", "arm", "c3" }, scene.Objects.Select(o => o.Id));
+        Assert.Equal("c2", scene.Find("arm_2")!.Parent);
+        Assert.Equal("arm_2", scene.Find("c4")!.Parent);
+        Assert.Equal("CharSlot_Scale", scene.Find("c4")!.ParentNode);
+        editor.Undo();
+        Assert.Equal(3, scene.Objects.Count);
+
+        // 떼기 — 최상위로, 레이어를 주면 그 레이어로.
+        editor.SetObjectParent(null, "arm", null, null, SceneLayers.Back);
+        Assert.Null(scene.Find("arm")!.Parent);
+        Assert.Equal(SceneLayers.Back, scene.Find("arm")!.Layer);
+        Assert.Equal(SceneLayers.Back, scene.Find("c3")!.Layer);
+
+        // 삭제 — 자손까지 한 번에, 되돌리기 한 번.
+        before = editor.Revision;
+        editor.RemoveSceneObject(null, "arm");
+        Assert.Equal(before + 1, editor.Revision);
+        Assert.Equal(new[] { "c1" }, scene.Objects.Select(o => o.Id));
+        editor.Undo();
+        Assert.Equal(3, editor.Document.ActiveSceneAsset!.Objects.Count);
+
+        Assert.Equal("c5", MotionEditor.NextObjectId("c1", new[] { "c2", "c3", "c4" }));
+        Assert.Equal("bg_2", MotionEditor.NextObjectId("bg", Array.Empty<string>()));
+        Assert.Equal("11_2", MotionEditor.NextObjectId("11", Array.Empty<string>())); // 전부 숫자면 줄기가 없다
+    }
 }

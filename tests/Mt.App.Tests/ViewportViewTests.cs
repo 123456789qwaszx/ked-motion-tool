@@ -396,4 +396,44 @@ public class ViewportViewTests
             window.Close();
         }
     });
+
+    [Fact]
+    public void 자식_오브젝트는_부모를_따라_움직이고_빈_오브젝트는_기즈모_클릭으로_고른다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, MotionEditor editor) = Show();
+
+        try
+        {
+            editor.AddSceneObject(null, "prop", "character", SceneLayers.Mid, parent: "c1", parentNode: "CharacterPortrait_Track_Move");
+            editor.AddSceneObject(null, "pivot", "", SceneLayers.Front);
+            editor.SetObjectPlacement(null, "pivot", 400f, 100f, 0f, 1f, 1f);
+
+            Quad propBefore = view.ObjectQuad("prop")!.Value;
+            editor.SetObjectPlacement(null, "c1", 150f, 0f, 0f, 1f, 1f);
+            Quad propAfter = view.ObjectQuad("prop")!.Value;
+            Assert.Equal(150f, propAfter.BottomLeft.X - propBefore.BottomLeft.X, 1);
+
+            // 빈 오브젝트는 크기가 없다 — 기즈모 자리 클릭으로 고른다.
+            Point at = view.TranslatePoint(view.ToScreen(new Vec2(400f, 100f)), window)!.Value;
+            view.Manipulator = ManipulatorMode.Select;
+            window.MouseDown(at, MouseButton.Left);
+            window.MouseUp(at, MouseButton.Left);
+            Assert.Equal("pivot", view.SelectedObjectId);
+            Assert.False(view.CanWear(view.SelectedObject!)); // 리그가 없으니 모션을 못 입는다
+            Assert.Empty(view.NodeChoices);
+
+            // 부모를 숨기면 자식도 안 보이고 클릭에도 안 잡힌다.
+            Quad prop = view.ObjectQuad("prop")!.Value;
+            Vec2 center = (prop.BottomLeft + prop.TopRight) * 0.5f;
+            Point onProp = view.TranslatePoint(view.ToScreen(center), window)!.Value;
+            editor.SetObjectVisible(null, "c1", false);
+            window.MouseDown(onProp, MouseButton.Left);
+            window.MouseUp(onProp, MouseButton.Left);
+            Assert.Equal("pivot", view.SelectedObjectId);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 }

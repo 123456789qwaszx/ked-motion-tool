@@ -19,9 +19,100 @@ public sealed class SceneAsset
     public SceneObject? Find(string id)
         => Objects.FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.Ordinal));
 
-    /// <summary>그리는 순서 — 먼 레이어부터(far → close), 같은 레이어는 목록 순.</summary>
+    /// <summary>최상위 오브젝트(부모 없음) — 목록 순.</summary>
+    public IEnumerable<SceneObject> TopLevel() => Objects.Where(o => o.Parent is null);
+
+    /// <summary>바로 밑 자식들 — 목록 순.</summary>
+    public IEnumerable<SceneObject> ChildrenOf(string id)
+        => Objects.Where(o => string.Equals(o.Parent, id, StringComparison.Ordinal));
+
+    /// <summary>자손 전부(깊이 우선, 부모 먼저).</summary>
+    public IEnumerable<SceneObject> DescendantsOf(string id)
+    {
+        foreach (SceneObject child in ChildrenOf(id))
+        {
+            yield return child;
+
+            foreach (SceneObject grandchild in DescendantsOf(child.Id))
+            {
+                yield return grandchild;
+            }
+        }
+    }
+
+    /// <summary>a가 b의 조상(또는 b 자신)인가 — 부모 설정의 순환 검사.</summary>
+    public bool IsAncestorOrSelf(string a, string b)
+    {
+        SceneObject? current = Find(b);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        while (current is not null && seen.Add(current.Id))
+        {
+            if (string.Equals(current.Id, a, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            current = current.Parent is null ? null : Find(current.Parent);
+        }
+
+        return false;
+    }
+
+    /// <summary>최상위 조상 — 자식의 stage·layer·깊이는 이것을 따른다.</summary>
+    public SceneObject RootOf(SceneObject o)
+    {
+        SceneObject current = o;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        while (current.Parent is not null && seen.Add(current.Id) && Find(current.Parent) is { } parent)
+        {
+            current = parent;
+        }
+
+        return current;
+    }
+
+    /// <summary>보이나 — 자신과 조상이 모두 보이면.</summary>
+    public bool IsShown(SceneObject o)
+    {
+        SceneObject? current = o;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        while (current is not null && seen.Add(current.Id))
+        {
+            if (!current.Visible)
+            {
+                return false;
+            }
+
+            current = current.Parent is null ? null : Find(current.Parent);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 그리는 순서 — 최상위는 먼 레이어부터(far → close)·같은 레이어는 목록 순, 자식은 부모 바로 뒤(부모 위에 그려진다).
+    /// 부모가 자식보다 항상 먼저이므로 이 순서로 트리를 세울 수 있다. 부모가 없는 오브젝트(끊긴 참조)는 최상위로 본다.
+    /// </summary>
     public IEnumerable<SceneObject> DrawOrder()
-        => Objects.OrderBy(o => SceneLayers.IndexOf(o.Layer)).ThenBy(o => Objects.IndexOf(o));
+    {
+        IEnumerable<SceneObject> roots = Objects
+            .Where(o => o.Parent is null || Find(o.Parent) is null)
+            .OrderBy(o => SceneLayers.IndexOf(o.Layer))
+            .ThenBy(o => Objects.IndexOf(o));
+
+        foreach (SceneObject root in roots)
+        {
+            yield return root;
+
+            foreach (SceneObject descendant in DescendantsOf(root.Id))
+            {
+                yield return descendant;
+            }
+        }
+    }
 
     /// <summary>캐릭터 리그 하나를 가운데 세운 기본 씬 — 씬이 없던 문서(예전 판)와 새 문서가 이것으로 시작한다.</summary>
     public static SceneAsset Default(string? portrait = null) => new()
@@ -41,9 +132,10 @@ public sealed class CameraSettings
 }
 
 /// <summary>
-/// 씬의 오브젝트 하나 = 리그 인스턴스. 배치 값은 런타임이 움직이는 배치 축 노드에 그대로 들어간다:
+/// 씬의 오브젝트 하나 = 리그 인스턴스(또는 빈 오브젝트). 배치 값은 런타임이 움직이는 배치 축 노드에 그대로 들어간다:
 /// 위치 → <c>CharSlot_Track</c>(move), 회전 → <c>CharSlot_SwayPivot</c>(rotate), 배율 → <c>CharSlot_Scale</c>(scale).
-/// 그 노드가 없는 리그(배경 등)면 배치는 무시된다.
+/// 그 노드가 없는 리그(배경 등)와 빈 오브젝트는 루트 노드에 들어간다.
+/// 오브젝트는 다른 오브젝트의 노드 밑에 붙을 수 있다(<see cref="Parent"/>·<see cref="ParentNode"/>) — 유니티 하이어아키와 같다.
 /// </summary>
 public sealed class SceneObject
 {
@@ -53,8 +145,18 @@ public sealed class SceneObject
     /// <summary>슬롯 키. <c>[a-z0-9_]+</c>. 노드 키 접두사가 된다.</summary>
     public string Id { get; set; } = DefaultId;
 
-    /// <summary>리그 덤프의 rigKind.</summary>
+    /// <summary>리그 덤프의 rigKind. 비어 있으면 빈 오브젝트(노드 하나, 그룹·피벗용).</summary>
     public string Rig { get; set; } = DefaultRig;
+
+    /// <summary>빈 오브젝트(유니티 Create Empty) — 리그 없이 노드 하나.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsEmpty => string.IsNullOrEmpty(Rig);
+
+    /// <summary>부모 오브젝트 id. null이면 최상위. 자식은 부모의 stage·layer·깊이를 따른다.</summary>
+    public string? Parent { get; set; }
+
+    /// <summary>부모 리그에서 붙는 노드 id. null이면 부모 루트.</summary>
+    public string? ParentNode { get; set; }
 
     public string Stage { get; set; } = "stage01";
 
