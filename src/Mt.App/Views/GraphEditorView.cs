@@ -279,7 +279,11 @@ public sealed class GraphEditorView : Control
         }
     }
 
-    /// <summary>현재 시각에 붙인다(merge). 붙은 키가 선택된다.</summary>
+    /// <summary>
+    /// 현재 시각에 붙인다(merge). 붙은 키가 선택된다.
+    /// 붙일 커브(마야 paste to selected channels): 고른 커브 선이 있으면 그것, 없고 복사한 커브가 하나도 안 보이면(아웃라이너에서 다른 커브만
+    /// 띄운 상태) 보이는 커브들, 그 밖에는 복사한 커브 그대로. 그래서 scale X의 키를 복사해 scale Y만 띄우고 붙이면 Y에 들어간다.
+    /// </summary>
     public void Paste()
     {
         if (_editor is null || _motionName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
@@ -288,8 +292,20 @@ public sealed class GraphEditorView : Control
         }
 
         float at = (float)SnapTime(CurrentTime);
-        List<KeyRef> pasted = _editor.PasteKeys(_motionName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
+        List<KeyRef> pasted = _editor.PasteKeys(_motionName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null, PasteTargets(clipboard));
         _selection.Set(pasted);
+    }
+
+    private List<CurveRef>? PasteTargets(KeyClipboard clipboard)
+    {
+        if (_selectedCurves.Count > 0)
+        {
+            return _curves.Where(s => _selectedCurves.Contains(s.Curve)).Select(s => s.Curve).ToList();
+        }
+
+        List<CurveRef> visible = _curves.Where(s => s.Visible).Select(s => s.Curve).ToList();
+        bool sourceVisible = clipboard.Items.Any(i => visible.Contains(i.Curve));
+        return visible.Count > 0 && !sourceVisible ? visible : null;
     }
     private readonly Dictionary<CurveRef, CurveViewTransform> _viewTransforms = new();
     private CurveFlags _flags = new();

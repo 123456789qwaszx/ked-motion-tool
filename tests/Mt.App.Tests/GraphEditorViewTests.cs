@@ -311,6 +311,16 @@ public class GraphEditorViewTests
             Assert.Contains(keys, k => Math.Abs(k.T - 0.45f) < 1e-4 && k.V == -18f);
             Assert.Single(view.Selection);
 
+            // 다른 커브만 띄우고(아웃라이너처럼) 붙이면 그 커브에 들어간다 — y의 키를 x에.
+            var x = new CurveRef(Y.Node, Y.Kind, Axis.X);
+            editor.SetKeys("nod", x.Node, x.Kind, x.Axis, new[] { TestDocuments.Key(0f, 0f) }); // x 성분을 만든다
+            view.SetVisibleAll(c => c == x);
+            view.CurrentTime = 0.2;
+            view.Paste();
+            Assert.Contains(x.Resolve(editor.Document.Find("nod")!)!.Keys, k => Math.Abs(k.T - 0.2f) < 1e-4 && k.V == -18f);
+            Assert.Equal(4, Y.Resolve(editor.Document.Find("nod")!)!.Keys.Count); // y에는 안 붙었다
+            view.SetVisibleAll(_ => true);
+
             view.SnapshotBuffer();
             Assert.True(view.HasBuffer);
             view.Select(new[] { new KeyRef(Y, 1) }, additive: false);

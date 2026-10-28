@@ -302,6 +302,16 @@ public partial class MainWindow : Window
             case PhysicalKey.Digit2 when shift:
                 Guard("인비트윈 넣기", AddInbetween);
                 break;
+            // 키 복사·잘라내기·붙여넣기 — 창 어디에 포커스가 있든(그래프·도프 시트의 선택 키). 붙이는 커브는 그래프가 정한다(고른 커브 › 보이는 커브 › 원래 커브).
+            case PhysicalKey.C when mods == KeyModifiers.Control:
+                _graph.CopySelection();
+                break;
+            case PhysicalKey.X when mods == KeyModifiers.Control:
+                _graph.CutSelection();
+                break;
+            case PhysicalKey.V when mods == KeyModifiers.Control:
+                _graph.Paste();
+                break;
             // 매니퓰레이터(마야): Q 선택 · W 이동 · E 회전 · R 배율 — 창 어디에 포커스가 있든. 그래프 안에서는 그래프 도구(Q/W/R)가 먼저다.
             case PhysicalKey.Q when none && !InsideGraph(e.Source):
                 SetManipulator(ManipulatorMode.Select);

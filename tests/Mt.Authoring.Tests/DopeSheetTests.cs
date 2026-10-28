@@ -287,6 +287,13 @@ public class KeyClipboardTests
         // 스냅.
         editor.PasteKeys("bow", KeyClipboard.Copy(editor.Document.Find("bow")!, new[] { new KeyRef(Z, 1) })!, 0.311f, t => (float)TimeSnap.Snap(t, TimeSnap.DefaultStep));
         Assert.Contains(Z.Resolve(editor.Document.Find("bow")!)!.Keys, k => Math.Abs(k.T - 19f / 60f) < 1e-4);
+
+        // 대상 커브를 주면 복사한 커브가 아니라 그 커브에 붙는다 — y의 키(-18)를 x에.
+        var x = new CurveRef(Y.Node, Y.Kind, Axis.X);
+        List<KeyRef> ontoX = editor.PasteKeys("nod", KeyClipboard.Copy(editor.Document.Find("nod")!, new[] { new KeyRef(Y, 1) })!, 0.5f, null, new[] { x });
+        Assert.Single(ontoX);
+        Assert.Equal(x, ontoX[0].Curve);
+        Assert.Contains(x.Resolve(editor.Document.Find("nod")!)!.Keys, k => Math.Abs(k.T - 0.5f) < 1e-4 && k.V == -18f);
     }
 }
 

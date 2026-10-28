@@ -907,8 +907,10 @@ public sealed class MotionEditor
     /// <summary>
     /// 클립보드를 현재 시각에 붙인다(merge — 같은 시각의 키는 바뀐다). 채널·성분이 없으면 모션 기본 mode로 만든다. 한 번의 조작.
     /// 돌려주는 것은 붙은 키들이다.
+    /// targets를 주면 복사한 커브 대신 그 커브들에 붙인다(마야 paste to selected channels): 복사한 커브가 하나면 모든 대상에,
+    /// 여럿이면 순서대로 짝지어(남는 쪽은 버린다). 그래서 scale X의 키를 복사해 scale Y에 붙일 수 있다.
     /// </summary>
-    public List<KeyRef> PasteKeys(string name, KeyClipboard clipboard, float atTime, Func<float, float>? snap = null)
+    public List<KeyRef> PasteKeys(string name, KeyClipboard clipboard, float atTime, Func<float, float>? snap = null, IReadOnlyList<CurveRef>? targets = null)
     {
         ArgumentNullException.ThrowIfNull(clipboard);
         MotionAsset motion = Require(name);
@@ -920,9 +922,15 @@ public sealed class MotionEditor
             return result;
         }
 
+        List<(CurveRef Curve, IReadOnlyList<KeyAsset> Keys)> items = targets is { Count: > 0 }
+            ? clipboard.Items.Count == 1
+                ? targets.Select(t => (t, clipboard.Items[0].Keys)).ToList()
+                : clipboard.Items.Zip(targets, (item, target) => (target, item.Keys)).ToList()
+            : clipboard.Items.ToList();
+
         Mutate(MotionChangeKind.Keys, () =>
         {
-            foreach ((CurveRef curveRef, IReadOnlyList<KeyAsset> keys) in clipboard.Items)
+            foreach ((CurveRef curveRef, IReadOnlyList<KeyAsset> keys) in items)
             {
                 ChannelAsset? channel = motion.FindChannel(curveRef.Node, curveRef.Kind);
 
