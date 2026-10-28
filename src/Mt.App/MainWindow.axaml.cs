@@ -2718,6 +2718,7 @@ public partial class MainWindow : Window
         _viewport.SelectedObjectId = tag.ObjectId;
         _followSelection.IsChecked = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
+        ShowControllerCurves(c);
         RefreshChannels();
 
         if (_viewport.Manipulator != ManipulatorMode.Select)
@@ -2752,6 +2753,7 @@ public partial class MainWindow : Window
         _viewport.SelectedObjectId = node.ObjectId;
         _followSelection.IsChecked = false;
         _viewport.SelectedNode = node.NodeId;
+        ShowCurves(_graph.Curves.Select(s => s.Curve).Where(cr => cr.Node == node.NodeId).ToList(), additive: false);
         _viewport.InvalidateVisual();
         RefreshChannelBox();
         RefreshChannels();
@@ -3031,8 +3033,8 @@ public partial class MainWindow : Window
     /// 없는 성분은 흐리고, 클릭하면 현재 시각의 중립값 키 하나로 생긴다.
     /// </summary>
     /// <summary>
-    /// 아웃라이너(그래프 왼쪽) — 모션의 리그에 컨트롤러 표가 있으면 **컨트롤러 전부**(10개)를 보인다: 고른 컨트롤러가 맨 위(키가 없어도),
-    /// 그다음 키가 든 것(표 순서), 키가 없는 것은 흐리게 아래. 컨트롤러 밑은 표가 쓰는 성분만(B). 흐린 성분을 클릭해도 성분을 만들지 않는다(A2, 마야식) —
+    /// 아웃라이너(그래프 왼쪽) — 모션의 리그에 컨트롤러 표가 있으면 **컨트롤러 전부**(10개)를 표 순서 그대로 보인다(순서는 바뀌지 않는다):
+    /// 고른 컨트롤러는 굵게, 키가 없는 것은 흐리게. 컨트롤러 밑은 표가 쓰는 성분만(B). 흐린 성분을 클릭해도 성분을 만들지 않는다(A2, 마야식) —
     /// 성분은 사용자가 키를 놓을 때만 생긴다. 표가 없는 리그·"리그 노드 보기"는 모션의 채널을 노드로 보인다.
     /// </summary>
     private void RefreshChannels()
@@ -3058,7 +3060,7 @@ public partial class MainWindow : Window
 
         Controller? selected = SelectedControllerOf(motion, table);
 
-        foreach (Controller c in OutlinerOrderOf(motion, table, selected))
+        foreach (Controller c in table.Controllers)
         {
             List<CurveRef> curves = OutlinerCurvesOf(motion, c);
             List<CurveRef> existing = curves.Where(cr => cr.Resolve(motion) is not null).ToList();
@@ -3135,8 +3137,14 @@ public partial class MainWindow : Window
             ToolTip.SetTip(titleBlock, $"{c.Node}" + (c.Note is null ? "" : "\n" + c.Note) + "\n클릭: 이 컨트롤러를 고르고 그 커브만 · Shift/Ctrl: 더하기 · S: 지금 값을 현재 시각에 키");
             titleBlock.PointerPressed += (_, e) =>
             {
-                SelectController(captured);
-                ShowCurves(capturedExisting, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                bool additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+
+                if (additive)
+                {
+                    ShowCurves(capturedExisting, additive: true);
+                }
+
+                SelectController(captured, showCurves: !additive);
                 e.Handled = true;
             };
             header.Children.Add(titleBlock);
@@ -3276,22 +3284,6 @@ public partial class MainWindow : Window
         return row;
     }
 
-    /// <summary>아웃라이너 순서 — 고른 컨트롤러, 키가 든 것(표 순서), 키 없는 것(표 순서).</summary>
-    private static List<Controller> OutlinerOrderOf(MotionAsset motion, ControllerRig table, Controller? selected)
-    {
-        bool Keyed(Controller c) => OutlinerCurvesOf(motion, c).Any(cr => cr.Resolve(motion) is not null);
-        var order = new List<Controller>();
-
-        if (selected is not null)
-        {
-            order.Add(selected);
-        }
-
-        order.AddRange(table.Controllers.Where(c => !ReferenceEquals(c, selected) && Keyed(c)));
-        order.AddRange(table.Controllers.Where(c => !ReferenceEquals(c, selected) && !Keyed(c)));
-        return order;
-    }
-
     /// <summary>컨트롤러의 아웃라이너 성분들 — 표가 쓰는 성분만(B): 성분마다 모션에 있는 커브(주 노드·별칭), 없으면 주 커브 하나(흐림). 깊이는 배율 X·Y + 깊이 Y.</summary>
     private static List<CurveRef> OutlinerCurvesOf(MotionAsset motion, Controller c)
     {
@@ -3319,15 +3311,32 @@ public partial class MainWindow : Window
         return table is not null && _viewport.SelectedNode is { } node ? table.OfNode(node) : null;
     }
 
-    /// <summary>아웃라이너에서 컨트롤러를 고른다 — 하이어아키에서 고른 것과 같다(선택 노드·채널 박스·하이어아키 항목).</summary>
-    private void SelectController(Controller c)
+    /// <summary>
+    /// 아웃라이너에서 컨트롤러를 고른다 — 하이어아키에서 고른 것과 같다(선택 노드·채널 박스·하이어아키 항목). 그래프는 그 컨트롤러의 커브만 보이고,
+    /// 키가 없으면 **빈 그래프**다(전에 보던 커브를 남기지 않는다).
+    /// </summary>
+    private void SelectController(Controller c, bool showCurves = true)
     {
         _followSelection.IsChecked = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
         SyncHierarchySelection(c);
+
+        if (showCurves)
+        {
+            ShowControllerCurves(c);
+        }
+
         _viewport.InvalidateVisual();
         RefreshChannelBox();
         RefreshChannels();
+    }
+
+    /// <summary>그래프에 이 컨트롤러의 커브만 — 모션에 없으면 전부 숨긴다(빈 그래프).</summary>
+    private void ShowControllerCurves(Controller c)
+    {
+        MotionAsset? motion = _graph.Motion;
+        List<CurveRef> existing = motion is null ? new List<CurveRef>() : OutlinerCurvesOf(motion, c).Where(cr => cr.Resolve(motion) is not null).ToList();
+        ShowCurves(existing, additive: false);
     }
 
     private void SyncHierarchySelection(Controller c)
@@ -3435,7 +3444,7 @@ public partial class MainWindow : Window
         }));
     }
 
-    /// <summary>테스트 손잡이 — 아웃라이너의 컨트롤러 순서(컨트롤러 보기일 때; 검색으로 걸러진 것은 빠진다).</summary>
+    /// <summary>테스트 손잡이 — 아웃라이너의 컨트롤러 목록(표 순서; 컨트롤러 보기일 때; 검색으로 걸러진 것은 빠진다).</summary>
     internal IReadOnlyList<string> OutlinerOrder => _outlinerOrder;
 
     /// <summary>테스트 손잡이 — 성분 행의 ×.</summary>
