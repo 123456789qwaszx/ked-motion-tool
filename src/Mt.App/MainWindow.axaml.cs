@@ -155,6 +155,7 @@ public partial class MainWindow : Window
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
     private readonly StackPanel _channelRows = new() { Spacing = 0 };
+    private readonly List<string> _outlinerOrder = new();
     private readonly TextBox _outlinerSearch = new() { PlaceholderText = "검색…", FontSize = 11, Margin = new Avalonia.Thickness(2) };
     private static readonly IBrush OutlinerBackground = new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x2B));
     private static readonly IBrush OutlinerRowSelected = new SolidColorBrush(Color.FromArgb(170, 0x4B, 0x6E, 0xAF));
@@ -335,6 +336,10 @@ public partial class MainWindow : Window
             case PhysicalKey.Q when none && !InsideGraph(e.Source):
                 SetManipulator(ManipulatorMode.Select);
                 break;
+            // S = Set Key(마야): 키 없는 포즈가 있으면 그것을, 없으면 고른 컨트롤러의 지금 값을 현재 시각에.
+            case PhysicalKey.S when none:
+                SetKeySelected();
+                break;
             case PhysicalKey.W when none && !InsideGraph(e.Source):
                 SetManipulator(ManipulatorMode.Move);
                 break;
@@ -389,6 +394,7 @@ public partial class MainWindow : Window
         _followSelection.IsChecked = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, fallback);
         RefreshChannelBox();
+        RefreshChannels();
     }
 
     /// <summary>테스트 손잡이.</summary>
@@ -1472,6 +1478,7 @@ public partial class MainWindow : Window
 
         _viewport.InvalidateVisual();
         RefreshChannelBox();
+        RefreshChannels();
     }
 
     private void RefreshAssets()
@@ -1896,7 +1903,7 @@ public partial class MainWindow : Window
         {
             Orientation = Orientation.Horizontal,
             Spacing = 6,
-            Children = { _autoKey, SmallButton("키 놓기 (S)", (_, _) => _viewport.SetKey()), SmallButton("버리기 (Esc)", (_, _) => _viewport.DiscardPending()) },
+            Children = { _autoKey, SmallButton("키 놓기 (S)", (_, _) => SetKeySelected()), SmallButton("버리기 (Esc)", (_, _) => _viewport.DiscardPending()) },
         });
         RightPanel.Children.Add(_pendingText);
         _viewport.PendingChanged += (_, _) =>
@@ -2711,6 +2718,7 @@ public partial class MainWindow : Window
         _viewport.SelectedObjectId = tag.ObjectId;
         _followSelection.IsChecked = false;
         _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
+        RefreshChannels();
 
         if (_viewport.Manipulator != ManipulatorMode.Select)
         {
@@ -2746,6 +2754,7 @@ public partial class MainWindow : Window
         _viewport.SelectedNode = node.NodeId;
         _viewport.InvalidateVisual();
         RefreshChannelBox();
+        RefreshChannels();
     }
 
     /// <summary>테스트 손잡이 — 하이어아키에서 노드(또는 오브젝트)를 고른 것과 같다.</summary>
@@ -3021,9 +3030,15 @@ public partial class MainWindow : Window
     /// 마야 그래프 에디터 아웃라이너 — 노드 › 채널 › 성분. 행 클릭 = 그 커브만 보인다, Shift/Ctrl+클릭 = 더하기/빼기.
     /// 없는 성분은 흐리고, 클릭하면 현재 시각의 중립값 키 하나로 생긴다.
     /// </summary>
+    /// <summary>
+    /// 아웃라이너(그래프 왼쪽) — 모션의 리그에 컨트롤러 표가 있으면 **컨트롤러 전부**(10개)를 보인다: 고른 컨트롤러가 맨 위(키가 없어도),
+    /// 그다음 키가 든 것(표 순서), 키가 없는 것은 흐리게 아래. 컨트롤러 밑은 표가 쓰는 성분만(B). 흐린 성분을 클릭해도 성분을 만들지 않는다(A2, 마야식) —
+    /// 성분은 사용자가 키를 놓을 때만 생긴다. 표가 없는 리그·"리그 노드 보기"는 모션의 채널을 노드로 보인다.
+    /// </summary>
     private void RefreshChannels()
     {
         _channelRows.Children.Clear();
+        _outlinerOrder.Clear();
         MotionAsset? motion = _graph.Motion;
 
         if (motion is null)
@@ -3032,16 +3047,119 @@ public partial class MainWindow : Window
             return;
         }
 
-        MotionAsset current = motion;
         string query = (_outlinerSearch.Text ?? "").Trim();
-        ControllerRig? outlinerControllers = _session.ControllersOf(motion.Rig);
+        ControllerRig? table = _settings.ShowRigNodes ? null : _session.ControllersOf(motion.Rig);
 
-        foreach (ChannelAsset channel in current.Channels)
+        if (table is null)
+        {
+            RefreshChannelsByNode(motion, query);
+            return;
+        }
+
+        Controller? selected = SelectedControllerOf(motion, table);
+
+        foreach (Controller c in OutlinerOrderOf(motion, table, selected))
+        {
+            List<CurveRef> curves = OutlinerCurvesOf(motion, c);
+            List<CurveRef> existing = curves.Where(cr => cr.Resolve(motion) is not null).ToList();
+            bool keyed = existing.Count > 0;
+            bool isSelected = ReferenceEquals(c, selected);
+            string title = $"{c.Group.Label} · {c.Label}";
+
+            if (query.Length > 0 && !title.Contains(query, StringComparison.OrdinalIgnoreCase) && !c.Id.Contains(query, StringComparison.OrdinalIgnoreCase) && !c.Node.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _outlinerOrder.Add(c.Id);
+            Controller captured = c;
+            List<CurveRef> capturedExisting = existing;
+            bool anyLocked = existing.Any(_flags.IsLocked);
+            bool anyMuted = existing.Any(_flags.IsMuted);
+
+            var header = new DockPanel { Margin = new Avalonia.Thickness(2, 3, 2, 0), Opacity = keyed || isSelected ? 1 : 0.5 };
+            Button remove = SmallButton("×", (_, _) => Guard("컨트롤러 키 삭제", () =>
+            {
+                MotionAsset? m = _graph.Motion;
+
+                if (m is null)
+                {
+                    return;
+                }
+
+                _session.Editor.Batch(MotionChangeKind.Structure, () =>
+                {
+                    foreach (CurveRef cr in capturedExisting)
+                    {
+                        RemoveComponent(m, cr);
+                    }
+                });
+            }));
+            remove.IsEnabled = keyed;
+            ToolTip.SetTip(remove, "이 컨트롤러의 키 전부 삭제(채널이 없어진다)");
+            Button lockButton = SmallButton(anyLocked ? "🔒" : "🔓", (_, _) =>
+            {
+                foreach (CurveRef cr in capturedExisting)
+                {
+                    _flags.SetLocked(cr, !anyLocked);
+                }
+            });
+            lockButton.IsEnabled = keyed;
+            ToolTip.SetTip(lockButton, anyLocked ? "잠금 풀기 — 다시 고르고 끌 수 있다" : "잠금 — 보이되 고르거나 끌 수 없다");
+            Button muteButton = SmallButton(anyMuted ? "🔇" : "🔊", (_, _) =>
+            {
+                foreach (CurveRef cr in capturedExisting)
+                {
+                    _flags.SetMuted(cr, !anyMuted);
+                }
+            });
+            muteButton.IsEnabled = keyed;
+            ToolTip.SetTip(muteButton, anyMuted ? "뮤트 풀기" : "뮤트 — 뷰포트 재생에서 이 컨트롤러를 뺀다(저장되지 않는다)");
+
+            foreach (Button b in new[] { remove, muteButton, lockButton })
+            {
+                DockPanel.SetDock(b, Dock.Right);
+                header.Children.Add(b);
+            }
+
+            var titleBlock = new TextBlock
+            {
+                Text = title + (keyed ? "" : "  (키 없음)"),
+                FontSize = 11,
+                FontWeight = isSelected ? FontWeight.Bold : FontWeight.SemiBold,
+                Foreground = c.Group.Mode == MotionChannelMode.Absolute ? PlacementNodeBrush : ActingNodeBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Cursor = new Cursor(StandardCursorType.Hand),
+            };
+            ToolTip.SetTip(titleBlock, $"{c.Node}" + (c.Note is null ? "" : "\n" + c.Note) + "\n클릭: 이 컨트롤러를 고르고 그 커브만 · Shift/Ctrl: 더하기 · S: 지금 값을 현재 시각에 키");
+            titleBlock.PointerPressed += (_, e) =>
+            {
+                SelectController(captured);
+                ShowCurves(capturedExisting, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                e.Handled = true;
+            };
+            header.Children.Add(titleBlock);
+            _channelRows.Children.Add(header);
+
+            foreach (CurveRef curveRef in curves)
+            {
+                string label = $"{ChannelKindLabel.Of(curveRef.Kind)} {curveRef.Axis.ToString().ToUpperInvariant()}" + (curveRef.Node == c.Node ? "" : $"  · {curveRef.Node}");
+                _channelRows.Children.Add(ComponentRow(motion, curveRef, label, () => SelectController(captured)));
+            }
+        }
+    }
+
+    /// <summary>표가 없는 리그·리그 노드 보기 — 모션의 채널을 노드 · 종류로, 성분은 종류의 축 전부(없는 것은 흐리게).</summary>
+    private void RefreshChannelsByNode(MotionAsset motion, string query)
+    {
+        ControllerRig? labels = _session.ControllersOf(motion.Rig);
+
+        foreach (ChannelAsset channel in motion.Channels)
         {
             string node = channel.Node;
             MotionChannelKind kind = channel.Kind;
-
-            string nodeLabel = DopeSheetRows.NodeLabel(node, outlinerControllers);
+            string nodeLabel = DopeSheetRows.NodeLabel(node, labels);
 
             if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !nodeLabel.Contains(query, StringComparison.OrdinalIgnoreCase) && !ChannelKindLabel.Of(kind).Contains(query, StringComparison.OrdinalIgnoreCase))
             {
@@ -3050,28 +3168,30 @@ public partial class MainWindow : Window
 
             Axis[] possibleAxes = kind == MotionChannelKind.Euler ? new[] { Axis.X, Axis.Y, Axis.Z } : new[] { Axis.X, Axis.Y };
             CurveRef[] axesOfChannel = possibleAxes.Select(a => new CurveRef(node, kind, a)).ToArray();
-            bool anyLocked = axesOfChannel.Any(_flags.IsLocked);
-            bool anyMuted = axesOfChannel.Any(_flags.IsMuted);
+            CurveRef[] existing = axesOfChannel.Where(cr => cr.Resolve(motion) is not null).ToArray();
+            bool anyLocked = existing.Any(_flags.IsLocked);
+            bool anyMuted = existing.Any(_flags.IsMuted);
 
-            // 채널 행: node · kind · mode + 잠금 · 뮤트 · 삭제. 글자 클릭 = 이 채널의 커브만.
             var header = new DockPanel { Margin = new Avalonia.Thickness(2, 3, 2, 0) };
-            Button remove = SmallButton("×", (_, _) => Guard("채널 삭제", () => _session.Editor.RemoveChannel(current.Name, node, kind)));
+            Button remove = SmallButton("×", (_, _) => Guard("채널 삭제", () => _session.Editor.RemoveChannel(motion.Name, node, kind)));
+            ToolTip.SetTip(remove, "채널 삭제(성분 전부)");
             Button lockButton = SmallButton(anyLocked ? "🔒" : "🔓", (_, _) =>
             {
-                foreach (CurveRef c in axesOfChannel)
+                foreach (CurveRef cr in existing)
                 {
-                    _flags.SetLocked(c, !anyLocked);
+                    _flags.SetLocked(cr, !anyLocked);
                 }
             });
             ToolTip.SetTip(lockButton, anyLocked ? "잠금 풀기 — 다시 고르고 끌 수 있다" : "잠금 — 보이되 고르거나 끌 수 없다");
             Button muteButton = SmallButton(anyMuted ? "🔇" : "🔊", (_, _) =>
             {
-                foreach (CurveRef c in axesOfChannel)
+                foreach (CurveRef cr in existing)
                 {
-                    _flags.SetMuted(c, !anyMuted);
+                    _flags.SetMuted(cr, !anyMuted);
                 }
             });
             ToolTip.SetTip(muteButton, anyMuted ? "뮤트 풀기" : "뮤트 — 뷰포트 재생에서 이 채널을 뺀다(저장되지 않는다)");
+
             foreach (Button b in new[] { remove, muteButton, lockButton })
             {
                 DockPanel.SetDock(b, Dock.Right);
@@ -3088,56 +3208,174 @@ public partial class MainWindow : Window
                 Cursor = new Cursor(StandardCursorType.Hand),
             };
             ToolTip.SetTip(title, $"{node}\n{kind}\n클릭: 이 채널의 커브만 · Shift/Ctrl: 더하기");
-            title.PointerPressed += (_, e) => ShowCurves(axesOfChannel, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            title.PointerPressed += (_, e) => ShowCurves(existing, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
             header.Children.Add(title);
             _channelRows.Children.Add(header);
 
-            // 성분 행: 색 네모 + 이름. 보이는 행은 파랗게(마야 선택).
-            foreach (Axis axis in possibleAxes)
+            foreach (CurveRef curveRef in axesOfChannel)
             {
-                var curveRef = new CurveRef(node, kind, axis);
-                CurveSlot? slot = _graph.Curves.FirstOrDefault(s => s.Curve == curveRef);
-                bool visible = slot?.Visible == true;
-                Color color = slot?.Color ?? Color.FromRgb(0x80, 0x80, 0x80);
-                var row = new Border
-                {
-                    Padding = new Avalonia.Thickness(18, 1, 4, 1),
-                    Background = visible ? OutlinerRowSelected : Brushes.Transparent,
-                    Cursor = new Cursor(StandardCursorType.Hand),
-                    Tag = curveRef,
-                    Child = new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Spacing = 6,
-                        Opacity = slot is null ? 0.45 : 1,
-                        Children =
-                        {
-                            new Border { Width = 8, Height = 8, Background = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
-                            new TextBlock { Text = $"{ChannelKindLabel.Of(kind)} {axis.ToString().ToUpperInvariant()}", FontSize = 11, Foreground = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
-                        },
-                    },
-                };
-                ToolTip.SetTip(row, slot is null
-                    ? "성분이 없다 — 클릭하면 현재 시각에 중립값 키 하나로 생긴다"
-                    : "클릭: 이 커브만 · Shift/Ctrl+클릭: 더하기/빼기");
-                row.PointerPressed += (_, e) =>
-                {
-                    bool additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
-                    OutlinerClick(curveRef, additive);
-                    e.Handled = true;
-                };
-                _channelRows.Children.Add(row);
+                _channelRows.Children.Add(ComponentRow(motion, curveRef, $"{ChannelKindLabel.Of(kind)} {curveRef.Axis.ToString().ToUpperInvariant()}", null));
             }
         }
 
-        if (current.Channels.Count == 0)
+        if (motion.Channels.Count == 0)
         {
             _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 하이어아키에서 노드를 고르고 채널 박스에 값을 넣거나 매니퓰레이터로 끌면 생긴다)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
         }
     }
 
-    /// <summary>아웃라이너 성분 행 클릭 — 없는 성분은 만들고, 있는 성분은 그 커브만(additive면 토글).</summary>
-    internal void OutlinerClick(CurveRef curve, bool additive)
+    /// <summary>성분 행: 색 네모 + 이름 + (있으면) ×. 보이는 행은 파랗게(마야 선택). 없는 성분은 흐리고, 클릭해도 만들지 않는다 — <paramref name="onMissingClick"/>만.</summary>
+    private Border ComponentRow(MotionAsset motion, CurveRef curveRef, string label, Action? onMissingClick)
+    {
+        CurveSlot? slot = _graph.Curves.FirstOrDefault(s => s.Curve == curveRef);
+        bool exists = curveRef.Resolve(motion) is not null;
+        bool visible = slot?.Visible == true;
+        Color color = slot?.Color ?? Color.FromRgb(0x80, 0x80, 0x80);
+        var content = new DockPanel { Opacity = exists ? 1 : 0.45 };
+
+        if (exists)
+        {
+            Button remove = SmallButton("×", (_, e) =>
+            {
+                Guard("성분 삭제", () => RemoveComponent(_graph.Motion ?? motion, curveRef));
+                e.Handled = true;
+            });
+            ToolTip.SetTip(remove, "이 성분의 키만 삭제 — 다른 성분은 남는다(마지막 성분이면 채널이 없어진다)");
+            DockPanel.SetDock(remove, Dock.Right);
+            content.Children.Add(remove);
+        }
+
+        content.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children =
+            {
+                new Border { Width = 8, Height = 8, Background = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock { Text = label, FontSize = 11, Foreground = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
+            },
+        });
+
+        var row = new Border
+        {
+            Padding = new Avalonia.Thickness(18, 1, 4, 1),
+            Background = visible ? OutlinerRowSelected : Brushes.Transparent,
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Tag = curveRef,
+            Child = content,
+        };
+        ToolTip.SetTip(row, exists
+            ? "클릭: 이 커브만 · Shift/Ctrl+클릭: 더하기/빼기 · ×: 이 성분의 키 삭제"
+            : "성분이 없다 — 채널 박스에 값을 넣거나 매니퓰레이터로 끌거나 S로 키를 놓으면 생긴다(클릭은 만들지 않는다)");
+        row.PointerPressed += (_, e) =>
+        {
+            bool additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+            OutlinerClick(curveRef, additive, onMissingClick);
+            e.Handled = true;
+        };
+        return row;
+    }
+
+    /// <summary>아웃라이너 순서 — 고른 컨트롤러, 키가 든 것(표 순서), 키 없는 것(표 순서).</summary>
+    private static List<Controller> OutlinerOrderOf(MotionAsset motion, ControllerRig table, Controller? selected)
+    {
+        bool Keyed(Controller c) => OutlinerCurvesOf(motion, c).Any(cr => cr.Resolve(motion) is not null);
+        var order = new List<Controller>();
+
+        if (selected is not null)
+        {
+            order.Add(selected);
+        }
+
+        order.AddRange(table.Controllers.Where(c => !ReferenceEquals(c, selected) && Keyed(c)));
+        order.AddRange(table.Controllers.Where(c => !ReferenceEquals(c, selected) && !Keyed(c)));
+        return order;
+    }
+
+    /// <summary>컨트롤러의 아웃라이너 성분들 — 표가 쓰는 성분만(B): 성분마다 모션에 있는 커브(주 노드·별칭), 없으면 주 커브 하나(흐림). 깊이는 배율 X·Y + 깊이 Y.</summary>
+    private static List<CurveRef> OutlinerCurvesOf(MotionAsset motion, Controller c)
+    {
+        var curves = new List<CurveRef>();
+
+        if (c.Bake == ControllerBake.DepthLevel)
+        {
+            curves.AddRange(ControllerCurves(c, Axis.X));
+            return curves;
+        }
+
+        foreach (Axis axis in c.Axes)
+        {
+            List<CurveRef> existing = c.CurvesOf(axis).Where(cr => cr.Resolve(motion) is not null).ToList();
+            curves.AddRange(existing.Count > 0 ? existing : new[] { c.Primary(axis) });
+        }
+
+        return curves;
+    }
+
+    /// <summary>고른 컨트롤러 — 뷰포트의 선택 노드(하이어아키·아웃라이너·W/E/R이 정한다)가 속한 컨트롤러.</summary>
+    private Controller? SelectedControllerOf(MotionAsset motion, ControllerRig? table = null)
+    {
+        table ??= _session.ControllersOf(motion.Rig);
+        return table is not null && _viewport.SelectedNode is { } node ? table.OfNode(node) : null;
+    }
+
+    /// <summary>아웃라이너에서 컨트롤러를 고른다 — 하이어아키에서 고른 것과 같다(선택 노드·채널 박스·하이어아키 항목).</summary>
+    private void SelectController(Controller c)
+    {
+        _followSelection.IsChecked = false;
+        _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
+        SyncHierarchySelection(c);
+        _viewport.InvalidateVisual();
+        RefreshChannelBox();
+        RefreshChannels();
+    }
+
+    private void SyncHierarchySelection(Controller c)
+    {
+        string? objectId = _viewport.SelectedObjectId;
+        TreeViewItem? item = _hierarchyParents.Keys.FirstOrDefault(i => i.Tag is HierarchyController hc && hc.ObjectId == objectId && hc.ControllerId == c.Id);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        _refreshDepth++;
+
+        try
+        {
+            _hierarchy.SelectedItem = item;
+        }
+        finally
+        {
+            _refreshDepth--;
+        }
+    }
+
+    /// <summary>성분 하나의 키를 지운다 — 다른 성분은 남고, 마지막 성분이면 채널이 없어진다(빈 채널은 규약에 없다).</summary>
+    private void RemoveComponent(MotionAsset motion, CurveRef curve)
+    {
+        if (motion.FindChannel(curve.Node, curve.Kind) is not { } channel || channel.Get(curve.Axis) is null)
+        {
+            return;
+        }
+
+        int remaining = new[] { Axis.X, Axis.Y, Axis.Z }.Count(a => channel.Get(a) is not null);
+
+        if (remaining <= 1)
+        {
+            _session.Editor.RemoveChannel(motion.Name, curve.Node, curve.Kind);
+            return;
+        }
+
+        _session.Editor.SetKeys(motion.Name, curve.Node, curve.Kind, curve.Axis, Array.Empty<KeyAsset>());
+    }
+
+    /// <summary>
+    /// 아웃라이너 성분 행 클릭 — 있는 성분은 그 커브만(additive면 토글). 없는 성분은 **만들지 않는다**(A2, 마야식):
+    /// 컨트롤러 보기면 그 컨트롤러를 고르고, 노드 보기면 아무 일도 없다.
+    /// </summary>
+    internal void OutlinerClick(CurveRef curve, bool additive, Action? onMissingClick = null)
     {
         MotionAsset? motion = _graph.Motion;
 
@@ -3148,12 +3386,15 @@ public partial class MainWindow : Window
 
         if (curve.Resolve(motion) is null)
         {
-            Guard("성분 추가", () => _session.Editor.AddKey(motion.Name, curve.Node, curve.Kind, curve.Axis, new KeyAsset
+            if (onMissingClick is not null)
             {
-                T = (float)_graph.CurrentTime,
-                V = MotionMath.Neutral(curve.Kind),
-                Tangent = DefaultTangent,
-            }));
+                onMissingClick();
+            }
+            else if (_session.ControllersOf(motion.Rig)?.OfNode(curve.Node) is { } c && !_settings.ShowRigNodes)
+            {
+                SelectController(c);
+            }
+
             return;
         }
 
@@ -3166,6 +3407,48 @@ public partial class MainWindow : Window
 
         _graph.SetVisibleAll(c => c == curve);
     }
+
+    /// <summary>
+    /// S(Set Key) — 키 없는 포즈(드래그·채널 박스·MMB 스크럽)가 있으면 그것을 키로(뷰포트). 없으면 고른 컨트롤러의 성분 전부를
+    /// 지금 값으로 현재 시각에 키(마야 Set Key on selected). 컨트롤러가 없으면 뷰포트의 선택 노드 키.
+    /// </summary>
+    private void SetKeySelected()
+    {
+        if (_viewport.HasPending || _graph.Motion is not { } motion || SelectedControllerOf(motion) is not { } c)
+        {
+            _viewport.SetKey();
+            return;
+        }
+
+        Guard("키 놓기", () => _session.Editor.Batch(MotionChangeKind.Keys, () =>
+        {
+            if (c.Bake == ControllerBake.DepthLevel)
+            {
+                KeyController(c, c.Axes[0]);
+                return;
+            }
+
+            foreach (Axis axis in c.Axes)
+            {
+                KeyController(c, axis);
+            }
+        }));
+    }
+
+    /// <summary>테스트 손잡이 — 아웃라이너의 컨트롤러 순서(컨트롤러 보기일 때; 검색으로 걸러진 것은 빠진다).</summary>
+    internal IReadOnlyList<string> OutlinerOrder => _outlinerOrder;
+
+    /// <summary>테스트 손잡이 — 성분 행의 ×.</summary>
+    internal void RemoveComponentFromOutliner(CurveRef curve)
+    {
+        if (_graph.Motion is { } motion)
+        {
+            RemoveComponent(motion, curve);
+        }
+    }
+
+    /// <summary>테스트 손잡이 — S.</summary>
+    internal void SetKeyFromShell() => SetKeySelected();
 
     private void ShowCurves(IReadOnlyCollection<CurveRef> curves, bool additive)
     {

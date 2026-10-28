@@ -460,7 +460,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 아웃라이너_행_클릭은_그_커브만_보이고_없는_성분은_만들고_검색은_거른다()
+    public void 아웃라이너는_모션의_컨트롤러_전부이고_고른_것_키_든_것_순서이며_흐린_성분_클릭은_만들지_않고_S가_고른_컨트롤러를_키한다()
     {
         HeadlessUi.Run(() =>
         {
@@ -476,26 +476,67 @@ public class MainWindowTests
                 window.AddChannelFromForm(y.Node, y.Kind);
                 window.Session.Editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
 
-                Assert.Equal(3, window.OutlinerRowCount); // 채널 행 + x · y 성분 행
+                // 컨트롤러 10개 전부. 키가 든 몸(별칭 Track_Move_Y)이 위(선택도 첫 채널의 노드를 따라 몸), 나머지는 키 없음.
+                // 행 수 = 컨트롤러 10 + 표가 쓰는 성분(B): 몸 2 · 자리 2 · 슬롯 기울기 1 · 자세 배율 2 · 깊이 3(배율 X·Y + 깊이 Y) · 기울기 1 · 숙임 1 · 떨림 2 · 크기 2 · 방향 1 = 17.
+                Assert.Equal(10, window.OutlinerOrder.Count);
+                Assert.Equal("body", window.OutlinerOrder[0]);
+                Assert.Equal(27, window.OutlinerRowCount);
                 Assert.Single(window.Graph.Curves);
 
-                window.OutlinerClick(x, additive: false); // 없는 성분 → 중립값 키로 생긴다
-                Assert.Equal(2, window.Graph.Curves.Count);
-                Assert.All(window.Graph.Curves, c => Assert.True(c.Visible));
+                // 흐린 성분(몸 X) 클릭은 성분을 만들지 않는다(A2) — 그 컨트롤러를 고를 뿐.
+                window.OutlinerClick(x, additive: false);
+                Assert.Single(window.Graph.Curves);
+                Assert.Null(window.Session.Editor.Document.Find("nod")!.FindChannel(x.Node, x.Kind)!.X);
+                Assert.Equal("CharacterPortrait_Track_Move_Y", window.Viewport.SelectedNode);
 
-                window.OutlinerClick(y, additive: false); // 그 커브만
+                // 있는 성분 클릭은 그 커브만 · 더하기.
+                window.Session.Editor.SetKeys("nod", x.Node, x.Kind, x.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.6f, 0f) });
+                Assert.Equal(2, window.Graph.Curves.Count);
+                window.OutlinerClick(y, additive: false);
                 Assert.True(window.Graph.Curves.Single(c => c.Curve == y).Visible);
                 Assert.False(window.Graph.Curves.Single(c => c.Curve == x).Visible);
-
-                window.OutlinerClick(x, additive: true); // 더하기
+                window.OutlinerClick(x, additive: true);
                 Assert.All(window.Graph.Curves, c => Assert.True(c.Visible));
 
+                // 하이어아키에서 숙임을 고르면 키가 없어도 맨 위, 그다음 키 든 몸.
+                window.SelectControllerInHierarchy("s1", "bow");
+                Assert.Equal(new[] { "bow", "body" }, window.OutlinerOrder.Take(2));
+
+                // 검색은 컨트롤러 이름·id·노드로 거른다.
                 window.OutlinerQuery = "없는노드";
                 Assert.Equal(0, window.OutlinerRowCount);
-                window.OutlinerQuery = "move_y";
-                Assert.Equal(3, window.OutlinerRowCount);
+                window.OutlinerQuery = "몸";
+                Assert.Equal(3, window.OutlinerRowCount); // 몸 + X·Y
+                window.OutlinerQuery = "";
 
-                // 시간 표시는 프레임이 기본: 0.3초 = 7.2프레임.
+                // 성분 하나 삭제는 다른 성분을 남기고, 마지막 성분이면 채널이 없어진다.
+                window.RemoveComponentFromOutliner(x);
+                ChannelAsset moveY = window.Session.Editor.Document.Find("nod")!.FindChannel(y.Node, y.Kind)!;
+                Assert.Null(moveY.X);
+                Assert.NotNull(moveY.Y);
+                window.RemoveComponentFromOutliner(y);
+                Assert.Null(window.Session.Editor.Document.Find("nod")!.FindChannel(y.Node, y.Kind));
+
+                // S = 고른 컨트롤러(숙임)의 지금 값을 현재 시각에 키 — 키 없는 포즈가 없어도.
+                window.Viewport.ScrubTo(0.25);
+                window.SetKeyFromShell();
+                KeyAsset bowKey = window.Session.Editor.Document.Find("nod")!.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!.Z!.Keys.Single();
+                Assert.Equal(0.25f, bowKey.T, 3);
+                Assert.Equal(0f, bowKey.V, 3);
+                Assert.Equal("bow", window.OutlinerOrder[0]);
+
+                // 깊이를 고르고 S(단축키) — 배율 X·Y와 깊이 Y가 한 번에(되돌리기 하나). 키 값은 미리보기 mode대로(absolute): s1은 mid라 1.708 · −580.56.
+                window.Session.Editor.SetPreviewMode("nod", MotionChannelMode.Absolute);
+                window.SelectControllerInHierarchy("s1", "depth");
+                long revision = window.Session.Editor.Revision;
+                window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.None);
+                Assert.Equal(revision + 1, window.Session.Editor.Revision);
+                MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
+                Assert.Equal(1.708, nod.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.X!.Keys.Single().V, 2);
+                Assert.Equal(-580.56, nod.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 1);
+                Assert.Equal(new[] { "depth", "bow" }, window.OutlinerOrder.Take(2));
+
+                // 시간 표시는 프레임이 기본: 0.5초 = 12프레임.
                 window.Viewport.ScrubTo(0.5);
                 Assert.Equal("12", window.CurrentTimeText);
             }
