@@ -1028,7 +1028,7 @@ public sealed class ViewportView : Control
         context.DrawLine(XAxisPen, o, ToControl(xEnd));
         context.DrawLine(YAxisPen, o, ToControl(yEnd));
         context.DrawEllipse(PivotBrush, null, o, 4, 4);
-        DrawLabel(context, SelectedNode, new Point(o.X + 6, o.Y + 6));
+        DrawLabel(context, key, new Point(o.X + 6, o.Y + 6));
     }
 
     private void DrawGizmo(DrawingContext context, RectNodeTree pose)
