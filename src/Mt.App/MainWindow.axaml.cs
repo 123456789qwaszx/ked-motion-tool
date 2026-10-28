@@ -153,7 +153,6 @@ public partial class MainWindow : Window
     private const string RootNodeToken = "(루트)";
     private readonly TextBlock _objSummary = new() { FontSize = 11, Opacity = 0.8, TextWrapping = TextWrapping.Wrap };
     private readonly Expander _placementExpander = new() { Header = "시작 배치", FontSize = 11, IsExpanded = false };
-    private readonly Expander _attachExpander = new() { Header = "붙이기 · 배역", FontSize = 11, IsExpanded = false };
     private readonly Expander _cameraExpander = new() { Header = "카메라(샷)", FontSize = 11, IsExpanded = false };
 
     // 왼쪽
@@ -1845,17 +1844,8 @@ public partial class MainWindow : Window
             OnCommit(box, _ => CommitObjectPlacement());
         }
 
-        _attachExpander.Content = new StackPanel
-        {
-            Spacing = 4,
-            Children =
-            {
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("id"), _objId, Small("배역"), _objCharacter } },
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("부모"), _objParent, Small("노드"), _objParentNode } },
-            },
-        };
-        ToolTip.SetTip(_attachExpander, "붙이기 — 다른 오브젝트의 컨트롤러·노드 밑에 붙는다(소품). 하이어아키 드래그로도 된다. 배역은 focus 표의 캐릭터별 오프셋");
-        panel.Children.Add(_attachExpander);
+        // id·부모·노드·배역은 화면에 없다(소유자, 2026-10-28): 이름 바꾸기는 하이어아키 F2, 붙이기는 하이어아키 드래그·메뉴,
+        // 배역은 재사용 클립에 필요 없다(기본 focus 오프셋으로 미리보고 런타임이 다시 푼다). 컨트롤은 테스트 손잡이로만 남는다.
         ToolTip.SetTip(_objId, "이름 바꾸기 — [a-z0-9_]+. 자식의 부모 참조도 따라간다");
         ToolTip.SetTip(_objParent, "부모 오브젝트 — 그 오브젝트의 노드 밑에 붙는다(유니티 자식). 자식은 부모의 레이어·깊이를 따른다");
         ToolTip.SetTip(_objParentNode, "부모 리그에서 붙는 노드. (루트)면 리그 루트");
@@ -2262,7 +2252,6 @@ public partial class MainWindow : Window
 
             // 접힌 묶음은 값이 기본이 아닐 때만 스스로 펼친다(닫지는 않는다).
             _placementExpander.IsExpanded |= selected is not null && (selected.PositionX != 0 || selected.PositionY != 0 || selected.RotationZ != 0 || selected.ScaleX != 1 || selected.ScaleY != 1);
-            _attachExpander.IsExpanded |= selected?.Parent is not null || selected?.Character is not null;
             _cameraExpander.IsExpanded |= camera is not null && (camera.Zoom != 0 || camera.PanX != 0 || camera.PanY != 0);
         }
         finally
