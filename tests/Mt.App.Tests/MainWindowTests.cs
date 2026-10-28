@@ -518,13 +518,13 @@ public class MainWindowTests
 
                 // W/E/R/Q 매니퓰레이터 — 창 어디에 포커스가 있든.
                 window.KeyPressQwerty(PhysicalKey.E, RawInputModifiers.None);
-                Assert.Equal(Mt.App.Views.ManipulatorMode.Rotate, window.Manipulator);
+                Assert.Equal(ManipulatorMode.Rotate, window.Manipulator);
                 window.KeyPressQwerty(PhysicalKey.R, RawInputModifiers.None);
-                Assert.Equal(Mt.App.Views.ManipulatorMode.Scale, window.Manipulator);
+                Assert.Equal(ManipulatorMode.Scale, window.Manipulator);
                 window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.None);
-                Assert.Equal(Mt.App.Views.ManipulatorMode.Move, window.Manipulator);
+                Assert.Equal(ManipulatorMode.Move, window.Manipulator);
                 window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.None);
-                Assert.Equal(Mt.App.Views.ManipulatorMode.Select, window.Manipulator);
+                Assert.Equal(ManipulatorMode.Select, window.Manipulator);
             }
             finally
             {
