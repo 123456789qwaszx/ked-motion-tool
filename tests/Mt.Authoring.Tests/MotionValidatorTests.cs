@@ -91,7 +91,7 @@ public class MotionFixesTests
     [Fact]
     public void 문구에서_돕는_손을_고른다()
     {
-        Assert.Equal(new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 마지막 키 시각이 길이와 다르다 (0.5 ≠ 1)")));
+        Assert.Equal(new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey, MotionFix.KeyAtDuration }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 마지막 키 시각이 길이와 다르다 (0.5 ≠ 1)")));
         Assert.Equal(new[] { MotionFix.FirstKeysToNeutral }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: X: relative 채널의 첫 키 값이 중립값 0이 아니다 (3)")));
         Assert.Equal(new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: restore 모션의 마지막 키 값이 중립값 0이 아니다 (5) — 남기려면 commit")));
         Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "채널이 하나 이상이어야 한다")));
@@ -160,6 +160,10 @@ public class MotionFixesTests
         Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.KeyAtDuration));
         keys = Y.Resolve(shorter.Document.Find("nod")!)!.Keys;
         Assert.Equal(new[] { 0f, 0.3f, 0.5f }, keys.Select(k => (float)Math.Round(k.T, 4)));
+        // 길이를 줄이면 새 끝 키는 곡선 위 값이라 중립값이 아니다 — 길이 문제는 사라지고 restore 규칙만 남는다(다음 돕는 손의 몫).
+        MotionProblem remaining = Assert.Single(MotionValidator.Validate(shorter.Document));
+        Assert.Contains("중립값", remaining.Message, StringComparison.Ordinal);
+        Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.LastKeysToNeutral));
         Assert.Empty(MotionValidator.Validate(shorter.Document));
     }
 
