@@ -93,7 +93,7 @@ public class MotionFixesTests
     {
         Assert.Equal(new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey, MotionFix.KeyAtDuration }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 마지막 키 시각이 길이와 다르다 (0.5 ≠ 1)")));
         Assert.Equal(new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: restore인데 마지막 키 값이 중립값 0이 아니다 (5) — 끝에서 시작값으로 튄다. 남기려면 commit", Blocking: false)));
-        Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "채널이 하나 이상이어야 한다")));
+        Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "같은 이름이 둘이다")));
     }
 
     [Fact]

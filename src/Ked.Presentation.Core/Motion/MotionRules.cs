@@ -52,31 +52,27 @@ namespace Ked.Presentation.Core
                 return false;
             }
 
-            if (clip.Channels == null || clip.Channels.Length == 0)
-            {
-                reason = "채널이 하나 이상이어야 한다";
-                return false;
-            }
-
             if (!Enum.IsDefined(typeof(MotionEnd), clip.End))
             {
                 reason = $"end는 restore 또는 commit이어야 한다 ({(int)clip.End})";
                 return false;
             }
 
+            // 채널이 없는 모션은 유효하다 — 아무것도 하지 않고 길이만큼 흐른다(저작 도구는 첫 키에서 채널을 만든다).
             HashSet<(string, MotionChannelKind)> seen = new();
+            MotionChannel[] channels = clip.Channels ?? System.Array.Empty<MotionChannel>();
 
-            for (int i = 0; i < clip.Channels.Length; i++)
+            for (int i = 0; i < channels.Length; i++)
             {
-                if (!TryValidateChannel(clip.Channels[i], clip.Duration, clip.End, rigNodeIds, out string why))
+                if (!TryValidateChannel(channels[i], clip.Duration, clip.End, rigNodeIds, out string why))
                 {
                     reason = $"채널 {i}: {why}";
                     return false;
                 }
 
-                if (!seen.Add((clip.Channels[i].Node, clip.Channels[i].Kind)))
+                if (!seen.Add((channels[i].Node, channels[i].Kind)))
                 {
-                    reason = $"채널 {i}: 같은 노드·종류의 채널이 둘이다 ({clip.Channels[i].Node} {clip.Channels[i].Kind})";
+                    reason = $"채널 {i}: 같은 노드·종류의 채널이 둘이다 ({channels[i].Node} {channels[i].Kind})";
                     return false;
                 }
             }

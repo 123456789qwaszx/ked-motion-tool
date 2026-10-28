@@ -577,8 +577,11 @@ public class MainWindowTests
                 window.AddMotionFromForm("a", "character", "1", MotionEnd.Restore);
                 Assert.NotNull(window.Session.Editor.Document.Find("a"));
 
-                // 채널이 없는 모션은 규칙 위반 — 아래 문제 칸에 보인다.
+                // 채널이 없는 모션은 유효하다(채널은 첫 키에서 생긴다) — 문제 칸에 아무것도 없다. 길이를 0으로 하면 보인다.
+                Assert.DoesNotContain(window.ProblemsShown, p => p.MotionName == "a");
+                window.Session.Editor.SetDuration("a", 0f);
                 Assert.Contains(window.ProblemsShown, p => p.MotionName == "a");
+                window.Session.Editor.Undo();
 
                 window.Session.Editor.Undo();
                 Assert.Null(window.Session.Editor.Document.Find("a"));

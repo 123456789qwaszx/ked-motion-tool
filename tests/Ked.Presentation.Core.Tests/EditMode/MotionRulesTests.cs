@@ -52,13 +52,16 @@ public class MotionRulesTests
     }
 
     [Test]
-    public void 길이는_0보다_커야_하고_채널은_하나_이상이다()
+    public void 길이는_0보다_커야_하고_채널은_없어도_된다()
     {
         Assert.IsFalse(MotionRules.TryValidate(Clip(0f, Nod), null, out string reason));
         StringAssert.Contains("길이", reason);
 
-        Assert.IsFalse(MotionRules.TryValidate(Clip(0.6f), null, out reason));
-        StringAssert.Contains("채널", reason);
+        // 채널이 없는 모션은 아무것도 하지 않는 모션이다 — 저작 도구가 첫 키에서 채널을 만드므로 그 전에도 유효해야 한다.
+        Assert.IsTrue(MotionRules.TryValidate(Clip(0.6f), null, out reason), reason);
+        MotionClip nullChannels = Clip(0.6f);
+        nullChannels.Channels = null;
+        Assert.IsTrue(MotionRules.TryValidate(nullChannels, null, out reason), reason);
     }
 
     [Test]
