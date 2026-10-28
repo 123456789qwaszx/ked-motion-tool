@@ -453,6 +453,50 @@ public class GraphEditorViewTests
     });
 
     [Fact]
+    public void 박스_드래그가_커브를_지나면_커브가_선택되고_빈_자리_RMB_드래그는_팬이다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, _) = Show();
+
+        try
+        {
+            Point k0 = At(view, 0);
+            Point k1 = At(view, 1);
+            var mid = new Point((k0.X + k1.X) / 2, (k0.Y + k1.Y) / 2);
+            Point a = InWindow(window, view, new Point(mid.X - 10, mid.Y - 10));
+            Point b = InWindow(window, view, new Point(mid.X + 10, mid.Y + 10));
+            window.MouseDown(a, MouseButton.Left);
+            window.MouseMove(b, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(b, MouseButton.Left);
+
+            Assert.Contains(Y, view.SelectedCurves);
+            Assert.Empty(view.Selection); // 상자 안에 키는 없다
+
+            // 빈 자리 RMB 드래그 = 팬.
+            GraphCamera before = view.Camera;
+            Point empty = InWindow(window, view, new Point(k0.X + 20, GraphEditorView.PadTop + 10));
+            window.MouseDown(empty, MouseButton.Right);
+            window.MouseMove(new Point(empty.X + 50, empty.Y), RawInputModifiers.RightMouseButton);
+            window.MouseUp(new Point(empty.X + 50, empty.Y), MouseButton.Right);
+
+            Assert.True(view.Camera.TimeOrigin < before.TimeOrigin);
+            Assert.Equal(before.PixelsPerSecond, view.Camera.PixelsPerSecond, 6);
+
+            // 키를 골라도 선택 둘레 밖의 RMB 드래그는 팬이고 키는 그대로다.
+            view.Select(new[] { new KeyRef(Y, 1) }, additive: false);
+            GraphCamera panned = view.Camera;
+            Point far = InWindow(window, view, new Point(At(view, 2).X, GraphEditorView.PadTop + 10));
+            window.MouseDown(far, MouseButton.Right);
+            window.MouseMove(new Point(far.X - 40, far.Y), RawInputModifiers.RightMouseButton);
+            window.MouseUp(new Point(far.X - 40, far.Y), MouseButton.Right);
+            Assert.True(view.Camera.TimeOrigin > panned.TimeOrigin);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 박스_선택은_안에_든_키를_고른다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();

@@ -1350,16 +1350,20 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        // RMB 드래그 = 선택 키를 한 축으로만 이동(처음 움직인 쪽으로 잠긴다). Shift = 정수 프레임·정수 값에 스냅.
+        // RMB 드래그: 선택 키 둘레(12px 안)에서 누르면 선택 키를 한 축으로만 이동(처음 움직인 쪽으로 잠긴다, Shift = 정수 프레임·정수 값),
+        // 빈 자리에서 누르면 화면 이동(팬).
         if (point.Properties.IsRightButtonPressed)
         {
-            if (pressedMotion is not null && _selection.Count > 0)
+            if (pressedMotion is not null && _selection.Count > 0 && SelectionScreenBounds(pressedMotion) is { } bounds && bounds.Inflate(12).Contains(position))
             {
                 BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
                 _axisLockDecided = false;
                 StartDrag(Drag.KeysAxis, position, e);
+                return;
             }
 
+            StartDrag(Drag.Pan, position, e);
+            _panStart = _camera;
             return;
         }
 
@@ -1529,6 +1533,54 @@ public sealed class GraphEditorView : Control
     }
 
     /// <summary>선택 키들의 가운데(시각·값) — 스케일 툴의 피벗.</summary>
+    /// <summary>선택 키들의 화면 둘레. 없으면 null.</summary>
+    private Rect? SelectionScreenBounds(MotionAsset motion)
+    {
+        double left = double.PositiveInfinity, top = double.PositiveInfinity, right = double.NegativeInfinity, bottom = double.NegativeInfinity;
+
+        foreach (KeyRef keyRef in _selection)
+        {
+            if (keyRef.Resolve(motion) is not { } k)
+            {
+                continue;
+            }
+
+            Point p = ScreenOf(keyRef.Curve, k.T, k.V);
+            left = Math.Min(left, p.X);
+            right = Math.Max(right, p.X);
+            top = Math.Min(top, p.Y);
+            bottom = Math.Max(bottom, p.Y);
+        }
+
+        return double.IsInfinity(left) ? null : new Rect(left, top, right - left, bottom - top);
+    }
+
+    /// <summary>박스가 지나는 보이는 커브들 — 박스 드래그로 커브를 고를 때.</summary>
+    private List<CurveRef> CurvesInBox(MotionAsset motion, Pixel a, Pixel b)
+    {
+        var hits = new List<CurveRef>();
+        GraphPoint left = ToGraph(new Point(Plot.X, Plot.Y));
+        GraphPoint right = ToGraph(new Point(Plot.Right, Plot.Y));
+
+        foreach (CurveSlot slot in _curves)
+        {
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve || curve.Keys.Count == 0)
+            {
+                continue;
+            }
+
+            CurveViewTransform transform = ViewTransformOf(slot.Curve);
+            List<Pixel> polyline = CurveSampler.Sample(curve.Keys, left.T, right.T, 256).Select(p => ToPixel(ToScreen(new GraphPoint(p.T, transform.ToView(p.V))))).ToList();
+
+            if (GraphHitTest.PolylineIntersectsBox(polyline, a, b))
+            {
+                hits.Add(slot.Curve);
+            }
+        }
+
+        return hits;
+    }
+
     private GraphPoint SelectionCenter(MotionAsset motion)
     {
         var keys = new List<KeyAsset>();
@@ -1929,10 +1981,16 @@ public sealed class GraphEditorView : Control
                     break;
 
                 case Drag.Box:
-                    if (motion is not null)
+                    if (motion is not null && _dragMoved)
                     {
+                        // 박스 안의 키 + 박스가 지나는 커브(정확히 선을 안 눌러도 고를 수 있다).
                         List<KeyRef> inBox = GraphHitTest.InBox(KeyCandidates(motion), ToPixel(_dragStart), ToPixel(_dragNow));
                         _selection.AddRange(inBox);
+
+                        foreach (CurveRef curve in CurvesInBox(motion, ToPixel(_dragStart), ToPixel(_dragNow)))
+                        {
+                            _selectedCurves.Add(curve);
+                        }
                     }
 
                     break;

@@ -49,6 +49,69 @@ public static class GraphHitTest
     }
 
     /// <summary>라소 — 다각형 안의 것들(짝수-홀수 규칙). 점이 셋 미만이면 아무것도 없다.</summary>
+    /// <summary>폴리라인이 상자(두 모서리)를 지나거나 안에 있는가 — 박스 드래그로 커브를 고를 때.</summary>
+    public static bool PolylineIntersectsBox(IReadOnlyList<Pixel> polyline, Pixel a, Pixel b)
+    {
+        ArgumentNullException.ThrowIfNull(polyline);
+        double left = Math.Min(a.X, b.X);
+        double right = Math.Max(a.X, b.X);
+        double top = Math.Min(a.Y, b.Y);
+        double bottom = Math.Max(a.Y, b.Y);
+
+        for (int i = 0; i < polyline.Count; i++)
+        {
+            Pixel p = polyline[i];
+
+            if (p.X >= left && p.X <= right && p.Y >= top && p.Y <= bottom)
+            {
+                return true;
+            }
+
+            if (i > 0 && SegmentCrossesBox(polyline[i - 1], p, left, top, right, bottom))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Liang–Barsky: 선분이 축 정렬 상자를 지나는가.
+    private static bool SegmentCrossesBox(Pixel p0, Pixel p1, double left, double top, double right, double bottom)
+    {
+        double dx = p1.X - p0.X;
+        double dy = p1.Y - p0.Y;
+        double t0 = 0, t1 = 1;
+        double[] p = { -dx, dx, -dy, dy };
+        double[] q = { p0.X - left, right - p0.X, p0.Y - top, bottom - p0.Y };
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (Math.Abs(p[i]) < 1e-12)
+            {
+                if (q[i] < 0)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            double r = q[i] / p[i];
+
+            if (p[i] < 0)
+            {
+                t0 = Math.Max(t0, r);
+            }
+            else
+            {
+                t1 = Math.Min(t1, r);
+            }
+        }
+
+        return t0 <= t1;
+    }
+
     public static List<T> InPolygon<T>(IReadOnlyList<(T Item, Pixel At)> candidates, IReadOnlyList<Pixel> polygon)
     {
         var hits = new List<T>();

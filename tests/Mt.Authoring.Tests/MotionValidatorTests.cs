@@ -140,6 +140,30 @@ public class MotionFixesTests
     }
 
     [Fact]
+    public void 길이_자리에_키_넣기는_곡선_위_값으로_키를_더하고_길이_밖_키는_지운다()
+    {
+        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        editor.SetDuration("nod", 0.8f);
+        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document));
+        Assert.Contains(MotionFix.KeyAtDuration, MotionFixes.Suggest(problem));
+
+        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.KeyAtDuration));
+
+        IReadOnlyList<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+        Assert.Equal(new[] { 0f, 0.3f, 0.6f, 0.8f }, keys.Select(k => (float)Math.Round(k.T, 4)));
+        Assert.Equal(0f, keys[3].V, 4); // 마지막 키 값이 이어진다
+        Assert.Empty(MotionValidator.Validate(editor.Document));
+        Assert.False(MotionFixes.Apply(editor, "nod", MotionFix.KeyAtDuration));
+
+        var shorter = new MotionEditor(Fixtures.NodBowDocument());
+        shorter.SetDuration("nod", 0.5f);
+        Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.KeyAtDuration));
+        keys = Y.Resolve(shorter.Document.Find("nod")!)!.Keys;
+        Assert.Equal(new[] { 0f, 0.3f, 0.5f }, keys.Select(k => (float)Math.Round(k.T, 4)));
+        Assert.Empty(MotionValidator.Validate(shorter.Document));
+    }
+
+    [Fact]
     public void 첫_키를_0초로_옮기면_겹치는_키는_사라진다()
     {
         var editor = new MotionEditor(Fixtures.NodBowDocument());

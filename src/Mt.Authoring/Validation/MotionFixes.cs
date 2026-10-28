@@ -31,6 +31,9 @@ public enum MotionFix
 
     /// <summary>이름을 규칙(소문자·숫자·_)에 맞게, 겹치지 않게 고친다. 빈 이름은 motion.</summary>
     NameToValid,
+
+    /// <summary>길이 자리에 키를 하나 넣는다(값은 곡선 위 — 마지막 키 값). 길이 밖의 키는 사라진다.</summary>
+    KeyAtDuration,
 }
 
 public static class MotionFixes
@@ -45,6 +48,7 @@ public static class MotionFixes
         MotionFix.ChannelsToRelative => "채널을 relative로",
         MotionFix.EndToCommit => "끝을 commit으로",
         MotionFix.NameToValid => "이름 고치기 (소문자·숫자·_)",
+        MotionFix.KeyAtDuration => "길이 자리에 키 넣기",
         _ => fix.ToString(),
     };
 
@@ -61,7 +65,7 @@ public static class MotionFixes
 
         if (m.Contains("마지막 키 시각이 길이와 다르다", StringComparison.Ordinal))
         {
-            return new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey };
+            return new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey, MotionFix.KeyAtDuration };
         }
 
         if (m.Contains("첫 키 시각이 0이 아니다", StringComparison.Ordinal))
@@ -217,6 +221,20 @@ public static class MotionFixes
                 first.T = 0f;
                 keys.RemoveAll(k => !ReferenceEquals(k, first) && Math.Abs(k.T) <= MotionRules.Tolerance);
                 return true;
+
+            case MotionFix.KeyAtDuration:
+            {
+                if (Math.Abs(last.T - motion.Duration) <= MotionRules.Tolerance)
+                {
+                    return false;
+                }
+
+                List<KeyAsset> withKey = KeyOps.WithKeyOnCurve(keys, motion.Duration);
+                withKey.RemoveAll(k => k.T > motion.Duration + MotionRules.Tolerance);
+                keys.Clear();
+                keys.AddRange(withKey.OrderBy(k => k.T));
+                return true;
+            }
 
             case MotionFix.EndKeysToDuration:
                 if (Math.Abs(last.T - motion.Duration) <= MotionRules.Tolerance)
