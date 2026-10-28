@@ -212,7 +212,6 @@ public sealed class MotionEditor
                 ScaleY = original.ScaleY,
                 Portrait = original.Portrait,
                 Visible = original.Visible,
-                Character = original.Character,
                 Place = original.Place,
                 PlaceFocus = original.PlaceFocus,
                 Parent = original.Parent is { } p && idMap.TryGetValue(p, out string? mapped) ? mapped : original.Parent,
@@ -436,19 +435,6 @@ public sealed class MotionEditor
                 o.Place = point;
                 o.PlaceFocus = focus;
             });
-        }
-    }
-
-    /// <summary>배역(characterKey) — focus 오프셋 표의 키. null이면 base 오프셋만.</summary>
-    public void SetObjectCharacter(string? sceneName, string id, string? character)
-    {
-        SceneAsset scene = RequireScene(sceneName);
-        SceneObject o = RequireObject(scene, id);
-        string? value = string.IsNullOrWhiteSpace(character) ? null : character.Trim();
-
-        if (o.Character != value)
-        {
-            Mutate(MotionChangeKind.Scene, () => o.Character = value);
         }
     }
 

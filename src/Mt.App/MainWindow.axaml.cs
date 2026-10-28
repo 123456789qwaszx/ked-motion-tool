@@ -123,8 +123,6 @@ public partial class MainWindow : Window
     private bool _dragging;
     private TreeViewItem? _dropItem;
     private object? _dropHeader;
-    private readonly ComboBox _objCharacter = new() { FontSize = 11, MinWidth = 90 };
-    private const string NoCharacterToken = "(배역 없음)";
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
     private static readonly IBrush PlacementNodeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
     private static readonly IBrush ForbiddenNodeBrush = new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70));
@@ -1849,7 +1847,6 @@ public partial class MainWindow : Window
         ToolTip.SetTip(_objId, "이름 바꾸기 — [a-z0-9_]+. 자식의 부모 참조도 따라간다");
         ToolTip.SetTip(_objParent, "부모 오브젝트 — 그 오브젝트의 노드 밑에 붙는다(유니티 자식). 자식은 부모의 레이어·깊이를 따른다");
         ToolTip.SetTip(_objParentNode, "부모 리그에서 붙는 노드. (루트)면 리그 루트");
-        ToolTip.SetTip(_objCharacter, "배역(characterKey) — presets/focus.json의 entries 키. 깊이 폴드의 focus 오프셋이 배역을 따른다(런타임 cast와 같은 뜻)");
         OnCommit(_objId, _ => RenameSelectedObject());
         _objParent.SelectionChanged += (_, _) =>
         {
@@ -1875,19 +1872,6 @@ public partial class MainWindow : Window
                 }
             }
         };
-        _objCharacter.SelectionChanged += (_, _) =>
-        {
-            if (!_refreshing && _viewport.SelectedObject is { } o && _objCharacter.SelectedItem is string chosen)
-            {
-                string? character = chosen == NoCharacterToken ? null : chosen;
-
-                if (character != o.Character)
-                {
-                    Guard("배역", () => _session.Editor.SetObjectCharacter(null, o.Id, character));
-                }
-            }
-        };
-
         _cameraExpander.Content = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -2180,18 +2164,7 @@ public partial class MainWindow : Window
             SceneAsset? scene = _viewport.Scene;
             bool has = selected is not null;
 
-            var characters = new List<string> { NoCharacterToken };
-            characters.AddRange(_session.Focus?.CharacterKeys ?? Enumerable.Empty<string>());
-
-            if (selected?.Character is { } own && !characters.Contains(own))
-            {
-                characters.Add(own);
-            }
-
-            _objCharacter.ItemsSource = characters;
-            _objCharacter.SelectedIndex = selected?.Character is { } ch ? characters.IndexOf(ch) : 0;
-
-            foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objVisible, _objId, _objParent, _objParentNode, _objCharacter })
+            foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objVisible, _objId, _objParent, _objParentNode })
             {
                 c.IsEnabled = has;
             }
@@ -3012,8 +2985,6 @@ public partial class MainWindow : Window
     internal void SetParentFromForm(string? parent) => _objParent.SelectedItem = parent ?? NoParentToken;
 
     internal void SetParentNodeFromForm(string? node) => _objParentNode.SelectedItem = node ?? RootNodeToken;
-
-    internal void SetCharacterFromForm(string? character) => _objCharacter.SelectedItem = character ?? NoCharacterToken;
 
     private void RenameSelectedObject()
     {

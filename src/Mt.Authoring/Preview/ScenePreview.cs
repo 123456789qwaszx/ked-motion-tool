@@ -19,7 +19,7 @@ public static class ScenePreview
 
     /// <param name="depth">presets/depth.json. 있으면 레이어 라벨을 깊이(DepthY·DepthScale)로 — 런타임 size 폴드와 같은 함수(focus 보존 bust, 캐릭터별 오프셋 없이).</param>
     /// <param name="fallenBack">부모 노드가 그 리그에 없어 부모 루트에 붙인 오브젝트들(알림용).</param>
-    /// <param name="focus">presets/focus.json. 있으면 배역(<see cref="SceneObject.Character"/>)별 focus 오프셋이 깊이·place 폴드에 들어간다.</param>
+    /// <param name="focus">presets/focus.json. 있으면 그 표의 focus 오프셋(base + bust, 배역 키 없이)이 깊이·place 폴드에 들어간다.</param>
     /// <param name="stage">
     /// 무대 뼈대(<c>PresentataionUIRoot</c>, rigKind "stage"). 있으면 <c>stage/</c> 접두사로 먼저 서고 최상위 오브젝트는
     /// <c>Stage{NN}Depth_{Layer}_Content</c> 밑에 붙으며, 카메라(zoom·pan)와 층 패럴랙스가 뼈대 노드에 들어간다. 없으면 루트 직속(좌표는 같다 — 뼈대는 항등).
@@ -104,7 +104,7 @@ public static class ScenePreview
             return false;
         }
 
-        if (!PlaceFocusStageReduction.TryReduce(state, o.Id, o.Character ?? "", o.PlaceFocus ?? SceneObject.DefaultPlaceFocus, o.Place, focus?.Body, out StageNodeClaim claim, out _))
+        if (!PlaceFocusStageReduction.TryReduce(state, o.Id, "", o.PlaceFocus ?? SceneObject.DefaultPlaceFocus, o.Place, focus?.Body, out StageNodeClaim claim, out _))
         {
             return false;
         }
@@ -162,7 +162,7 @@ public static class ScenePreview
             return false;
         }
 
-        if (!SetDepthStageReduction.TryReduce(state, o.Id, o.Character ?? "", o.Layer, "bust", depth.Level, focus?.Body, out StageNodeClaim depthY, out StageNodeClaim depthScale, out _))
+        if (!SetDepthStageReduction.TryReduce(state, o.Id, "", o.Layer, "bust", depth.Level, focus?.Body, out StageNodeClaim depthY, out StageNodeClaim depthScale, out _))
         {
             return false;
         }
@@ -212,7 +212,7 @@ public static class ScenePreview
                 {
                     Id = original.Id, Rig = original.Rig, Stage = parent?.Stage ?? original.Stage, Layer = parent?.Layer ?? original.Layer,
                     PositionX = original.PositionX, PositionY = original.PositionY, RotationZ = original.RotationZ, ScaleX = original.ScaleX, ScaleY = original.ScaleY,
-                    Visible = original.Visible, Character = original.Character, Place = original.Place, PlaceFocus = original.PlaceFocus,
+                    Visible = original.Visible, Place = original.Place, PlaceFocus = original.PlaceFocus,
                     Parent = parent?.Id, ParentNode = parent is null ? null : newParentNode,
                 }
                 : original);

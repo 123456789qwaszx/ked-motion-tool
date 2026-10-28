@@ -151,9 +151,6 @@ public sealed class SceneObject
     /// <summary>리그 덤프의 rigKind. 지금은 character만 만든다.</summary>
     public string Rig { get; set; } = DefaultRig;
 
-    /// <summary>배역(characterKey) — focus 오프셋 표(presets/focus.json)의 entries 키. null이면 base 오프셋만. 런타임 cast와 같은 뜻.</summary>
-    public string? Character { get; set; }
-
     /// <summary>부모 오브젝트 id. null이면 최상위. 자식은 부모의 stage·layer·깊이를 따른다.</summary>
     public string? Parent { get; set; }
 

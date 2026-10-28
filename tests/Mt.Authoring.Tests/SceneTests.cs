@@ -347,29 +347,6 @@ public class SceneTests
     }
 
     [Fact]
-    public void 배역이_있으면_focus_표의_오프셋이_깊이에_들어간다()
-    {
-        string focusPath = FocusTuningFile.TryFindBeside(Fixtures.PathOf("rig-schemas.json")) ?? throw new InvalidOperationException("presets/focus.json이 없다");
-        var focus = FocusTuningFile.Load(focusPath);
-        Assert.Equal(new[] { "bandi" }, focus.CharacterKeys);
-        var depth = DepthTuningFile.Load(DepthTuningFile.TryFindBeside(Fixtures.PathOf("rig-schemas.json"))!);
-
-        var editor = new MotionEditor(new MotionDocument());
-        editor.SetObjectCharacter(null, "s1", "bandi");
-        editor.SetObjectCharacter(null, "s1", " bandi "); // 같은 값(정리됨)은 조작이 아니다
-        SceneAsset scene = editor.Document.ActiveSceneAsset!;
-        Assert.Equal("bandi", scene.Find("s1")!.Character);
-
-        float plain = ScenePreview.Build(RigFile, scene, null, null, depth).GetState("s1/CharSlot_DepthY").AnchoredPosition.Y;
-        float withFocus = ScenePreview.Build(RigFile, scene, null, null, depth, null, focus).GetState("s1/CharSlot_DepthY").AnchoredPosition.Y;
-        Assert.NotEqual(plain, withFocus); // focus 점(bust 820 + 배역 오프셋)이 배율 중심과 떨어져 있으면 보존이 DepthY를 움직인다
-
-        string json = MotionDocumentJson.Write(editor.Document);
-        Assert.Contains("\"character\": \"bandi\"", json, StringComparison.Ordinal);
-        Assert.Equal("bandi", editor.DuplicateSceneObject(null, "s1").Character);
-    }
-
-    [Fact]
     public void 씬은_여럿일_수_있고_활성_씬이_문서에_남는다()
     {
         var editor = new MotionEditor(new MotionDocument());
@@ -410,7 +387,7 @@ public class SceneTests
         Assert.Contains("character", BuiltinTuning.RigSchemas.RigKinds);
         Assert.Equal(1920f, BuiltinTuning.BaseResolution.X);
         Assert.True(BuiltinTuning.Depth.TryResolveLayer("mid", out _, out _));
-        Assert.NotEmpty(BuiltinTuning.Focus.CharacterKeys); // 실제 표의 배역들(픽스처의 bandi와 다르다)
+        Assert.NotEmpty(BuiltinTuning.Focus.Body.entries); // 내장 focus 표 — 툴은 배역 없이 base + bust만 쓴다
         RigSchemaRigDto stage = BuiltinTuning.StageRig;
         Assert.Equal(85, stage.nodes.Count);
         Assert.All(stage.nodes, n => Assert.Equal(1f, n.localScale.x));
