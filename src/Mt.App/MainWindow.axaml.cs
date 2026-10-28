@@ -179,6 +179,7 @@ public partial class MainWindow : Window
 
     // 오른쪽 — 보기
     private readonly CheckBox _snap = new() { Content = "시간 스냅 1/60초", IsChecked = true, FontSize = 11 };
+    private readonly CheckBox _showRigNodes = new() { Content = "리그 노드 보기 (컨트롤러 대신 덤프 노드)", FontSize = 11 };
     private readonly TextBox _currentTime = new() { Text = "0", FontSize = 11, Width = 72 };
 
     private int _refreshDepth;
@@ -463,6 +464,7 @@ public partial class MainWindow : Window
             _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
             _timeDisplayCombo.SelectedIndex = (int)_settings.TimeDisplay;
             _playStep.SelectedIndex = _settings.PlayWholeFrames ? 1 : 0;
+            _showRigNodes.IsChecked = _settings.ShowRigNodes;
         }
         finally
         {
@@ -1397,6 +1399,7 @@ public partial class MainWindow : Window
     private void BindMotion(string? name)
     {
         _graph.Bind(_session.Editor, name);
+        _dope.Controllers = _session.ControllersOf(name is null ? null : _session.Editor.Document.Find(name)?.Rig);
         _dope.Bind(_session.Editor, name);
         _viewport.Bind(_session.Editor, name);
         _timeSlider.Bind(_session.Editor, name);
@@ -1447,6 +1450,7 @@ public partial class MainWindow : Window
             }
         }
 
+        _dope.Controllers = _session.ControllersOf(_graph.Motion?.Rig);
         RefreshChannelBox();
         RefreshObjects();
         _stageInfo.Text = $"무대 {_session.StageSize.X:0}×{_session.StageSize.Y:0}"
@@ -1498,9 +1502,14 @@ public partial class MainWindow : Window
         // 더블클릭은 노드 선택과 같다(채널 박스가 그 노드를 보인다). "채널 추가"는 없다.
         _hierarchy.DoubleTapped += (_, _) =>
         {
-            if (_hierarchy.SelectedItem is TreeViewItem { Tag: HierarchyNode node })
+            switch (_hierarchy.SelectedItem)
             {
-                SelectNodeInHierarchy(node);
+                case TreeViewItem { Tag: HierarchyNode node }:
+                    SelectNodeInHierarchy(node);
+                    break;
+                case TreeViewItem { Tag: HierarchyController controller }:
+                    SelectControllerInHierarchy(controller);
+                    break;
             }
         };
         _hierarchy.ContextMenu = _hierarchyMenu;
@@ -1524,7 +1533,7 @@ public partial class MainWindow : Window
                 SmallButton("초상 PNG…", OnPickPortraitClick),
             },
         });
-        ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 리그 노드(덤프의 부모–자식 그대로) › 자식 오브젝트. 클릭 = 선택, 노드 클릭 = 채널 박스·매니퓰레이터의 노드(값을 넣거나 끌면 그 노드에 키가 생긴다). 우클릭 = 만들기/복제/삭제/레이어/부모 메뉴(오브젝트나 노드 위에서 만들면 그 자식). 끌어서 다른 오브젝트·노드에 놓으면 자식으로, 레이어에 놓으면 그 레이어로. Del · Ctrl+D · Ctrl+Shift+N · F2");
+        ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 자리/깊이/연기 › 컨트롤러 › 자식 오브젝트. 클릭 = 선택, 컨트롤러 클릭 = 채널 박스·매니퓰레이터의 손잡이(값을 넣거나 끌면 그 노드에 키가 생긴다). 우클릭 = 만들기/복제/삭제/레이어/부모 메뉴(오브젝트나 컨트롤러 위에서 만들면 그 자식). 끌어서 다른 오브젝트·컨트롤러에 놓으면 자식으로, 레이어에 놓으면 그 레이어로. '리그 노드 보기'(보기 설정)면 덤프 노드 26단. Del · Ctrl+D · Ctrl+Shift+N · F2");
 
         LeftPanel.Children.Add(Header("모션"));
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
@@ -1834,6 +1843,19 @@ public partial class MainWindow : Window
         RefreshToolButtons();
 
         RightPanel.Children.Add(Header("보기"));
+        _showRigNodes.IsCheckedChanged += (_, _) =>
+        {
+            if (_refreshing)
+            {
+                return;
+            }
+
+            _settings.ShowRigNodes = _showRigNodes.IsChecked == true;
+            RebuildHierarchy();
+            PushSettingsToViews();
+        };
+        ToolTip.SetTip(_showRigNodes, "하이어아키의 오브젝트 밑에 컨트롤러(자리·깊이·연기) 대신 덤프의 리그 노드 26단을 보인다 — 리거용. 표가 없는 리그는 늘 노드다");
+        RightPanel.Children.Add(_showRigNodes);
         _snap.IsCheckedChanged += (_, _) =>
         {
             if (_refreshing)
@@ -2027,6 +2049,12 @@ public partial class MainWindow : Window
     /// <summary>폴더 항목의 꼬리표 — Scene(둘 다 null) · stage · layer(Content). 만들기·드롭의 자리가 된다.</summary>
     private sealed record HierarchyFolder(string? Stage, string? Layer);
 
+    /// <summary>오브젝트 밑의 컨트롤러 항목(기본 보기) — 표의 컨트롤러 하나. 고르면 그 주 노드가 채널 박스·매니퓰레이터의 노드.</summary>
+    private sealed record HierarchyController(string ObjectId, string ControllerId);
+
+    /// <summary>컨트롤러 묶음 폴더(자리·깊이·연기) — 보기만. 만들기·드롭은 그 오브젝트의 자식.</summary>
+    private sealed record HierarchyControllerGroup(string ObjectId, string GroupId);
+
     /// <summary>무대 뼈대의 다른 노드(Shot/Pan/Zoom/Mask/Framing…) — 보기만, 자리가 아니다.</summary>
     private sealed record SkeletonNode(string NodeId);
 
@@ -2038,7 +2066,7 @@ public partial class MainWindow : Window
     private void RebuildHierarchy()
     {
         SceneAsset? scene = _viewport.Scene;
-        bool nodeWasSelected = _hierarchy.SelectedItem is TreeViewItem { Tag: HierarchyNode { NodeId: not null } };
+        bool nodeWasSelected = _hierarchy.SelectedItem is TreeViewItem { Tag: HierarchyNode { NodeId: not null } or HierarchyController };
         _hierarchy.Items.Clear();
         _hierarchyParents.Clear();
 
@@ -2139,8 +2167,46 @@ public partial class MainWindow : Window
         Attach(objectItem, parentItem);
 
         var itemsByNode = new Dictionary<string, TreeViewItem>(StringComparer.Ordinal);
+        ControllerRig? table = _settings.ShowRigNodes ? null : _session.ControllersOf(o.Rig);
 
-        if (_session.Rig is { } rig && rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
+        if (table is not null)
+        {
+            // 기본 보기: 자리 › 깊이 › 연기 폴더, 그 안이 컨트롤러(리거의 표). 자식 오브젝트는 붙은 노드를 맡은 컨트롤러 밑에.
+            Controller? selectedController = nodeWasSelected && o.Id == _viewport.SelectedObjectId && _viewport.SelectedNode is { } selectedNode ? table.OfNode(selectedNode) : null;
+
+            foreach (ControllerGroup group in table.Groups)
+            {
+                TreeViewItem groupItem = Folder($"{group.Label}  ·  {MotionModeToken.Of(group.Mode)}", $"group:{o.Id}/{group.Id}");
+                groupItem.Tag = new HierarchyControllerGroup(o.Id, group.Id);
+                groupItem.FontWeight = FontWeight.Normal;
+                groupItem.Opacity = 0.8;
+                ToolTip.SetTip(groupItem, group.Note ?? group.Label);
+                Attach(groupItem, objectItem);
+
+                foreach (Controller c in table.InGroup(group))
+                {
+                    string axes = string.Concat(c.Axes.Select(a => a.ToString()));
+                    TreeViewItem item = Folder($"{c.Label}  ·  {ChannelKindLabel.Of(c.Kind)} {axes}", $"controller:{o.Id}/{c.Id}");
+                    item.Tag = new HierarchyController(o.Id, c.Id);
+                    item.FontWeight = FontWeight.Normal;
+                    item.Foreground = group.Mode == MotionChannelMode.Absolute ? PlacementNodeBrush : ActingNodeBrush;
+                    ToolTip.SetTip(item, $"{c.Node}  ·  {c.Unit}" + (c.Aliases.Count > 0 ? "\n별칭: " + string.Join(", ", c.Aliases.Select(a => $"{a.Node} {a.Axis}")) : "") + (c.Note is null ? "" : "\n" + c.Note));
+                    Attach(item, groupItem);
+                    itemsByNode.TryAdd(c.Node, item);
+
+                    foreach (ControllerAlias alias in c.Aliases)
+                    {
+                        itemsByNode.TryAdd(alias.Node, item);
+                    }
+
+                    if (ReferenceEquals(c, selectedController))
+                    {
+                        selectedItem = item;
+                    }
+                }
+            }
+        }
+        else if (_session.Rig is { } rig && rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
         {
             foreach (RigSchemaNodeDto node in dto.nodes)
             {
@@ -2210,7 +2276,7 @@ public partial class MainWindow : Window
     /// <summary>오브젝트의 노드 항목을 전부 펼치거나 접는다(유니티 Alt+클릭).</summary>
     private void ExpandObjectNodes(string objectId, bool expand)
     {
-        foreach (TreeViewItem item in _hierarchyParents.Keys.Where(i => i.Tag is HierarchyNode n && n.ObjectId == objectId).ToList())
+        foreach (TreeViewItem item in _hierarchyParents.Keys.Where(i => ObjectIdOf(i.Tag) == objectId).ToList())
         {
             item.IsExpanded = expand;
         }
@@ -2230,7 +2296,7 @@ public partial class MainWindow : Window
         {
             _menuTarget = item?.Tag;
 
-            if (item?.Tag is HierarchyNode)
+            if (item?.Tag is HierarchyNode or HierarchyController)
             {
                 _hierarchy.SelectedItem = item;
             }
@@ -2271,7 +2337,7 @@ public partial class MainWindow : Window
     /// <summary>드래그 중 놓을 자리 표시 — 그 항목의 헤더 앞에 ⇥. 자기 자신·camera 줄은 자리가 아니다.</summary>
     private void ShowDropTarget(TreeViewItem? item)
     {
-        if (item is not null && (item.Tag is null || item.Tag is HierarchyNode n && n.ObjectId == _dragObjectId))
+        if (item is not null && (item.Tag is null || ObjectIdOf(item.Tag) == _dragObjectId))
         {
             item = null;
         }
@@ -2358,6 +2424,15 @@ public partial class MainWindow : Window
             case HierarchyNode node when node.ObjectId != objectId:
                 _session.Editor.SetObjectParent(null, objectId, node.ObjectId, node.NodeId, null, _viewport.PlacementKeepingWorld(objectId, node.ObjectId, node.NodeId));
                 break;
+            case HierarchyController controller when controller.ObjectId != objectId:
+            {
+                string? at = ControllerOf(controller)?.Node;
+                _session.Editor.SetObjectParent(null, objectId, controller.ObjectId, at, null, _viewport.PlacementKeepingWorld(objectId, controller.ObjectId, at));
+                break;
+            }
+            case HierarchyControllerGroup group when group.ObjectId != objectId:
+                _session.Editor.SetObjectParent(null, objectId, group.ObjectId, null, null, _viewport.PlacementKeepingWorld(objectId, group.ObjectId, null));
+                break;
             case HierarchyFolder folder:
                 _session.Editor.SetObjectParent(null, objectId, null, null, folder.Layer, _viewport.PlacementKeepingWorld(objectId, null, null), folder.Stage);
                 break;
@@ -2397,7 +2472,7 @@ public partial class MainWindow : Window
         _hierarchyMenu.Items.Clear();
         SceneAsset? scene = _viewport.Scene;
         object? target = _menuTarget;
-        SceneObject? o = target is HierarchyNode n && scene is not null ? scene.Find(n.ObjectId) : null;
+        SceneObject? o = ObjectIdOf(target) is { } targetId && scene is not null ? scene.Find(targetId) : null;
 
         MenuItem Item(string header, Action action, KeyGesture? gesture = null, bool enabled = true)
         {
@@ -2441,6 +2516,8 @@ public partial class MainWindow : Window
         string where = target switch
         {
             HierarchyNode at => $" — {at.ObjectId}{(at.NodeId is null ? "" : "/" + at.NodeId)}의 자식으로",
+            HierarchyController at => $" — {at.ObjectId}/{ControllerOf(at)?.Label ?? at.ControllerId}의 자식으로",
+            HierarchyControllerGroup at => $" — {at.ObjectId}의 자식으로",
             HierarchyFolder { Stage: { } fs, Layer: { } fl } => $" — {StageNodes.ContentOf(fs, fl)}에",
             HierarchyFolder { Stage: { } fs } => $" — {StageNodes.StageName(fs)} Mid에",
             _ => "",
@@ -2488,6 +2565,13 @@ public partial class MainWindow : Window
                 parent = node.ObjectId;
                 parentNode = node.NodeId;
                 break;
+            case HierarchyController controller:
+                parent = controller.ObjectId;
+                parentNode = ControllerOf(controller)?.Node;
+                break;
+            case HierarchyControllerGroup group:
+                parent = group.ObjectId;
+                break;
             case HierarchyFolder { Stage: { } fs, Layer: { } l }:
                 stage = fs;
                 layer = l;
@@ -2507,18 +2591,80 @@ public partial class MainWindow : Window
 
     private void OnHierarchySelected()
     {
-        if (_refreshing || _hierarchy.SelectedItem is not TreeViewItem { Tag: HierarchyNode node })
+        if (_refreshing)
         {
             return;
         }
 
-        if (node.NodeId is null)
+        switch (_hierarchy.SelectedItem)
         {
-            _viewport.SelectedObjectId = node.ObjectId;
+            case TreeViewItem { Tag: HierarchyNode { NodeId: null } node }:
+                _viewport.SelectedObjectId = node.ObjectId;
+                break;
+            case TreeViewItem { Tag: HierarchyNode node }:
+                SelectNodeInHierarchy(node);
+                break;
+            case TreeViewItem { Tag: HierarchyController controller }:
+                SelectControllerInHierarchy(controller);
+                break;
+            case TreeViewItem { Tag: HierarchyControllerGroup group }:
+                _viewport.SelectedObjectId = group.ObjectId;
+                break;
+        }
+    }
+
+    /// <summary>항목 꼬리표가 가리키는 오브젝트 — 오브젝트·노드·컨트롤러·묶음. 폴더·뼈대는 null.</summary>
+    private static string? ObjectIdOf(object? tag) => tag switch
+    {
+        HierarchyNode n => n.ObjectId,
+        HierarchyController c => c.ObjectId,
+        HierarchyControllerGroup g => g.ObjectId,
+        _ => null,
+    };
+
+    private Controller? ControllerOf(HierarchyController tag)
+        => _session.ControllersOf(_viewport.Scene?.Find(tag.ObjectId)?.Rig)?.Find(tag.ControllerId);
+
+    /// <summary>
+    /// 컨트롤러 항목: 그 오브젝트를 고르고, 채널 박스·매니퓰레이터의 노드를 컨트롤러의 노드로(모션에 별칭 노드의 채널만 있으면 그 노드).
+    /// 매니퓰레이터가 선택(Q)이 아니면 컨트롤러 종류의 것(이동·회전·배율)으로 바꾼다.
+    /// </summary>
+    private void SelectControllerInHierarchy(HierarchyController tag)
+    {
+        if (ControllerOf(tag) is not { } c)
+        {
+            _viewport.SelectedObjectId = tag.ObjectId;
             return;
         }
 
-        SelectNodeInHierarchy(node);
+        _viewport.SelectedObjectId = tag.ObjectId;
+        _followSelection.IsChecked = false;
+        _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, c);
+
+        if (_viewport.Manipulator != ManipulatorMode.Select)
+        {
+            _viewport.Manipulator = c.Kind switch
+            {
+                MotionChannelKind.Euler => ManipulatorMode.Rotate,
+                MotionChannelKind.Scale => ManipulatorMode.Scale,
+                _ => ManipulatorMode.Move,
+            };
+            RefreshManipulatorButtons();
+        }
+
+        _viewport.InvalidateVisual();
+        RefreshChannelBox();
+    }
+
+    /// <summary>컨트롤러의 노드 — 모션이 주 노드에 채널이 없고 별칭 노드에만 있으면 그 별칭 노드(옛 견본의 Track_Move_Y).</summary>
+    private static string ControllerNodeFor(MotionAsset? motion, Controller c)
+    {
+        if (motion is null || motion.FindChannel(c.Node, c.Kind) is not null)
+        {
+            return c.Node;
+        }
+
+        return c.Aliases.FirstOrDefault(a => motion.FindChannel(a.Node, c.Kind) is not null)?.Node ?? c.Node;
     }
 
     /// <summary>노드 항목: 그 오브젝트를 고르고, 채널 박스·매니퓰레이터의 노드를 그 노드로. 키 따라가기는 끈다(사용자가 직접 골랐다).</summary>
@@ -2547,6 +2693,30 @@ public partial class MainWindow : Window
     }
 
     internal int HierarchyObjectCount => _viewport.SceneObjects.Count;
+
+    /// <summary>테스트 손잡이 — 하이어아키에서 컨트롤러 항목을 고른 것과 같다.</summary>
+    internal void SelectControllerInHierarchy(string objectId, string controllerId)
+        => SelectControllerInHierarchy(new HierarchyController(objectId, controllerId));
+
+    /// <summary>테스트 손잡이 — "리그 노드 보기" 설정.</summary>
+    internal bool ShowRigNodes
+    {
+        get => _settings.ShowRigNodes;
+        set
+        {
+            _settings.ShowRigNodes = value;
+            ApplySettings();
+            RebuildHierarchy();
+        }
+    }
+
+    /// <summary>테스트 손잡이 — 컨트롤러 항목 위에서 "만들기".</summary>
+    internal string CreateObjectAtController(string rig, string objectId, string controllerId)
+        => CreateObject(rig, new HierarchyController(objectId, controllerId));
+
+    /// <summary>테스트 손잡이 — 컨트롤러 항목의 경로(Scene부터 헤더 순). 없으면 빈 목록.</summary>
+    internal IReadOnlyList<string> HierarchyPathOfController(string objectId, string controllerId)
+        => PathOf(_hierarchyParents.Keys.FirstOrDefault(i => i.Tag is HierarchyController c && c.ObjectId == objectId && c.ControllerId == controllerId));
 
     private void CommitCamera()
     {
@@ -2664,8 +2834,10 @@ public partial class MainWindow : Window
 
     /// <summary>테스트 손잡이 — 하이어아키 항목의 경로(Scene부터 헤더 순). 없으면 빈 목록.</summary>
     internal IReadOnlyList<string> HierarchyPathOf(string objectId, string? nodeId)
+        => PathOf(_hierarchyParents.Keys.FirstOrDefault(i => i.Tag is HierarchyNode n && n.ObjectId == objectId && n.NodeId == nodeId));
+
+    private IReadOnlyList<string> PathOf(TreeViewItem? item)
     {
-        TreeViewItem? item = _hierarchyParents.Keys.FirstOrDefault(i => i.Tag is HierarchyNode n && n.ObjectId == objectId && n.NodeId == nodeId);
         var path = new List<string>();
 
         for (TreeViewItem? up = item; up is not null; up = _hierarchyParents.GetValueOrDefault(up))
@@ -2791,13 +2963,16 @@ public partial class MainWindow : Window
 
         MotionAsset current = motion;
         string query = (_outlinerSearch.Text ?? "").Trim();
+        ControllerRig? outlinerControllers = _session.ControllersOf(motion.Rig);
 
         foreach (ChannelAsset channel in current.Channels)
         {
             string node = channel.Node;
             MotionChannelKind kind = channel.Kind;
 
-            if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !ChannelKindLabel.Of(kind).Contains(query, StringComparison.OrdinalIgnoreCase))
+            string nodeLabel = DopeSheetRows.NodeLabel(node, outlinerControllers);
+
+            if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !nodeLabel.Contains(query, StringComparison.OrdinalIgnoreCase) && !ChannelKindLabel.Of(kind).Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -2834,7 +3009,7 @@ public partial class MainWindow : Window
 
             var title = new TextBlock
             {
-                Text = $"{node} · {ChannelKindLabel.Of(kind)}",
+                Text = $"{nodeLabel} · {ChannelKindLabel.Of(kind)}",
                 FontSize = 11,
                 FontWeight = FontWeight.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,

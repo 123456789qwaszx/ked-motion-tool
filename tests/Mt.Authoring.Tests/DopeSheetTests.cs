@@ -2,6 +2,7 @@ using Ked.Presentation.Core;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
+using Mt.Authoring.Rig;
 
 namespace Mt.Authoring.Tests;
 
@@ -175,6 +176,18 @@ public class DopeSheetRowsTests
         List<DopeRow> open = DopeSheetRows.Build(document.Find("nod")!);
         Assert.Equal(3, open.Count);
         Assert.False(open[2].Covers(new KeyRef(new CurveRef(y.Node, y.Kind, Axis.X), 0)));
+    }
+
+    [Fact]
+    public void 컨트롤러_표가_있으면_노드_행은_묶음_컨트롤러_라벨이고_별칭_노드는_성분까지다()
+    {
+        ControllerRig rig = BuiltinTuning.Controllers.Rig("character")!;
+        MotionDocument document = Fixtures.NodBowDocument();
+
+        Assert.Equal("연기 · 숙임", DopeSheetRows.Build(document.Find("bow")!, null, rig)[0].Label);
+        Assert.Equal("연기 · 몸 Y", DopeSheetRows.Build(document.Find("nod")!, null, rig)[0].Label); // 견본 nod는 별칭 노드 Track_Move_Y
+        Assert.Equal("CharacterPortrait_SwayPivot", DopeSheetRows.Build(document.Find("bow")!)[0].Label); // 표 없이는 노드 이름
+        Assert.Equal("Other", DopeSheetRows.NodeLabel("Other", rig));
     }
 
     [Fact]

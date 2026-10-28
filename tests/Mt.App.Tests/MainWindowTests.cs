@@ -610,6 +610,58 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 하이어아키_기본은_오브젝트_밑에_자리_깊이_연기_컨트롤러이고_고르면_그_노드가_손잡이다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                Assert.False(window.ShowRigNodes);
+
+                // 오브젝트 › 묶음(라벨 · mode) › 컨트롤러(라벨 · 종류 성분). 노드 항목은 없다.
+                IReadOnlyList<string> body = window.HierarchyPathOfController("s1", "body");
+                Assert.Equal(new[] { "s1  ·  character", "연기  ·  relative", "몸  ·  move XY" }, body.TakeLast(3));
+                Assert.Equal("자리  ·  absolute", window.HierarchyPathOfController("s1", "place")[^2]);
+                Assert.Equal("깊이  ·  absolute", window.HierarchyPathOfController("s1", "depth")[^2]);
+                Assert.Equal("숙임  ·  rotate Z", window.HierarchyPathOfController("s1", "bow")[^1]);
+                Assert.Empty(window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move"));
+
+                // 컨트롤러를 고르면 그 오브젝트 + 주 노드 + 종류의 매니퓰레이터(선택(Q)이면 그대로).
+                window.Viewport.Manipulator = ManipulatorMode.Move;
+                window.SelectControllerInHierarchy("s1", "bow");
+                Assert.Equal("s1", window.Viewport.SelectedObjectId);
+                Assert.Equal("CharacterPortrait_SwayPivot", window.Viewport.SelectedNode);
+                Assert.Equal(ManipulatorMode.Rotate, window.Manipulator);
+                window.Viewport.Manipulator = ManipulatorMode.Select;
+                window.SelectControllerInHierarchy("s1", "squash");
+                Assert.Equal(ManipulatorMode.Select, window.Manipulator);
+                Assert.Equal("CharacterPortrait_ActingScale", window.Viewport.SelectedNode);
+
+                // 컨트롤러 위에서 만들기 = 그 주 노드의 자식. 트리에서는 컨트롤러 밑에 보인다.
+                string s2 = window.CreateObjectAtController("character", "s1", "body");
+                Assert.Equal(s2, window.Viewport.SelectedObjectId);
+                Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedObject!.ParentNode);
+                Assert.Equal("몸  ·  move XY", window.HierarchyPathOf(s2, null)[^2]);
+
+                // "리그 노드 보기"면 덤프 노드 26단이고 자식은 붙은 노드 밑. 끄면 다시 컨트롤러.
+                window.ShowRigNodes = true;
+                Assert.Empty(window.HierarchyPathOfController("s1", "body"));
+                Assert.Equal("CharacterPortrait_Track_Move", window.HierarchyPathOf(s2, null)[^2]);
+                window.ShowRigNodes = false;
+                Assert.Equal("몸  ·  move XY", window.HierarchyPathOf(s2, null)[^2]);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 하이어아키는_덤프의_부모자식_계층_그대로이고_메뉴로_자식을_만들며_이름바꾸기_복제가_된다()
     {
         HeadlessUi.Run(() =>
@@ -620,6 +672,7 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.ShowRigNodes = true; // 기본은 컨트롤러 보기 — 이 테스트는 리거의 노드 보기
 
                 // 리그 노드는 연기/배치 폴더가 아니라 덤프의 parent 사슬이다. 오브젝트 항목이 곧 __root.
                 IReadOnlyList<string> path = window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move_Y");

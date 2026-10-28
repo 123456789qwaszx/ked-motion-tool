@@ -37,6 +37,9 @@ public sealed class ToolSettings
     /// <summary>1프레임 단위 재생(마야 Real-time 24fps 표시). 꺼지면 연속.</summary>
     public bool PlayWholeFrames { get; set; }
 
+    /// <summary>하이어아키에 컨트롤러(자리·깊이·연기) 대신 덤프의 리그 노드 26단을 보인다. 리거용 — 기본은 끔.</summary>
+    public bool ShowRigNodes { get; set; }
+
     /// <summary>시간 표시 — 마야처럼 프레임이 기본.</summary>
     public Graph.TimeDisplay TimeDisplay { get; set; } = Graph.TimeDisplay.Frames;
 

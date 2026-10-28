@@ -1,5 +1,6 @@
 using Ked.Presentation.Core;
 using Mt.Authoring.Model;
+using Mt.Authoring.Rig;
 
 namespace Mt.Authoring.Graph;
 
@@ -40,7 +41,8 @@ public sealed record DopeRow(
 /// </summary>
 public static class DopeSheetRows
 {
-    public static List<DopeRow> Build(MotionAsset motion, Func<string, bool>? isCollapsed = null)
+    /// <param name="controllers">컨트롤러 표 — 있으면 노드 행의 라벨이 "연기 · 몸"(별칭 노드는 "연기 · 몸 Y")이다. 없으면 노드 이름.</param>
+    public static List<DopeRow> Build(MotionAsset motion, Func<string, bool>? isCollapsed = null, ControllerRig? controllers = null)
     {
         ArgumentNullException.ThrowIfNull(motion);
 
@@ -84,7 +86,7 @@ public static class DopeSheetRows
                 channelRows.AddRange(componentRows);
             }
 
-            rows.Add(new DopeRow(DopeRowLevel.Node, node.Key, null, null, node.Key, Group(motion, nodeKeys), null));
+            rows.Add(new DopeRow(DopeRowLevel.Node, node.Key, null, null, NodeLabel(node.Key, controllers), Group(motion, nodeKeys), null));
 
             if (isCollapsed is null || !isCollapsed(node.Key))
             {
@@ -93,6 +95,23 @@ public static class DopeSheetRows
         }
 
         return rows;
+    }
+
+    /// <summary>노드 행의 글자 — 표가 있으면 "묶음 · 컨트롤러", 별칭 노드(한 성분만 맡는 노드)는 그 성분까지. 표에 없으면 노드 이름.</summary>
+    public static string NodeLabel(string node, ControllerRig? controllers)
+    {
+        if (controllers?.OfNode(node) is not { } c)
+        {
+            return node;
+        }
+
+        if (c.Node == node)
+        {
+            return $"{c.Group.Label} · {c.Label}";
+        }
+
+        Axis axis = c.Aliases.First(a => a.Node == node).Axis;
+        return $"{c.Group.Label} · {c.AttributeLabel(axis)}";
     }
 
     private static List<DopeBlock> Group(MotionAsset motion, List<KeyRef> keys)
