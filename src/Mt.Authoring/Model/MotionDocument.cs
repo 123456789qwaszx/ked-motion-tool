@@ -21,9 +21,34 @@ public sealed class MotionDocument
     /// <summary>기준 해상도 덤프(<c>base-resolution.json</c>)의 경로. 뷰포트가 쓴다. v1에서는 없어도 된다.</summary>
     public FileReference? BaseResolution { get; set; }
 
+    /// <summary>예전 판의 미리보기 초상. 읽을 때 기본 씬의 c1로 옮긴다 — 새 문서는 쓰지 않는다.</summary>
     public PreviewSettings? Preview { get; set; }
 
     public List<MotionAsset> Motions { get; set; } = new();
+
+    /// <summary>미리보기 씬들(<c>PLAN-scene.md</c>). 내보내지 않는다. 비어 있으면 <see cref="EnsureDefaultScene"/>가 기본 씬을 둔다.</summary>
+    public List<SceneAsset> Scenes { get; set; } = new();
+
+    /// <summary>뷰포트가 보여 주는 씬 이름. 없으면 첫 씬.</summary>
+    public string? ActiveScene { get; set; }
+
+    public SceneAsset? FindScene(string? name)
+        => name is null ? null : Scenes.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal));
+
+    /// <summary>보여 줄 씬 — ActiveScene, 없으면 첫 씬, 그것도 없으면 null.</summary>
+    public SceneAsset? ActiveSceneAsset => FindScene(ActiveScene) ?? Scenes.FirstOrDefault();
+
+    /// <summary>씬이 없으면 캐릭터 하나짜리 기본 씬을 둔다(예전 Preview.Portrait는 c1의 초상이 된다). 있으면 아무것도 안 한다.</summary>
+    public void EnsureDefaultScene()
+    {
+        if (Scenes.Count == 0)
+        {
+            Scenes.Add(SceneAsset.Default(Preview?.Portrait));
+            Preview = null;
+        }
+
+        ActiveScene ??= Scenes[0].Name;
+    }
 
     public MotionAsset? Find(string name)
         => Motions.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.Ordinal));

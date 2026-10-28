@@ -263,6 +263,45 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 씬에_오브젝트를_더하고_채널_박스로_배치하면_되돌리기_한_번이다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                Assert.Single(window.Viewport.SceneObjects); // 기본 씬 c1
+
+                window.AddObjectFromForm("c2", "character", "front");
+                Assert.Equal(2, window.Viewport.SceneObjects.Count);
+                Assert.Equal("c2", window.Viewport.SelectedObjectId);
+
+                long before = window.Session.Editor.Revision;
+                window.CommitObjectPlacementFromForm(120f, -30f, 5f, 1.2f, 1f);
+                Assert.Equal(before + 1, window.Session.Editor.Revision);
+                Mt.Authoring.Model.SceneObject c2 = window.Viewport.SelectedObject!;
+                Assert.Equal(120f, c2.PositionX);
+                Assert.Equal(-30f, c2.PositionY);
+                Assert.Equal(5f, c2.RotationZ);
+                Assert.Equal(1.2f, c2.ScaleX);
+
+                window.Session.Editor.Undo();
+                Assert.Equal(0f, window.Viewport.SelectedObject!.PositionX);
+
+                Assert.Throws<InvalidOperationException>(() => window.AddObjectFromForm("c2", "character", "mid")); // 겹치는 id
+                Assert.Throws<InvalidOperationException>(() => window.AddObjectFromForm("C3", "character", "mid")); // 규칙 밖
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 이름을_비우고_모션을_추가하면_motion이_되고_규칙_밖_이름은_상태줄에_남는다()
     {
         HeadlessUi.Run(() =>

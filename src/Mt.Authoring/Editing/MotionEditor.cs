@@ -26,6 +26,7 @@ public sealed class MotionEditor
     public MotionEditor(MotionDocument document)
     {
         Document = document ?? throw new ArgumentNullException(nameof(document));
+        Document.EnsureDefaultScene();
     }
 
     public MotionDocument Document { get; private set; }
@@ -48,8 +49,125 @@ public sealed class MotionEditor
     public void SetBaseResolution(string? path)
         => Mutate(MotionChangeKind.Document, () => Document.BaseResolution = path is null ? null : new FileReference { Path = path });
 
+    /// <summary>호환용 — 활성 씬의 선택 오브젝트가 없으니 첫 오브젝트(c1)의 초상으로 둔다.</summary>
     public void SetPreviewPortrait(string? path)
-        => Mutate(MotionChangeKind.Document, () => Document.Preview = path is null ? null : new PreviewSettings { Portrait = path });
+    {
+        SceneAsset scene = RequireScene(null);
+        SceneObject? first = scene.Objects.FirstOrDefault();
+
+        if (first is null)
+        {
+            return;
+        }
+
+        SetObjectPortrait(scene.Name, first.Id, path);
+    }
+
+    // ── 씬 ────────────────────────────────────────────────────────────
+
+    private SceneAsset RequireScene(string? name)
+    {
+        Document.EnsureDefaultScene();
+        return (name is null ? Document.ActiveSceneAsset : Document.FindScene(name))
+            ?? throw new KeyNotFoundException($"씬 '{name}'이 없다.");
+    }
+
+    private static SceneObject RequireObject(SceneAsset scene, string id)
+        => scene.Find(id) ?? throw new KeyNotFoundException($"씬 '{scene.Name}'에 오브젝트 '{id}'가 없다.");
+
+    /// <summary>오브젝트(리그 인스턴스)를 더한다. id는 [a-z0-9_]+이고 씬 안에서 하나뿐이어야 한다.</summary>
+    public SceneObject AddSceneObject(string? sceneName, string id, string rig, string layer = SceneLayers.Mid)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(rig);
+        SceneAsset scene = RequireScene(sceneName);
+
+        if (!MotionNames.IsValid(id))
+        {
+            throw new InvalidOperationException($"오브젝트 id는 영문 소문자·숫자·_ 만 쓸 수 있다 ('{id}')");
+        }
+
+        if (scene.Find(id) is not null)
+        {
+            throw new InvalidOperationException($"오브젝트 '{id}'가 이미 있다.");
+        }
+
+        if (!SceneLayers.IsKnown(layer))
+        {
+            throw new InvalidOperationException($"레이어는 {string.Join("·", SceneLayers.Order)} 중 하나다 ('{layer}')");
+        }
+
+        var o = new SceneObject { Id = id, Rig = rig, Layer = layer };
+        Mutate(MotionChangeKind.Scene, () => scene.Objects.Add(o));
+        return o;
+    }
+
+    public void RemoveSceneObject(string? sceneName, string id)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+        Mutate(MotionChangeKind.Scene, () => scene.Objects.Remove(o));
+    }
+
+    /// <summary>배치(위치·회전·배율) — 마야 채널 박스의 Translate/Rotate/Scale. 모션 키가 아니다.</summary>
+    public void SetObjectPlacement(string? sceneName, string id, float x, float y, float rotationZ, float scaleX, float scaleY)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+
+        if (o.PositionX == x && o.PositionY == y && o.RotationZ == rotationZ && o.ScaleX == scaleX && o.ScaleY == scaleY)
+        {
+            return;
+        }
+
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            o.PositionX = x;
+            o.PositionY = y;
+            o.RotationZ = rotationZ;
+            o.ScaleX = scaleX;
+            o.ScaleY = scaleY;
+        });
+    }
+
+    public void SetObjectLayer(string? sceneName, string id, string layer)
+    {
+        if (!SceneLayers.IsKnown(layer))
+        {
+            throw new InvalidOperationException($"레이어는 {string.Join("·", SceneLayers.Order)} 중 하나다 ('{layer}')");
+        }
+
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+
+        if (o.Layer != layer)
+        {
+            Mutate(MotionChangeKind.Scene, () => o.Layer = layer);
+        }
+    }
+
+    public void SetObjectVisible(string? sceneName, string id, bool visible)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+
+        if (o.Visible != visible)
+        {
+            Mutate(MotionChangeKind.Scene, () => o.Visible = visible);
+        }
+    }
+
+    /// <summary>미리보기 초상(문서 기준 상대 경로). null이면 자리표시.</summary>
+    public void SetObjectPortrait(string? sceneName, string id, string? path)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+
+        if (o.Portrait != path)
+        {
+            Mutate(MotionChangeKind.Scene, () => o.Portrait = path);
+        }
+    }
 
     // ── 모션 ──────────────────────────────────────────────────────────
 
@@ -781,6 +899,9 @@ public enum MotionChangeKind
 
     /// <summary>이름·길이·end·mode·메모. 목록은 그대로, 글자만 다시 쓴다.</summary>
     Metadata,
+
+    /// <summary>씬·오브젝트·배치가 바뀌었다. 뷰포트가 무대를 다시 세운다.</summary>
+    Scene,
 
     /// <summary>키 값. 그래프·뷰포트만 다시 그린다.</summary>
     Keys,

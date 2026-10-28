@@ -52,6 +52,15 @@ public static class MotionDocumentJson
 
         // 역직렬화가 null을 남길 수 있는 목록은 빈 목록으로 — 모델의 불변 조건(목록은 null이 아니다)을 지킨다.
         document.Motions ??= new List<MotionAsset>();
+        document.Scenes ??= new List<SceneAsset>();
+
+        foreach (SceneAsset scene in document.Scenes)
+        {
+            scene.Objects ??= new List<SceneObject>();
+            scene.Camera ??= new CameraSettings();
+        }
+
+        document.EnsureDefaultScene();
 
         foreach (MotionAsset motion in document.Motions)
         {

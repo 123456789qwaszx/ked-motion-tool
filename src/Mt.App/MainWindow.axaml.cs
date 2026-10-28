@@ -69,7 +69,6 @@ public partial class MainWindow : Window
     private static readonly IBrush AutoKeyOnBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0x3C, 0x3C));
     private readonly CheckBox _onion = new() { Content = "어니언 스킨", FontSize = 11 };
     private readonly TextBlock _stageInfo = new() { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
-    private Bitmap? _portrait;
     private bool _syncingTime;
 
     // 뷰포트 조작
@@ -88,6 +87,23 @@ public partial class MainWindow : Window
 
     /// <summary>새 키(뷰포트 키·성분 토글)의 탄젠트 — 설정. 곡선 위에 끼우는 I·더블클릭은 모양을 지키는 free다.</summary>
     private TangentMode DefaultTangent => NewKeyTangentChoices[Math.Max(0, _newKeyTangent.SelectedIndex)];
+
+    // 왼쪽 — 씬
+    private readonly ListBox _objectList = new() { MinHeight = 72, FontSize = 11 };
+    private readonly TextBox _newObjectId = new() { PlaceholderText = "id (c2)", Width = 70, FontSize = 11 };
+    private readonly ComboBox _newObjectRig = new() { FontSize = 11, MinWidth = 100 };
+    private readonly ComboBox _newObjectLayer = new() { ItemsSource = SceneLayers.Order, SelectedIndex = 2, FontSize = 11 };
+    private readonly CheckBox _showGrid = new() { Content = "격자·축", IsChecked = true, FontSize = 11 };
+
+    // 오른쪽 — 오브젝트(채널 박스)
+    private readonly TextBox _objX = new() { FontSize = 11, Width = 64 };
+    private readonly TextBox _objY = new() { FontSize = 11, Width = 64 };
+    private readonly TextBox _objRot = new() { FontSize = 11, Width = 64 };
+    private readonly TextBox _objSx = new() { FontSize = 11, Width = 64 };
+    private readonly TextBox _objSy = new() { FontSize = 11, Width = 64 };
+    private readonly ComboBox _objLayer = new() { ItemsSource = SceneLayers.Order, FontSize = 11 };
+    private readonly CheckBox _objVisible = new() { Content = "보이기", FontSize = 11 };
+    private readonly TextBlock _objSummary = new() { FontSize = 11, Opacity = 0.8, TextWrapping = TextWrapping.Wrap };
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
@@ -655,7 +671,6 @@ public partial class MainWindow : Window
                 new TextBlock { Text = "24 fps", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 },
                 _autoKeyToggle,
                 _onion,
-                SmallButton("초상 PNG…", OnPickPortraitClick),
                 _stageInfo,
             },
         };
@@ -911,25 +926,32 @@ public partial class MainWindow : Window
     {
         _viewport.SetRig(_session.Rig);
         _viewport.StageSize = _session.StageSize;
-        _portrait = null;
+        _viewport.ClearPortraits();
+        int portraits = 0;
 
-        if (_session.PortraitPath is { } portraitPath)
+        foreach (SceneObject o in _viewport.SceneObjects)
         {
+            if (_session.PortraitPathOf(o) is not { } portraitPath)
+            {
+                continue;
+            }
+
             try
             {
-                _portrait = new Bitmap(portraitPath);
+                _viewport.SetPortrait(o.Id, new Bitmap(portraitPath));
+                portraits++;
             }
             catch (Exception exception)
             {
-                _session.SetStatus($"초상을 읽지 못했다: {exception.Message}");
+                _session.SetStatus($"{o.Id}의 초상을 읽지 못했다: {exception.Message}");
             }
         }
 
-        _viewport.SetPortrait(_portrait);
         RefreshNodeChoices();
+        RefreshObjects();
         _stageInfo.Text = $"무대 {_session.StageSize.X:0}×{_session.StageSize.Y:0}"
                           + (_session.Rig is null ? " · 리그 없음" : "")
-                          + (_portrait is null ? " · 초상 없음(자리표시)" : $" · 초상 {_portrait.PixelSize.Width}×{_portrait.PixelSize.Height}");
+                          + $" · 오브젝트 {_viewport.SceneObjects.Count} · 초상 {portraits}";
         RefreshNewForms();
         RefreshProblems();
     }
@@ -942,7 +964,8 @@ public partial class MainWindow : Window
 
             if (path is not null)
             {
-                _session.SetPortrait(path);
+                string objectId = _viewport.SelectedObjectId ?? throw new InvalidOperationException("먼저 오브젝트를 고른다.");
+                _session.SetPortrait(objectId, path);
             }
         }
         catch (Exception exception)
@@ -969,6 +992,40 @@ public partial class MainWindow : Window
 
     private void BuildLeft()
     {
+        LeftPanel.Children.Add(Header("씬 — 오브젝트"));
+        _objectList.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _objectList.SelectedItem is string id)
+            {
+                _viewport.SelectedObjectId = id;
+            }
+        };
+        LeftPanel.Children.Add(_objectList);
+        LeftPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { _newObjectId, _newObjectRig, _newObjectLayer },
+        });
+        LeftPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children =
+            {
+                SmallButton("오브젝트 추가", (_, _) => Guard("오브젝트 추가", AddObject)),
+                SmallButton("삭제", (_, _) => Guard("오브젝트 삭제", RemoveObject)),
+                SmallButton("초상 PNG…", OnPickPortraitClick),
+                _showGrid,
+            },
+        });
+        _showGrid.IsCheckedChanged += (_, _) =>
+        {
+            _viewport.ShowGrid = _showGrid.IsChecked == true;
+            _viewport.InvalidateVisual();
+        };
+        ToolTip.SetTip(_objectList, "씬의 오브젝트(리그 인스턴스). 클릭 = 선택 — 매니퓰레이터·모션 미리보기·초상의 대상. 뷰포트에서 초상을 클릭해도 된다");
+
         LeftPanel.Children.Add(Header("모션"));
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
         LeftPanel.Children.Add(_motionList);
@@ -1003,6 +1060,42 @@ public partial class MainWindow : Window
 
     private void BuildRight()
     {
+        RightPanel.Children.Add(Header("오브젝트 (채널 박스 — 배치, 모션 키가 아니다)"));
+        RightPanel.Children.Add(_objSummary);
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { Small("X"), _objX, Small("Y"), _objY, Small("Rot Z"), _objRot },
+        });
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { Small("Scale X"), _objSx, Small("Y"), _objSy, Small("Layer"), _objLayer, _objVisible },
+        });
+
+        foreach (TextBox box in new[] { _objX, _objY, _objRot, _objSx, _objSy })
+        {
+            OnCommit(box, _ => CommitObjectPlacement());
+        }
+
+        _objLayer.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _objLayer.SelectedItem is string layer && _viewport.SelectedObject is { } o && o.Layer != layer)
+            {
+                Guard("레이어", () => _session.Editor.SetObjectLayer(null, o.Id, layer));
+            }
+        };
+        _objVisible.IsCheckedChanged += (_, _) =>
+        {
+            if (!_refreshing && _viewport.SelectedObject is { } o)
+            {
+                Guard("보이기", () => _session.Editor.SetObjectVisible(null, o.Id, _objVisible.IsChecked == true));
+            }
+        };
+        _viewport.ObjectSelected += (_, _) => RefreshObjects();
+
         RightPanel.Children.Add(Header("모션"));
         RightPanel.Children.Add(Labeled("이름", _motionName));
         RightPanel.Children.Add(Labeled("길이(초)", _motionDuration));
@@ -1248,7 +1341,135 @@ public partial class MainWindow : Window
         RefreshKeyInspector();
         RefreshProblems();
         RefreshNewForms();
+        RefreshObjects();
     }
+
+    /// <summary>오브젝트 목록·채널 박스·노드 목록을 선택 오브젝트에 맞춘다.</summary>
+    private void RefreshObjects()
+    {
+        _refreshDepth++;
+
+        try
+        {
+            IReadOnlyList<SceneObject> objects = _viewport.SceneObjects;
+            List<string> ids = objects.Select(o => o.Id).ToList();
+            _objectList.ItemsSource = ids;
+            _objectList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((id, _) =>
+            {
+                SceneObject? item = _viewport.SceneObjects.FirstOrDefault(o => o.Id == id);
+                return new TextBlock
+                {
+                    Text = item is null ? id : $"{item.Id} · {item.Rig} · {item.Layer}{(item.Visible ? "" : " · 숨김")}",
+                    FontSize = 11,
+                    Opacity = item?.Visible == false ? 0.5 : 1,
+                };
+            });
+            _objectList.SelectedIndex = _viewport.SelectedObjectId is null ? -1 : ids.IndexOf(_viewport.SelectedObjectId);
+
+            List<string> rigs = _session.Rig?.RigKinds.ToList() ?? new List<string> { SceneObject.DefaultRig };
+            string? rigSelected = _newObjectRig.SelectedItem as string;
+            _newObjectRig.ItemsSource = rigs;
+            _newObjectRig.SelectedIndex = Math.Max(0, rigSelected is null ? 0 : rigs.IndexOf(rigSelected));
+
+            SceneObject? selected = _viewport.SelectedObject;
+            bool has = selected is not null;
+
+            foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objLayer, _objVisible })
+            {
+                c.IsEnabled = has;
+            }
+
+            _objSummary.Text = selected is null
+                ? "오브젝트 없음 — 왼쪽 '씬'에서 추가한다"
+                : $"{selected.Id} · {selected.Rig} · {selected.Stage}/{selected.Layer}" + (_viewport.CanWear(selected) ? "" : " · 지금 모션은 이 리그에 안 맞는다");
+            _objX.Text = selected is null ? "" : F(selected.PositionX);
+            _objY.Text = selected is null ? "" : F(selected.PositionY);
+            _objRot.Text = selected is null ? "" : F(selected.RotationZ);
+            _objSx.Text = selected is null ? "" : F(selected.ScaleX);
+            _objSy.Text = selected is null ? "" : F(selected.ScaleY);
+            _objLayer.SelectedIndex = selected is null ? -1 : SceneLayers.IndexOf(selected.Layer);
+            _objVisible.IsChecked = selected?.Visible ?? false;
+        }
+        finally
+        {
+            _refreshDepth--;
+        }
+
+        RefreshNodeChoices();
+        RefreshNewForms();
+    }
+
+    private void AddObject()
+    {
+        string id = (_newObjectId.Text ?? "").Trim();
+        string rig = _newObjectRig.SelectedItem as string ?? SceneObject.DefaultRig;
+        string layer = _newObjectLayer.SelectedItem as string ?? SceneLayers.Mid;
+
+        if (id.Length == 0)
+        {
+            // c1, c2… 중 비어 있는 첫 것.
+            SceneAsset? scene = _viewport.Scene;
+            int n = 1;
+
+            while (scene?.Find($"c{n}") is not null)
+            {
+                n++;
+            }
+
+            id = $"c{n}";
+        }
+
+        _session.Editor.AddSceneObject(null, id, rig, layer);
+        _newObjectId.Text = "";
+        _viewport.SelectedObjectId = id;
+        RefreshAssets();
+    }
+
+    private void RemoveObject()
+    {
+        if (_viewport.SelectedObjectId is { } id)
+        {
+            _session.Editor.RemoveSceneObject(null, id);
+            RefreshAssets();
+        }
+    }
+
+    private void CommitObjectPlacement()
+    {
+        if (_refreshing || _viewport.SelectedObject is not { } o)
+        {
+            return;
+        }
+
+        if (!TryFloat(_objX.Text ?? "", out float x) || !TryFloat(_objY.Text ?? "", out float y) || !TryFloat(_objRot.Text ?? "", out float rot)
+            || !TryFloat(_objSx.Text ?? "", out float sx) || !TryFloat(_objSy.Text ?? "", out float sy))
+        {
+            return;
+        }
+
+        Guard("배치", () => _session.Editor.SetObjectPlacement(null, o.Id, x, y, rot, sx, sy));
+    }
+
+    /// <summary>테스트 손잡이 — 오브젝트 추가 폼과 채널 박스.</summary>
+    internal void AddObjectFromForm(string id, string rig, string layer)
+    {
+        _newObjectId.Text = id;
+        _newObjectRig.SelectedItem = rig;
+        _newObjectLayer.SelectedItem = layer;
+        AddObject();
+    }
+
+    internal void CommitObjectPlacementFromForm(float x, float y, float rotationZ, float scaleX, float scaleY)
+    {
+        _objX.Text = F(x);
+        _objY.Text = F(y);
+        _objRot.Text = F(rotationZ);
+        _objSx.Text = F(scaleX);
+        _objSy.Text = F(scaleY);
+        CommitObjectPlacement();
+    }
+
+    private static TextBlock Small(string text) => new() { Text = text, FontSize = 10, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
 
     private void RefreshAll()
     {
@@ -1586,7 +1807,7 @@ public partial class MainWindow : Window
 
         try
         {
-            string? rigSelected = _newMotionRig.SelectedItem as string;
+            string? rigSelected = _newMotionRig.SelectedItem as string ?? _viewport.SelectedObject?.Rig;
             List<string> rigs = _session.Rig?.RigKinds.ToList() ?? new List<string> { "character" };
             _newMotionRig.ItemsSource = rigs;
             _newMotionRig.SelectedIndex = Math.Max(0, rigSelected is null ? 0 : rigs.IndexOf(rigSelected));

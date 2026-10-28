@@ -267,6 +267,49 @@ public class ViewportViewTests
     });
 
     [Fact]
+    public void 씬의_오브젝트들은_배치대로_서고_클릭으로_고르며_모션은_선택_오브젝트에만_입힌다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, MotionEditor editor) = Show();
+
+        try
+        {
+            Assert.Equal("c1", view.SelectedObjectId);
+            editor.AddSceneObject(null, "c2", "character", SceneLayers.Front);
+            editor.SetObjectPlacement(null, "c2", 300f, 0f, 0f, 1f, 1f);
+
+            Quad first = view.ObjectQuad("c1")!.Value;
+            Quad second = view.ObjectQuad("c2")!.Value;
+            Assert.Equal(300f, second.BottomLeft.X - first.BottomLeft.X, 1);
+
+            // 두 번째 오브젝트의 초상 가운데를 클릭하면 그것이 선택된다.
+            Vec2 center = (second.BottomLeft + second.TopRight) * 0.5f;
+            Vec2 canvas = PortraitLayout.ToCanvas(center, view.StageSize);
+            Rect stage = view.StageRect;
+            double scale = stage.Width / view.StageSize.X;
+            Point at = view.TranslatePoint(new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale), window)!.Value;
+            view.Manipulator = ManipulatorMode.Select;
+            window.MouseDown(at, MouseButton.Left);
+            window.MouseUp(at, MouseButton.Left);
+            Assert.Equal("c2", view.SelectedObjectId);
+
+            // nod(y 0 → -18)는 선택 오브젝트(c2)에만 얹힌다.
+            view.ScrubTo(0.3);
+            Quad c1At = view.ObjectQuad("c1")!.Value;
+            Quad c2At = view.ObjectQuad("c2")!.Value;
+            Assert.Equal(first.BottomLeft.Y, c1At.BottomLeft.Y, 2);
+            Assert.Equal(second.BottomLeft.Y - 18f, c2At.BottomLeft.Y, 1);
+
+            // 오브젝트 삭제는 선택을 남은 것으로 옮긴다.
+            editor.RemoveSceneObject(null, "c2");
+            Assert.Equal("c1", view.SelectedObjectId);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 초상_비트맵이_종횡비를_정하고_없으면_자리표시다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();
@@ -310,8 +353,11 @@ public class ViewportViewTests
             view.SetRig(RigSchemaFile.Load(TestDocuments.FixturePath("rig-schemas.json")));
             Assert.True(view.HasRig);
 
+            // 리그가 다른 모션: 오브젝트(c1 character)는 그대로 서고, 모션만 안 맞는다.
             view.Bind(editor, "robot_wave");
-            Assert.False(view.HasRig);
+            Assert.True(view.HasRig);
+            Assert.NotNull(view.CurrentPortraitQuad());
+            Assert.False(view.CanWear(view.SelectedObject!));
             view.InvalidateVisual();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         }

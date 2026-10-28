@@ -32,7 +32,19 @@ public sealed class DocumentSession
     public string Status { get; private set; } = "";
 
     /// <summary>미리보기 초상 PNG의 절대 경로. 문서에는 문서 기준 상대 경로로 적힌다.</summary>
-    public string? PortraitPath { get; private set; }
+    /// <summary>오브젝트의 초상 파일(절대 경로). 문서에 없거나 파일이 없으면 null.</summary>
+    public string? PortraitPathOf(SceneObject o)
+    {
+        ArgumentNullException.ThrowIfNull(o);
+
+        if (string.IsNullOrEmpty(o.Portrait))
+        {
+            return null;
+        }
+
+        string resolved = ResolveFromDocument(o.Portrait);
+        return File.Exists(resolved) ? resolved : null;
+    }
 
     /// <summary>기준 해상도(무대 크기). base-resolution.json이 없으면 1920×1080.</summary>
     public Vec2 StageSize { get; private set; } = BaseResolutionFile.Default;
@@ -128,18 +140,17 @@ public sealed class DocumentSession
                   + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}"));
     }
 
-    /// <summary>미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
-    public void SetPortrait(string? path)
+    /// <summary>오브젝트의 미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
+    public void SetPortrait(string objectId, string? path)
     {
         if (path is not null && !File.Exists(path))
         {
             throw new FileNotFoundException("초상 파일이 없다.", path);
         }
 
-        PortraitPath = path is null ? null : Path.GetFullPath(path);
-        Editor.SetPreviewPortrait(path is null ? null : RelativeToDocument(path));
+        Editor.SetObjectPortrait(null, objectId, path is null ? null : RelativeToDocument(path));
         AssetsChanged?.Invoke(this, EventArgs.Empty);
-        SetStatus(path is null ? "초상을 뺐다." : $"초상: {Path.GetFileName(path)}");
+        SetStatus(path is null ? $"{objectId}: 초상을 뺐다." : $"{objectId}: 초상 {Path.GetFileName(path)}");
     }
 
     /// <summary><c>motions/1</c>을 읽어 문서로 올린다. 이름이 겹치면 바꿔 넣는다.</summary>
@@ -179,7 +190,6 @@ public sealed class DocumentSession
         _savedRevision = Editor.Revision;
         Rig = null;
         RigPath = null;
-        PortraitPath = null;
         StageSize = BaseResolutionFile.Default;
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
     }
@@ -203,17 +213,14 @@ public sealed class DocumentSession
             }
         }
 
-        if (document.Preview is { Portrait: { Length: > 0 } portrait })
+        foreach (SceneAsset scene in document.Scenes)
         {
-            string resolved = ResolveFromDocument(portrait);
-
-            if (File.Exists(resolved))
+            foreach (SceneObject o in scene.Objects)
             {
-                PortraitPath = resolved;
-            }
-            else
-            {
-                SetStatus($"초상 파일을 찾지 못했다: {resolved} — 자리표시로 보인다.");
+                if (!string.IsNullOrEmpty(o.Portrait) && !File.Exists(ResolveFromDocument(o.Portrait)))
+                {
+                    SetStatus($"{o.Id}의 초상 파일을 찾지 못했다: {ResolveFromDocument(o.Portrait)} — 자리표시로 보인다.");
+                }
             }
         }
     }

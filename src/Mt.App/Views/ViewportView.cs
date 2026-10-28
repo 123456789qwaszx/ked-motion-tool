@@ -37,6 +37,12 @@ public sealed class ViewportView : Control
     private static readonly Pen XAxisPen = new(new SolidColorBrush(Color.FromArgb(230, 248, 113, 113)), 2);
     private static readonly Pen YAxisPen = new(new SolidColorBrush(Color.FromArgb(230, 74, 222, 128)), 2);
     private static readonly IBrush PivotBrush = new SolidColorBrush(Color.FromArgb(240, 250, 204, 21));
+    private static readonly Pen GridMinorPen = new(new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), 1);
+    private static readonly Pen GridMajorPen = new(new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)), 1);
+    private static readonly Pen WorldXPen = new(new SolidColorBrush(Color.FromArgb(200, 0xE2, 0x4C, 0x3F)), 1.5);
+    private static readonly Pen WorldYPen = new(new SolidColorBrush(Color.FromArgb(200, 0x5E, 0xC6, 0x5A)), 1.5);
+    private static readonly Pen ObjectOutlinePen = new(new SolidColorBrush(Color.FromArgb(180, 0x9E, 0xB4, 0xFF)), 1, DashStyle.Dash);
+    private static readonly Pen SelectedObjectPen = new(new SolidColorBrush(Color.FromArgb(230, 0xF9, 0xD7, 0x1C)), 1.5);
     private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromArgb(200, 203, 213, 225));
     private static readonly IBrush GizmoCenterBrush = new SolidColorBrush(Color.FromArgb(230, 250, 204, 21));
     private static readonly IBrush GizmoXBrush = new SolidColorBrush(Color.FromArgb(240, 248, 113, 113));
@@ -51,10 +57,11 @@ public sealed class ViewportView : Control
     private MotionEditor? _editor;
     private string? _motionName;
     private RigSchemaFile? _rig;
+    // 씬 전체의 시작 상태(오브젝트마다 슬롯 접두사). 모션은 선택 오브젝트에만 얹는다.
     private RectNodeTree? _template;
-    private string? _templateRigKind;
-    private Bitmap? _portrait;
-    private float _aspect = PortraitLayout.PlaceholderAspect;
+    private readonly Dictionary<string, Bitmap?> _portraits = new();
+    private string? _selectedObjectId;
+    public bool ShowGrid { get; set; } = true;
     private Vec2 _stageSize = BaseResolutionFile.Default;
     private KeySelection _selection = new();
     private CurveFlags _flags = new();
@@ -141,9 +148,79 @@ public sealed class ViewportView : Control
     public bool IsHoldingPose => _held is not null;
 
     /// <summary>매니퓰레이터를 둘 수 있는 노드들 — 덤프의 노드 중 __root·키잉 금지 노드를 뺀 것.</summary>
-    public IReadOnlyList<string> NodeChoices => _template is null
-        ? Array.Empty<string>()
-        : _template.Keys.Where(k => k != RigSchemaLoader.RootKey && !MotionRules.ForbiddenNodes.Contains(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+    public IReadOnlyList<string> NodeChoices
+    {
+        get
+        {
+            if (_rig is null || SelectedObject is not { } o || !_rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
+            {
+                return Array.Empty<string>();
+            }
+
+            return dto.nodes.Select(n => n.id).Where(k => k != RigSchemaLoader.RootKey && !MotionRules.ForbiddenNodes.Contains(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        }
+    }
+
+    // ── 씬·오브젝트 ───────────────────────────────────────────────────
+
+    /// <summary>뷰포트가 보여 주는 씬(문서의 활성 씬).</summary>
+    public SceneAsset? Scene => _editor?.Document.ActiveSceneAsset;
+
+    public IReadOnlyList<SceneObject> SceneObjects => Scene?.Objects ?? (IReadOnlyList<SceneObject>)Array.Empty<SceneObject>();
+
+    /// <summary>선택 오브젝트 — 매니퓰레이터·모션 미리보기·초상 바꾸기의 대상.</summary>
+    public string? SelectedObjectId
+    {
+        get => _selectedObjectId;
+        set
+        {
+            if (_selectedObjectId == value)
+            {
+                return;
+            }
+
+            _selectedObjectId = value;
+            DiscardPending();
+            ObjectSelected?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+        }
+    }
+
+    public SceneObject? SelectedObject => _selectedObjectId is null ? null : Scene?.Find(_selectedObjectId);
+
+    /// <summary>선택 오브젝트의 노드 키 접두사("c1/"). 오브젝트가 없으면 빈 문자열.</summary>
+    private string Prefix => SelectedObject?.Prefix ?? "";
+
+    /// <summary>선택 노드의 트리 키(접두사 포함).</summary>
+    private string? SelectedKey => SelectedNode is null ? null : Prefix + SelectedNode;
+
+    /// <summary>오브젝트를 골랐다.</summary>
+    public event EventHandler? ObjectSelected;
+
+    /// <summary>이 오브젝트에 지금 모션을 입혀 볼 수 있나(rigKind가 같거나 채널 노드가 전부 있으면).</summary>
+    public bool CanWear(SceneObject o) => _rig is not null && Motion is { } motion && ScenePreview.CanWear(_rig, o, motion);
+
+    /// <summary>오브젝트의 그림(초상) 사각형 — 루트 공간. 그림 노드가 없는 리그면 루트 rect. 트리가 없으면 null.</summary>
+    public Quad? ObjectQuad(string objectId)
+    {
+        RectNodeTree? pose = PoseAt(_clock.Time);
+        SceneObject? o = Scene?.Find(objectId);
+
+        if (pose is null || o is null)
+        {
+            return null;
+        }
+
+        string? image = ScenePreview.ImageKeyOf(pose, o);
+        return image is not null
+            ? PortraitLayout.VisualQuad(pose, image, AspectOf(o))
+            : pose.Contains(ScenePreview.RootKeyOf(o)) ? PortraitLayout.RectQuad(pose, ScenePreview.RootKeyOf(o)) : null;
+    }
+
+    private float AspectOf(SceneObject o)
+        => _portraits.TryGetValue(o.Id, out Bitmap? bitmap) && bitmap is { PixelSize: { Width: > 0, Height: > 0 } }
+            ? bitmap.PixelSize.Width / (float)bitmap.PixelSize.Height
+            : PortraitLayout.PlaceholderAspect;
 
     private double SnapTime(double seconds) => SnapEnabled ? TimeSnap.Snap(seconds, SnapStep) : seconds;
 
@@ -178,12 +255,12 @@ public sealed class ViewportView : Control
     {
         RectNodeTree? pose = CurrentPose();
 
-        if (pose is null || SelectedNode is null || !pose.Contains(SelectedNode))
+        if (pose is null || SelectedKey is not { } key || !pose.Contains(key))
         {
             return null;
         }
 
-        return ToControl(pose.TransformPoint(SelectedNode, Vec3.Zero).XY);
+        return ToControl(pose.TransformPoint(key, Vec3.Zero).XY);
     }
 
     /// <summary>키 없는 포즈를 버린다(시각이 바뀌거나 Esc).</summary>
@@ -270,13 +347,15 @@ public sealed class ViewportView : Control
 
         foreach (ChannelAsset channel in motion.Channels)
         {
-            if (!pose.Contains(channel.Node))
+            string key = Prefix + channel.Node;
+
+            if (!pose.Contains(key))
             {
                 continue;
             }
 
-            RectNodeState start = _template.GetState(channel.Node);
-            RectNodeState posed = pose.GetState(channel.Node);
+            RectNodeState start = _template.GetState(key);
+            RectNodeState posed = pose.GetState(key);
             var values = new List<(Axis, float)>();
 
             foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
@@ -336,14 +415,16 @@ public sealed class ViewportView : Control
         MotionAsset? motion = Motion;
         RectNodeTree? pose = CurrentPose();
 
-        if (_editor is null || motion is null || _template is null || pose is null || !pose.Contains(node) || axes.Count == 0)
+        string key = Prefix + node;
+
+        if (_editor is null || motion is null || _template is null || pose is null || !pose.Contains(key) || axes.Count == 0)
         {
             return;
         }
 
         MotionChannelMode mode = motion.FindChannel(node, kind)?.Mode ?? motion.DefaultMode;
-        RectNodeState start = _template.GetState(node);
-        RectNodeState posed = pose.GetState(node);
+        RectNodeState start = _template.GetState(key);
+        RectNodeState posed = pose.GetState(key);
         var values = new List<(Axis, float)>();
 
         foreach (Axis axis in axes)
@@ -351,7 +432,7 @@ public sealed class ViewportView : Control
             values.Add((axis, PoseEdit.KeyValueFor(kind, mode, PoseEdit.Component(kind, start, axis), PoseEdit.Component(kind, posed, axis))));
         }
 
-        _overrides.Remove(node);
+        _overrides.Remove(key);
         _pending.Remove((node, kind));
         _editor.KeyComponents(motion.Name, node, kind, (float)Math.Max(0, SnapTime(_clock.Time)), values, DefaultTangent);
         PendingChanged?.Invoke(this, EventArgs.Empty);
@@ -502,7 +583,8 @@ public sealed class ViewportView : Control
 
     public bool HasRig => _template is not null;
 
-    public float Aspect => _aspect;
+    /// <summary>선택 오브젝트의 초상 종횡비(없으면 자리표시).</summary>
+    public float Aspect => SelectedObject is { } o ? AspectOf(o) : PortraitLayout.PlaceholderAspect;
 
     // ── 바인딩 ────────────────────────────────────────────────────────
 
@@ -525,7 +607,10 @@ public sealed class ViewportView : Control
         _timer.Stop();
         _overrides.Clear();
         _pending.Clear();
+        _held = null;
+        _holdScrub = false;
         SyncDuration();
+        PickSelectedObject();
         RebuildTemplate();
         PlayStateChanged?.Invoke(this, EventArgs.Empty);
         TimeChanged?.Invoke(this, EventArgs.Empty);
@@ -536,17 +621,32 @@ public sealed class ViewportView : Control
     public void SetRig(RigSchemaFile? rig)
     {
         _rig = rig;
+        PickSelectedObject();
         RebuildTemplate();
         InvalidateVisual();
     }
 
-    /// <summary>초상 비트맵. null이면 자리표시 사각형. 종횡비는 비트맵에서 온다.</summary>
+    /// <summary>선택 오브젝트의 초상 비트맵(호환용). null이면 자리표시 사각형.</summary>
     public void SetPortrait(Bitmap? portrait)
     {
-        _portrait = portrait;
-        _aspect = portrait is { PixelSize: { Width: > 0, Height: > 0 } }
-            ? portrait.PixelSize.Width / (float)portrait.PixelSize.Height
-            : PortraitLayout.PlaceholderAspect;
+        if (SelectedObject is { } o)
+        {
+            SetPortrait(o.Id, portrait);
+        }
+    }
+
+    /// <summary>오브젝트의 초상 비트맵. 종횡비는 비트맵에서 온다.</summary>
+    public void SetPortrait(string objectId, Bitmap? portrait)
+    {
+        ArgumentNullException.ThrowIfNull(objectId);
+        _portraits[objectId] = portrait;
+        RebuildTemplate();
+        InvalidateVisual();
+    }
+
+    public void ClearPortraits()
+    {
+        _portraits.Clear();
         RebuildTemplate();
         InvalidateVisual();
     }
@@ -555,12 +655,33 @@ public sealed class ViewportView : Control
     {
         SyncDuration();
 
-        if (Motion is { } motion && motion.Rig != _templateRigKind)
+        if (e.Kind != MotionChangeKind.Keys)
         {
+            PickSelectedObject();
             RebuildTemplate();
         }
 
         InvalidateVisual();
+    }
+
+    /// <summary>선택 오브젝트가 없거나 씬에서 사라졌으면 — 모션을 입을 수 있는 첫 오브젝트, 없으면 첫 오브젝트.</summary>
+    private void PickSelectedObject()
+    {
+        SceneAsset? scene = Scene;
+
+        if (scene is null || scene.Objects.Count == 0)
+        {
+            SelectedObjectId = null;
+            return;
+        }
+
+        if (_selectedObjectId is not null && scene.Find(_selectedObjectId) is not null)
+        {
+            return;
+        }
+
+        SceneObject pick = scene.Objects.FirstOrDefault(CanWear) ?? scene.Objects[0];
+        SelectedObjectId = pick.Id;
     }
 
     private void SyncDuration()
@@ -575,18 +696,14 @@ public sealed class ViewportView : Control
     private void RebuildTemplate()
     {
         _template = null;
-        _templateRigKind = null;
-        MotionAsset? motion = Motion;
+        SceneAsset? scene = Scene;
 
-        if (_rig is null || motion is null || !_rig.TryGetRig(motion.Rig, out _))
+        if (_rig is null || scene is null)
         {
             return;
         }
 
-        RectNodeTree tree = RigSchemaLoader.BuildTree(_rig.Dto, motion.Rig);
-        PortraitLayout.ApplySizing(tree, _aspect);
-        _template = tree;
-        _templateRigKind = motion.Rig;
+        _template = ScenePreview.Build(_rig, scene, AspectOf);
     }
 
     // ── 시계 ──────────────────────────────────────────────────────────
@@ -684,16 +801,20 @@ public sealed class ViewportView : Control
     public RectNodeTree? PoseAt(double seconds)
     {
         MotionAsset? motion = Motion;
-        return _template is null || motion is null ? null : MotionPreview.Pose(_template, motion, seconds, _flags.IsMuted);
+        if (_template is null)
+        {
+            return null;
+        }
+
+        return motion is not null && SelectedObject is { } o && CanWear(o)
+            ? ScenePreview.Pose(_template, o, motion, seconds, _flags.IsMuted)
+            : _template.Clone();
     }
 
     /// <summary>지금 시각의 초상 사각형(루트 공간). 리그가 없으면 null.</summary>
     public Quad? CurrentPortraitQuad()
     {
-        RectNodeTree? pose = PoseAt(_clock.Time);
-        return pose is null || !pose.Contains(PortraitLayout.ImageNodeId)
-            ? null
-            : PortraitLayout.VisualQuad(pose, PortraitLayout.ImageNodeId, _aspect);
+        return SelectedObject is { } o ? ObjectQuad(o.Id) : null;
     }
 
     // ── 좌표 ──────────────────────────────────────────────────────────
@@ -741,85 +862,168 @@ public sealed class ViewportView : Control
 
         MotionAsset? motion = Motion;
 
-        if (motion is null)
-        {
-            DrawLabel(context, "모션을 고르면 여기에 무대가 보입니다.", new Point(stage.X + 10, stage.Y + 10));
-            return;
-        }
-
-        if (_template is null)
-        {
-            DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 초상이 선다." : $"덤프에 rigKind '{motion.Rig}'가 없다.", new Point(stage.X + 10, stage.Y + 10));
-            return;
-        }
-
         using (context.PushClip(stage))
         {
-            if (OnionSkinEnabled)
+            if (ShowGrid)
+            {
+                DrawWorld(context, stage);
+            }
+
+            if (_template is null)
+            {
+                DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 오브젝트가 선다." : "씬에 오브젝트가 없다 — 왼쪽 '씬'에서 추가한다.", new Point(stage.X + 10, stage.Y + 10));
+                return;
+            }
+
+            if (OnionSkinEnabled && motion is not null && SelectedObject is { } onionTarget && CanWear(onionTarget))
             {
                 foreach ((double t, double opacity) in OnionSkin.Frames(_clock.Time, _clock.Duration, OnionSkinFrames))
                 {
                     using (context.PushOpacity(opacity))
                     {
-                        DrawPortrait(context, MotionPreview.Pose(_template, motion, t, _flags.IsMuted));
+                        DrawObject(context, ScenePreview.Pose(_template, onionTarget, motion, t, _flags.IsMuted), onionTarget, selected: false);
                     }
                 }
             }
 
-            RectNodeTree pose = CurrentPose() ?? MotionPreview.Pose(_template, motion, _clock.Time, _flags.IsMuted);
-            DrawPortrait(context, pose);
+            RectNodeTree pose = CurrentPose() ?? _template;
+            DrawObjects(context, pose);
             DrawAxes(context, pose);
             DrawGizmo(context, pose);
         }
 
-        string endRule = motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다";
-        DrawLabel(context, $"{motion.Name} · {endRule}", new Point(stage.X + 8, stage.Y + 6));
+        string objectLabel = SelectedObject is { } so ? $"{so.Id} ({so.Rig} · {so.Layer})" : "오브젝트 없음";
+        string motionLabel = motion is null
+            ? "모션 없음"
+            : $"{motion.Name} · {(motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다")}"
+              + (SelectedObject is { } wearer && !CanWear(wearer) ? " · 이 오브젝트의 리그에는 안 맞는다" : "");
+        DrawLabel(context, $"{objectLabel} · {motionLabel}", new Point(stage.X + 8, stage.Y + 6));
     }
 
-    private void DrawPortrait(DrawingContext context, RectNodeTree pose)
+    /// <summary>월드 축·격자·무대 프레임 — 루트 공간(가운데 원점·y 위, px). 가는 선 1u(기준 폭/48), 굵은 선 5u.</summary>
+    private void DrawWorld(DrawingContext context, Rect stage)
     {
-        if (!pose.Contains(PortraitLayout.ImageNodeId))
+        double unit = _stageSize.X / 48.0;
+        double scale = stage.Width / _stageSize.X;
+        double unitPx = unit * scale;
+
+        if (unitPx >= 4)
+        {
+            Point origin = ToControl(Vec2.Zero);
+            int countX = (int)Math.Ceiling(_stageSize.X / 2 / unit) + 1;
+            int countY = (int)Math.Ceiling(_stageSize.Y / 2 / unit) + 1;
+
+            for (int i = -countX; i <= countX; i++)
+            {
+                double x = origin.X + i * unitPx;
+                context.DrawLine(i % 5 == 0 ? GridMajorPen : GridMinorPen, new Point(x, stage.Y), new Point(x, stage.Bottom));
+            }
+
+            for (int j = -countY; j <= countY; j++)
+            {
+                double y = origin.Y - j * unitPx;
+                context.DrawLine(j % 5 == 0 ? GridMajorPen : GridMinorPen, new Point(stage.X, y), new Point(stage.Right, y));
+            }
+
+            context.DrawLine(WorldXPen, new Point(stage.X, origin.Y), new Point(stage.Right, origin.Y));
+            context.DrawLine(WorldYPen, new Point(origin.X, stage.Y), new Point(origin.X, stage.Bottom));
+            context.DrawEllipse(null, new Pen(PivotBrush, 1), origin, 5, 5);
+            DrawLabel(context, $"0,0 · 1u = {unit:0}px", new Point(origin.X + 6, origin.Y + 4));
+        }
+
+        context.DrawRectangle(StagePen, stage);
+    }
+
+    private void DrawObjects(DrawingContext context, RectNodeTree pose)
+    {
+        SceneAsset? scene = Scene;
+
+        if (scene is null)
         {
             return;
         }
 
-        Quad quad = PortraitLayout.VisualQuad(pose, PortraitLayout.ImageNodeId, _aspect);
+        foreach (SceneObject o in scene.DrawOrder())
+        {
+            if (!o.Visible)
+            {
+                continue;
+            }
+
+            DrawObject(context, pose, o, selected: o.Id == _selectedObjectId);
+        }
+    }
+
+    private void DrawObject(DrawingContext context, RectNodeTree pose, SceneObject o, bool selected)
+    {
+        string? imageKey = ScenePreview.ImageKeyOf(pose, o);
+
+        if (imageKey is null)
+        {
+            // 그림 노드가 없는 리그(배경 등): 루트 rect 윤곽과 이름.
+            string rootKey = ScenePreview.RootKeyOf(o);
+
+            if (!pose.Contains(rootKey))
+            {
+                return;
+            }
+
+            Quad root = PortraitLayout.RectQuad(pose, rootKey);
+            Point a = ToControl(root.BottomLeft);
+            Point b = ToControl(root.BottomRight);
+            Point c = ToControl(root.TopRight);
+            Point d = ToControl(root.TopLeft);
+            context.DrawGeometry(null, selected ? SelectedObjectPen : ObjectOutlinePen, new PolylineGeometry(new[] { a, b, c, d, a }, true));
+            DrawLabel(context, $"{o.Id} ({o.Rig})", new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
+            return;
+        }
+
+        Quad quad = PortraitLayout.VisualQuad(pose, imageKey, AspectOf(o));
         Point topLeft = ToControl(quad.TopLeft);
         Point topRight = ToControl(quad.TopRight);
         Point bottomLeft = ToControl(quad.BottomLeft);
         Point bottomRight = ToControl(quad.BottomRight);
+        _portraits.TryGetValue(o.Id, out Bitmap? portrait);
 
-        if (_portrait is null)
+        if (portrait is null)
         {
             var outline = new PolylineGeometry(new[] { topLeft, topRight, bottomRight, bottomLeft, topLeft }, true);
             context.DrawGeometry(PlaceholderFill, PlaceholderPen, outline);
             context.DrawLine(PlaceholderPen, topLeft, bottomRight);
             context.DrawLine(PlaceholderPen, topRight, bottomLeft);
-            return;
         }
-
-        // 이미지 로컬 (0,0)-(w,h) → 화면 사각형 네 점. 직교 투영 아래서 평면 사각형의 변환은 아핀이라 세 점이면 정확하다.
-        double w = _portrait.PixelSize.Width;
-        double h = _portrait.PixelSize.Height;
-        var matrix = new Matrix(
-            (topRight.X - topLeft.X) / w, (topRight.Y - topLeft.Y) / w,
-            (bottomLeft.X - topLeft.X) / h, (bottomLeft.Y - topLeft.Y) / h,
-            topLeft.X, topLeft.Y);
-
-        using (context.PushTransform(matrix))
+        else
         {
-            context.DrawImage(_portrait, new Rect(0, 0, w, h));
+            // 이미지 로컬 (0,0)-(w,h) → 화면 사각형 네 점. 직교 투영 아래서 평면 사각형의 변환은 아핀이라 세 점이면 정확하다.
+            double w = portrait.PixelSize.Width;
+            double h = portrait.PixelSize.Height;
+            var matrix = new Matrix(
+                (topRight.X - topLeft.X) / w, (topRight.Y - topLeft.Y) / w,
+                (bottomLeft.X - topLeft.X) / h, (bottomLeft.Y - topLeft.Y) / h,
+                topLeft.X, topLeft.Y);
+
+            using (context.PushTransform(matrix))
+            {
+                context.DrawImage(portrait, new Rect(0, 0, w, h));
+            }
         }
+
+        if (selected)
+        {
+            context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(new[] { topLeft, topRight, bottomRight, bottomLeft, topLeft }, true));
+        }
+
+        DrawLabel(context, o.Id, new Point(Math.Min(topLeft.X, bottomLeft.X) + 4, Math.Min(topLeft.Y, topRight.Y) + 4));
     }
 
     private void DrawAxes(DrawingContext context, RectNodeTree pose)
     {
-        if (SelectedNode is null || !pose.Contains(SelectedNode))
+        if (SelectedKey is not { } key || !pose.Contains(key))
         {
             return;
         }
 
-        (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = PortraitLayout.Axes(pose, SelectedNode, 80f);
+        (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = PortraitLayout.Axes(pose, key, 80f);
         Point o = ToControl(origin);
         context.DrawLine(XAxisPen, o, ToControl(xEnd));
         context.DrawLine(YAxisPen, o, ToControl(yEnd));
@@ -829,7 +1033,7 @@ public sealed class ViewportView : Control
 
     private void DrawGizmo(DrawingContext context, RectNodeTree pose)
     {
-        if (SelectedNode is null || !pose.Contains(SelectedNode) || Manipulator == ManipulatorMode.Select)
+        if (SelectedKey is not { } gizmoKey || !pose.Contains(gizmoKey) || Manipulator == ManipulatorMode.Select)
         {
             return;
         }
@@ -861,7 +1065,7 @@ public sealed class ViewportView : Control
     /// <summary>매니퓰레이터의 중심과 x·y 팔 끝(컨트롤 좌표, 팔 길이는 화면 고정).</summary>
     private (Point Center, Point XEnd, Point YEnd) GizmoPoints(RectNodeTree pose)
     {
-        (Vec2 origin, Vec2 xAxis, Vec2 yAxis) = PortraitLayout.Axes(pose, SelectedNode!, 100f);
+        (Vec2 origin, Vec2 xAxis, Vec2 yAxis) = PortraitLayout.Axes(pose, SelectedKey!, 100f);
         Point center = ToControl(origin);
         return (center, Along(center, ToControl(xAxis)), Along(center, ToControl(yAxis)));
     }
@@ -904,14 +1108,60 @@ public sealed class ViewportView : Control
             Pause();
             e.Pointer.Capture(this);
             e.Handled = true;
+            return;
         }
+
+        if (TryPickObject(position, out string picked))
+        {
+            SelectedObjectId = picked;
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>클릭 자리의 오브젝트(앞 레이어 우선). 초상 사각형 안이면 맞은 것.</summary>
+    private bool TryPickObject(Point position, out string objectId)
+    {
+        objectId = "";
+        RectNodeTree? pose = CurrentPose();
+        SceneAsset? scene = Scene;
+
+        if (pose is null || scene is null)
+        {
+            return false;
+        }
+
+        var at = new Pixel(position.X, position.Y);
+
+        foreach (SceneObject o in scene.DrawOrder().Reverse())
+        {
+            if (!o.Visible || ObjectQuad(o.Id) is not { } quad)
+            {
+                continue;
+            }
+
+            var polygon = new List<Pixel>();
+
+            foreach (Vec2 corner in new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft })
+            {
+                Point p = ToControl(corner);
+                polygon.Add(new Pixel(p.X, p.Y));
+            }
+
+            if (GraphHitTest.Contains(polygon, at))
+            {
+                objectId = o.Id;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryStartManipulation(Point position)
     {
         RectNodeTree? pose = CurrentPose();
 
-        if (Manipulator == ManipulatorMode.Select || SelectedNode is null || pose is null || !pose.Contains(SelectedNode) || !StageRect.Contains(position))
+        if (Manipulator == ManipulatorMode.Select || SelectedKey is not { } key || pose is null || !pose.Contains(key) || !StageRect.Contains(position))
         {
             return false;
         }
@@ -944,8 +1194,8 @@ public sealed class ViewportView : Control
 
         _drag = drag;
         _dragStartRoot = ToRoot(position);
-        _dragPivotRoot = pose.TransformPoint(SelectedNode, Vec3.Zero).XY;
-        _dragStartState = pose.GetState(SelectedNode);
+        _dragPivotRoot = pose.TransformPoint(key, Vec3.Zero).XY;
+        _dragStartState = pose.GetState(key);
         return true;
     }
 
@@ -953,7 +1203,7 @@ public sealed class ViewportView : Control
     {
         RectNodeTree? pose = CurrentPose();
 
-        if (SelectedNode is null || pose is null || !pose.Contains(SelectedNode))
+        if (SelectedKey is not { } key || pose is null || !pose.Contains(key))
         {
             return;
         }
@@ -968,7 +1218,7 @@ public sealed class ViewportView : Control
             case Drag.MoveX:
             case Drag.MoveY:
             {
-                Vec2 delta = PoseEdit.RootDeltaToLocal(pose, SelectedNode, _dragStartRoot, now);
+                Vec2 delta = PoseEdit.RootDeltaToLocal(pose, key, _dragStartRoot, now);
                 float dx = _drag == Drag.MoveY ? 0f : delta.X;
                 float dy = _drag == Drag.MoveX ? 0f : delta.Y;
                 next = start.WithAnchoredPosition(new Vec2(start.AnchoredPosition.X + dx, start.AnchoredPosition.Y + dy));
@@ -998,7 +1248,7 @@ public sealed class ViewportView : Control
                 return;
         }
 
-        _overrides[SelectedNode] = next;
+        _overrides[key] = next;
         InvalidateVisual();
     }
 
@@ -1008,7 +1258,7 @@ public sealed class ViewportView : Control
         MotionAsset? motion = Motion;
         string? node = SelectedNode;
 
-        if (motion is null || node is null || !_overrides.TryGetValue(node, out RectNodeState posed))
+        if (motion is null || node is null || !_overrides.TryGetValue(Prefix + node, out RectNodeState posed))
         {
             return;
         }
@@ -1017,7 +1267,7 @@ public sealed class ViewportView : Control
 
         if (axes.Count == 0)
         {
-            _overrides.Remove(node);
+            _overrides.Remove(Prefix + node);
             InvalidateVisual();
             return;
         }

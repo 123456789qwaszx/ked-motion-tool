@@ -15,10 +15,12 @@ namespace Mt.Authoring.Preview;
 public static class MotionPreview
 {
     /// <param name="isMuted">뮤트된 성분(재생에서 뺀다 — 시작값 그대로). null이면 없음.</param>
-    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, Func<Graph.CurveRef, bool>? isMuted = null)
+    /// <param name="keyPrefix">슬롯 접두사(예: "c1/") — 씬에서 오브젝트 하나에 얹을 때. 비면 접두사 없는 트리.</param>
+    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, Func<Graph.CurveRef, bool>? isMuted = null, string keyPrefix = "")
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(motion);
+        keyPrefix ??= "";
 
         RectNodeTree tree = template.Clone();
         MotionClip clip = MotionAssetCodec.ToClip(motion);
@@ -61,7 +63,9 @@ public static class MotionPreview
         foreach (MotionChannel channel in channels)
         {
             // 덤프에 없는 노드는 건너뛴다 — 검증이 이미 소리를 낸다. 여기서 던지면 편집 중 화면이 죽는다.
-            if (string.IsNullOrEmpty(channel.Node) || !tree.Contains(channel.Node))
+            string key = keyPrefix + channel.Node;
+
+            if (string.IsNullOrEmpty(channel.Node) || !tree.Contains(key))
             {
                 continue;
             }
@@ -71,10 +75,10 @@ public static class MotionPreview
                 continue;
             }
 
-            RectNodeState state = tree.GetState(channel.Node);
+            RectNodeState state = tree.GetState(key);
             Vec3 start = MotionMath.StartOf(channel, state);
             Vec3 value = ended ? MotionMath.EndValue(channel, start) : MotionMath.Compose(channel, start, t);
-            tree.SetState(channel.Node, Apply(channel.Kind, state, value));
+            tree.SetState(key, Apply(channel.Kind, state, value));
         }
 
         return tree;
