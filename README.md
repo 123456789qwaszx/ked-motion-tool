@@ -92,6 +92,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 | **Shift+W** | 현재 시각의 키 전부(모든 커브) 복사 (timeSliderCopyKey) |
 | **Shift+E** | 현재 시각에 붙여넣기 — 같은 시각은 덮어쓰고 없는 채널은 만든다 (timeSliderPasteKey) |
 | **Shift+F** | 현재 시각의 키 전부 지우기 (timeSliderClearKey) |
+| **Q** · **W** · **E** · **R** | 매니퓰레이터 선택 · 이동 · 회전 · 배율 (그래프 안에서는 Q/W/R이 그래프 도구) |
 | **Shift+1** · **Shift+2** | 인비트윈 빼기 · 넣기 — 현재 시각 **뒤**의 키를 한 프레임 당기거나 민다. 그 시각의 키는 안 움직이고, 당겨서 닿으면 움직인 키가 이긴다 (timeSliderEditKeys removeInbetween / addInbetween) |
 
 ## 도프 시트

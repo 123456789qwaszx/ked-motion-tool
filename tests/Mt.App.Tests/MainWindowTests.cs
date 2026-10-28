@@ -515,6 +515,16 @@ public class MainWindowTests
                 Assert.True(window.Viewport.IsPlaying);
                 window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
                 Assert.False(window.Viewport.IsPlaying);
+
+                // W/E/R/Q 매니퓰레이터 — 창 어디에 포커스가 있든.
+                window.KeyPressQwerty(PhysicalKey.E, RawInputModifiers.None);
+                Assert.Equal(Mt.App.Views.ManipulatorMode.Rotate, window.Manipulator);
+                window.KeyPressQwerty(PhysicalKey.R, RawInputModifiers.None);
+                Assert.Equal(Mt.App.Views.ManipulatorMode.Scale, window.Manipulator);
+                window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.None);
+                Assert.Equal(Mt.App.Views.ManipulatorMode.Move, window.Manipulator);
+                window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.None);
+                Assert.Equal(Mt.App.Views.ManipulatorMode.Select, window.Manipulator);
             }
             finally
             {

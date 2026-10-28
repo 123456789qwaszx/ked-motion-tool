@@ -302,12 +302,38 @@ public partial class MainWindow : Window
             case PhysicalKey.Digit2 when shift:
                 Guard("인비트윈 넣기", AddInbetween);
                 break;
+            // 매니퓰레이터(마야): Q 선택 · W 이동 · E 회전 · R 배율 — 창 어디에 포커스가 있든. 그래프 안에서는 그래프 도구(Q/W/R)가 먼저다.
+            case PhysicalKey.Q when none && !InsideGraph(e.Source):
+                SetManipulator(ManipulatorMode.Select);
+                break;
+            case PhysicalKey.W when none && !InsideGraph(e.Source):
+                SetManipulator(ManipulatorMode.Move);
+                break;
+            case PhysicalKey.E when none:
+                SetManipulator(ManipulatorMode.Rotate);
+                break;
+            case PhysicalKey.R when none && !InsideGraph(e.Source):
+                SetManipulator(ManipulatorMode.Scale);
+                break;
             default:
                 return;
         }
 
         e.Handled = true;
     }
+
+    private bool InsideGraph(object? source)
+        => source is Visual v && (ReferenceEquals(v, _graph) || v.FindAncestorOfType<GraphEditorView>() is not null);
+
+    private void SetManipulator(ManipulatorMode mode)
+    {
+        _viewport.Manipulator = mode;
+        _viewport.InvalidateVisual();
+        RefreshManipulatorButtons();
+    }
+
+    /// <summary>테스트 손잡이.</summary>
+    internal ManipulatorMode Manipulator => _viewport.Manipulator;
 
     /// <summary>한 프레임(24fps) — 뷰포트 ←/→와 같은 규약.</summary>
     internal static float FrameSeconds => (float)(1.0 / TimeSnap.FramesPerSecond);
@@ -1637,7 +1663,6 @@ public partial class MainWindow : Window
             }
 
             TreeViewItem item = Folder(header, "skel:" + node.id, defaultExpanded: occupied.Contains(node.id));
-            item.Opacity = isContent || isStageRoot ? 1 : 0.7;
             item.Tag = isContent ? new HierarchyFolder(stage, layer)
                 : isStageRoot ? new HierarchyFolder(StageNodes.Stages.First(st => StageNodes.StageRootOf(st) == node.id), null)
                 : new SkeletonNode(node.id);
