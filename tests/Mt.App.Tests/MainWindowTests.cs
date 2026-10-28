@@ -715,7 +715,8 @@ public class MainWindowTests
                 Mt.Authoring.Model.SceneObject s1 = window.Viewport.Scene!.Find("s1")!;
                 Assert.Equal("right", s1.Place);
                 Assert.Equal("face", s1.PlaceFocus);
-                Assert.Equal(0.24f * 1920f, window.Viewport.CurrentPose()!.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.X, 1);
+                // s1의 오프셋(move) 200이 사슬에 있으므로 place는 그만큼 덜 민다 — focus 점이 화면 오른쪽 지점(0.24·1920)에 온다.
+                Assert.Equal(0.24f * 1920f - 200f, window.Viewport.CurrentPose()!.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.X, 1);
             }
             finally
             {

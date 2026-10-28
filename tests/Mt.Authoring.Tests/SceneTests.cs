@@ -370,7 +370,7 @@ public class SceneTests
         Assert.Contains("character", BuiltinTuning.RigSchemas.RigKinds);
         Assert.Equal(1920f, BuiltinTuning.BaseResolution.X);
         Assert.True(BuiltinTuning.Depth.TryResolveLayer("mid", out _, out _));
-        Assert.Contains("bandi", BuiltinTuning.Focus.CharacterKeys);
+        Assert.NotEmpty(BuiltinTuning.Focus.CharacterKeys); // 실제 표의 배역들(픽스처의 bandi와 다르다)
         RigSchemaRigDto stage = BuiltinTuning.StageRig;
         Assert.Equal(85, stage.nodes.Count);
         Assert.All(stage.nodes, n => Assert.Equal(1f, n.localScale.x));
