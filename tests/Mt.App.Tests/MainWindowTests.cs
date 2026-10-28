@@ -330,7 +330,7 @@ public class MainWindowTests
                 Assert.Equal("1", window.ControllerValueText("squash", Axis.X));
                 Assert.Equal(16.0, double.Parse(window.ControllerValueText("depth", Axis.X), CultureInfo.InvariantCulture), 2);
 
-                // 첫 키가 깊이(absolute 묶음)면 미리보기 mode가 absolute로 — 키 값은 level 20의 배율(2.2) 그대로, X·Y 둘.
+                // 첫 키가 깊이(absolute 묶음)면 재생 기준(relative/absolute)가 absolute로 — 키 값은 level 20의 배율(2.2) 그대로, X·Y 둘.
                 window.AutoKeyChecked = true;
                 window.Viewport.ScrubTo(0.25);
                 window.SetControllerValue("depth", Axis.X, "20");
@@ -530,7 +530,7 @@ public class MainWindowTests
                 Assert.Equal(0f, bowKey.V, 3);
                 Assert.Equal(tableOrder, window.OutlinerOrder);
 
-                // 깊이를 고르고 S(단축키) — 배율 X·Y와 깊이 Y가 한 번에(되돌리기 하나). 키 값은 미리보기 mode대로(absolute): s1은 mid라 1.708 · −580.56.
+                // 깊이를 고르고 S(단축키) — 배율 X·Y와 깊이 Y가 한 번에(되돌리기 하나). 키 값은 재생 기준(relative/absolute)대로(absolute): s1은 mid라 1.708 · −580.56.
                 window.Session.Editor.SetPreviewMode("nod", MotionChannelMode.Absolute);
                 window.SelectControllerInHierarchy("s1", "depth");
                 long revision = window.Session.Editor.Revision;

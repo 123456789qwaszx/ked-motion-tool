@@ -40,7 +40,7 @@ public static class MotionAssetCodec
         };
     }
 
-    /// <summary>가져온 키는 전부 <see cref="TangentMode.Free"/>다 — 파일의 탄젠트 값을 그대로 지킨다. 미리보기 mode는 relative(커맨드의 생략값과 같다).</summary>
+    /// <summary>가져온 키는 전부 <see cref="TangentMode.Free"/>다 — 파일의 탄젠트 값을 그대로 지킨다. 재생 기준(relative/absolute)는 relative(커맨드의 생략값과 같다).</summary>
     public static MotionAsset FromClip(MotionClip clip)
     {
         ArgumentNullException.ThrowIfNull(clip);

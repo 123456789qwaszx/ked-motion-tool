@@ -23,7 +23,7 @@ public enum ManipulatorMode
 ///
 /// 이동은 **부모 공간**의 변위다(anchoredPosition이 부모 기준이므로 부모가 회전·배율돼 있으면 화면 변위와 다르다).
 /// 회전은 피벗 둘레의 각도 차(도, 반시계 양수 — 유니티 z 회전과 같다). 배율은 피벗까지 거리 비.
-/// 키 값은 모션의 미리보기 mode를 따른다: relative 위치·회전은 (포즈 − 시작), relative 배율은 포즈 ÷ 시작, absolute는 포즈 그대로.
+/// 키 값은 모션의 재생 기준(relative/absolute)를 따른다: relative 위치·회전은 (포즈 − 시작), relative 배율은 포즈 ÷ 시작, absolute는 포즈 그대로.
 /// </summary>
 public static class PoseEdit
 {

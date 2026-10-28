@@ -454,7 +454,7 @@ public sealed class ViewportView : Control
 
     public void EndHoldScrub() => _holdScrub = false;
 
-    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 모션의 미리보기 mode를 따른다.</summary>
+    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 모션의 재생 기준(relative/absolute)를 따른다.</summary>
     private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
         MotionAsset? motion = Motion;

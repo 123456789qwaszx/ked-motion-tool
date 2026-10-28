@@ -566,7 +566,7 @@ public sealed class MotionEditor
 
     /// <summary>
     /// 채널 일부를 새 모션으로 떼어 낸다(한 번의 되돌리기) — 자리·깊이 컨트롤러(absolute)와 연기(relative)가 한 모션에 섞였을 때
-    /// 두 클립·두 커맨드로 나누는 길(motions/2: mode는 커맨드 인자 하나). 새 모션은 길이·끝·리그가 같고 미리보기 mode만 준 것.
+    /// 두 클립·두 커맨드로 나누는 길(motions/2: mode는 커맨드 인자 하나). 새 모션은 길이·끝·리그가 같고 재생 기준(relative/absolute)만 준 것.
     /// 옮길 채널이 없거나 전부면 아무것도 안 하고 null.
     /// </summary>
     public MotionAsset? SplitMotion(string name, string newName, Func<ChannelAsset, bool> moveToNew, MotionChannelMode newPreviewMode)

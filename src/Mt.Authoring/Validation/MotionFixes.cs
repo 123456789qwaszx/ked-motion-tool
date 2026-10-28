@@ -30,7 +30,7 @@ public enum MotionFix
     /// <summary>길이 자리에 키를 하나 넣는다(값은 곡선 위 — 마지막 키 값). 길이 밖의 키는 사라진다.</summary>
     KeyAtDuration,
 
-    /// <summary>미리보기 mode를 absolute로(자리·깊이 컨트롤러가 든 모션).</summary>
+    /// <summary>재생 기준(relative/absolute)를 absolute로(자리·깊이 컨트롤러가 든 모션).</summary>
     PreviewModeToAbsolute,
 
     /// <summary>자리·깊이 컨트롤러 채널을 <c>&lt;이름&gt;_place</c> 모션으로 떼어 낸다(두 클립·두 커맨드).</summary>
@@ -45,10 +45,10 @@ public static class MotionFixes
         MotionFix.FirstKeysToZero => "첫 키를 0초로",
         MotionFix.EndKeysToDuration => "끝 키를 길이로 옮기기",
         MotionFix.DurationToLastKey => "길이를 마지막 키에 맞추기",
-        MotionFix.EndToCommit => "끝을 commit으로",
+        MotionFix.EndToCommit => "종료 처리를 유지(commit)로",
         MotionFix.NameToValid => "이름 고치기 (소문자·숫자·_)",
         MotionFix.KeyAtDuration => "길이 자리에 키 넣기",
-        MotionFix.PreviewModeToAbsolute => "미리보기를 absolute로",
+        MotionFix.PreviewModeToAbsolute => "재생 기준을 절대값(absolute)으로",
         MotionFix.SplitByGroup => "두 모션으로 나누기 (자리·깊이 → _place)",
         _ => fix.ToString(),
     };

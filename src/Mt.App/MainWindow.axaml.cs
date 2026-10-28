@@ -32,8 +32,8 @@ namespace Mt.App;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private static readonly string[] EndTokens = { "restore", "commit" };
-    private static readonly string[] ModeTokens = { "relative", "absolute" };
+    private static readonly string[] EndTokens = { "복원 (Restore)", "유지 (Commit)" }; // 차례 = MotionEnd
+    private static readonly string[] ModeTokens = { "상대값 (Relative)", "절대값 (Absolute)" }; // 차례 = MotionChannelMode
 
     private readonly DocumentSession _session = new();
     private readonly GraphEditorView _graph = new();
@@ -1360,7 +1360,7 @@ public partial class MainWindow : Window
         return c.Node;
     }
 
-    /// <summary>첫 키를 놓는 순간 미리보기 mode를 그 묶음의 mode로 — 자리·깊이는 absolute, 연기는 relative(되돌리기 한 번 더).</summary>
+    /// <summary>첫 키를 놓는 순간 재생 기준(relative/absolute)를 그 묶음의 mode로 — 자리·깊이는 absolute, 연기는 relative(되돌리기 한 번 더).</summary>
     private void EnsurePreviewModeForGroup(MotionAsset motion, Controller c)
     {
         if (motion.Channels.Count == 0 && motion.PreviewMode != c.Group.Mode)
@@ -1858,9 +1858,10 @@ public partial class MainWindow : Window
         var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
         panel.Children.Add(Labeled("이름", _motionName));
         panel.Children.Add(Labeled("길이(초)", _motionDuration));
-        panel.Children.Add(Labeled("끝", _motionEnd));
-        panel.Children.Add(Labeled("미리보기 mode", _motionDefaultMode));
-        ToolTip.SetTip(_motionDefaultMode, "뷰포트가 키 값을 읽는 렌즈 — relative = 시작값 + 키(배율은 ×) · absolute = 키 그대로. 파일(motions/2)에는 안 나간다: 재생은 대본의 <<motion slot 이름 relative|absolute>>가 정한다(생략 = relative). 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때도 이 렌즈를 쓴다");
+        panel.Children.Add(Labeled("종료 처리", _motionEnd));
+        ToolTip.SetTip(_motionEnd, "모션이 끝난 뒤 — 복원(restore) = 시작 자세로 돌아간다 · 유지(commit) = 마지막 키 값이 남는다. 산출물(motions/2)의 end");
+        panel.Children.Add(Labeled("재생 기준", _motionDefaultMode));
+        ToolTip.SetTip(_motionDefaultMode, "키 값을 어떻게 읽나 — 상대값(relative) = 시작값 + 키(배율은 ×) · 절대값(absolute) = 키 그대로. 뷰포트 미리보기와 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때 쓴다. 파일에는 안 나간다: 재생은 대본의 <<motion slot 이름 relative|absolute>>가 정한다(생략 = relative)");
         panel.Children.Add(_motionNotes);
 
         OnCommit(_motionName, text => WithMotion(m =>

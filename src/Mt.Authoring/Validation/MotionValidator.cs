@@ -112,7 +112,7 @@ public static class MotionValidator
             {
                 problems.Add(new MotionProblem(
                     motion.Name,
-                    $"{AbsoluteControllerWarning}({string.Join(", ", absolute)})가 있다 — 미리보기 mode가 relative면 자리가 누적돼 보인다. 재생은 <<motion slot {motion.Name} absolute>>로. 연기와 섞였으면 두 모션으로 나눈다",
+                    $"{AbsoluteControllerWarning}({string.Join(", ", absolute)})가 있다 — 재생 기준이 상대값(relative)이면 자리가 누적돼 보인다. 재생은 <<motion slot {motion.Name} absolute>>로. 연기와 섞였으면 두 모션으로 나눈다",
                     Blocking: false));
             }
         }
