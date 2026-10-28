@@ -293,19 +293,19 @@ public class SceneTests
         editor.SetObjectPlacement(null, "c2", -100f, 60f, 0f, 1f, 1f);
         SceneAsset scene = editor.Document.ActiveSceneAsset!;
 
-        Vec2 before = ScenePreview.Build(RigFile, scene).TransformPoint("c2/__root", Vec3.Zero).XY;
+        Vec2 before = ScenePreview.Build(RigFile, scene).TransformPoint("c2/CharSlot_Track", Vec3.Zero).XY;
         (float x, float y) = ScenePreview.PlacementKeepingWorld(RigFile, scene, "c2", "c1", "CharacterPortrait_Track_Move");
         Assert.NotEqual(-100f, x); // 부모 공간으로 옮겨졌다
 
         editor.SetObjectParent(null, "c2", "c1", "CharacterPortrait_Track_Move", null, (x, y));
-        Vec2 after = ScenePreview.Build(RigFile, scene).TransformPoint("c2/__root", Vec3.Zero).XY;
+        Vec2 after = ScenePreview.Build(RigFile, scene).TransformPoint("c2/CharSlot_Track", Vec3.Zero).XY;
         Assert.Equal(before.X, after.X, 1);
         Assert.Equal(before.Y, after.Y, 1);
 
         // 떼어도 같은 자리.
         (float bx, float by) = ScenePreview.PlacementKeepingWorld(RigFile, scene, "c2", null, null);
         editor.SetObjectParent(null, "c2", null, null, SceneLayers.Mid, (bx, by));
-        Vec2 back = ScenePreview.Build(RigFile, scene).TransformPoint("c2/__root", Vec3.Zero).XY;
+        Vec2 back = ScenePreview.Build(RigFile, scene).TransformPoint("c2/CharSlot_Track", Vec3.Zero).XY;
         Assert.Equal(before.X, back.X, 1);
         Assert.Equal(before.Y, back.Y, 1);
         Assert.Equal(-100f, scene.Find("c2")!.PositionX, 1);

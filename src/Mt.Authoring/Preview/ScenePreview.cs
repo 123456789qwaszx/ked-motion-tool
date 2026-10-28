@@ -166,7 +166,9 @@ public static class ScenePreview
             return current;
         }
 
-        Vec3 world = before.TransformPoint(root, Vec3.Zero);
+        // 지키는 점 = 배치 위치가 움직이는 노드(CharSlot_Track, 없으면 루트)의 원점. 리그 루트는 배치로 움직이지 않는다.
+        string positionKey = before.Contains(o.KeyOf(PlacementNodes.Position)) ? o.KeyOf(PlacementNodes.Position) : root;
+        Vec3 world = before.TransformPoint(positionKey, Vec3.Zero);
 
         // 같은 씬을 새 부모로 흉내 낸다 — 문서는 건드리지 않는다.
         var trial = new SceneAsset { Name = scene.Name, Camera = scene.Camera };
@@ -186,15 +188,14 @@ public static class ScenePreview
 
         RectNodeTree after = Build(rig, trial, null, null, depth, null, focus);
 
-        if (!after.Contains(root))
+        if (!after.Contains(positionKey))
         {
             return current;
         }
 
         // 배치 값이 사는 공간 = 배치 위치 노드의 부모 로컬. 월드 차이를 그 공간으로 가져온다.
-        string positionKey = after.Contains(o.KeyOf(PlacementNodes.Position)) ? o.KeyOf(PlacementNodes.Position) : root;
         string? parentKey = after.GetParentKey(positionKey);
-        Vec3 nowWorld = after.TransformPoint(root, Vec3.Zero);
+        Vec3 nowWorld = after.TransformPoint(positionKey, Vec3.Zero);
         Vec2 delta = parentKey is null
             ? (world - nowWorld).XY
             : (after.InverseTransformPoint(parentKey, world) - after.InverseTransformPoint(parentKey, nowWorld)).XY;

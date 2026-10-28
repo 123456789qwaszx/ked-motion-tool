@@ -667,7 +667,7 @@ public class MainWindowTests
                 window.CommitObjectPlacementFromForm(200f, -40f, 0f, 1f, 1f); // c1
                 window.AddObjectFromForm("c2", "character", "front");
                 window.CommitObjectPlacementFromForm(-150f, 30f, 0f, 1f, 1f);
-                Vec2 RootOfC2() => window.Viewport.CurrentPose()!.TransformPoint("c2/__root", Vec3.Zero).XY;
+                Vec2 RootOfC2() => window.Viewport.CurrentPose()!.TransformPoint("c2/CharSlot_Track", Vec3.Zero).XY; // 배치가 움직이는 노드
                 Vec2 before = RootOfC2();
 
                 // 채널 박스 부모 콤보 → c1의 자식(루트), 월드 위치 그대로.
