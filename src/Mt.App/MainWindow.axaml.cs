@@ -389,8 +389,8 @@ public partial class MainWindow : Window
     /// <summary>테스트 손잡이 — 그래프 툴바의 값 칸.</summary>
     internal TextBox KeyValueBox => _keyValue;
 
-    /// <summary>테스트 손잡이 — 씬 탭의 오프셋 X 칸(글 입력 중 단축키 경계 검사).</summary>
-    internal TextBox ObjectXBox => _objX;
+    /// <summary>테스트 손잡이 — 하단 바의 범위 시작 칸(항상 보인다 — 글 입력 중 단축키 경계 검사).</summary>
+    internal TextBox RangeStartBox => _rangeStart;
 
     private void SetManipulator(ManipulatorMode mode)
     {
@@ -1467,8 +1467,11 @@ public partial class MainWindow : Window
             float next = c.Kind == MotionChannelKind.Scale
                 ? (Math.Abs(current.Value) < 1e-6f ? target : nodeValue * (target / current.Value))
                 : nodeValue + (target - current.Value);
-            EnsurePreviewModeForGroup(motion, c);
-            _viewport.SetComponent(node, c.Kind, axis, next);
+            _session.Editor.Batch(MotionChangeKind.Keys, () =>
+            {
+                EnsurePreviewModeForGroup(motion, c); // 첫 키의 재생 기준 자동 변경은 그 키와 같은 칸
+                _viewport.SetComponent(node, c.Kind, axis, next);
+            });
         });
         RefreshChannelBox();
     }
@@ -1480,26 +1483,24 @@ public partial class MainWindow : Window
             return;
         }
 
-        Guard("키 놓기", () =>
+        Guard("키 놓기", () => _session.Editor.Batch(MotionChangeKind.Keys, () =>
         {
-            EnsurePreviewModeForGroup(motion, c);
+            EnsurePreviewModeForGroup(motion, c); // 첫 키의 재생 기준 자동 변경은 그 키와 같은 칸
 
             if (c.Bake == ControllerBake.DepthLevel)
             {
-                _session.Editor.Batch(MotionChangeKind.Keys, () =>
-                {
-                    _viewport.KeyComponents(c.Node, c.Kind, c.Axes);
+                _viewport.KeyComponents(c.Node, c.Kind, c.Axes);
 
-                    if (c.DepthYCurve is { } y)
-                    {
-                        _viewport.KeyComponents(y.Node, y.Kind, new[] { y.Axis });
-                    }
-                });
+                if (c.DepthYCurve is { } y)
+                {
+                    _viewport.KeyComponents(y.Node, y.Kind, new[] { y.Axis });
+                }
+
                 return;
             }
 
             _viewport.KeyComponent(ControllerTargetNode(motion, c, axis), c.Kind, axis);
-        });
+        }));
     }
 
     /// <summary>노드 칸 입력(컨트롤러 표가 없는 리그): 숫자는 절대값, <c>+=</c>·<c>-=</c>·<c>*=</c>·<c>/=</c>는 지금 값에 상대.</summary>
@@ -3341,7 +3342,7 @@ public partial class MainWindow : Window
     {
         if (_viewport.HasPending || _graph.Motion is not { } motion || SelectedControllerOf(motion) is not { } c)
         {
-            _viewport.SetKey();
+            Guard("키 놓기", () => _session.Editor.Batch(MotionChangeKind.Keys, _viewport.SetKey)); // 키 없는 포즈 전부가 되돌리기 한 칸
             return;
         }
 

@@ -344,10 +344,14 @@ public sealed class ViewportView : Control
 
         if (_pending.Count > 0)
         {
-            foreach (((string node, MotionChannelKind kind), HashSet<Axis> axes) in _pending.ToList())
+            // 키 없는 포즈 전부가 조작 하나 — 되돌리기 한 칸(성분·노드가 여럿이어도).
+            _editor.Batch(MotionChangeKind.Keys, () =>
             {
-                KeyNow(node, kind, axes.ToList());
-            }
+                foreach (((string node, MotionChannelKind kind), HashSet<Axis> axes) in _pending.ToList())
+                {
+                    KeyNow(node, kind, axes.ToList());
+                }
+            });
 
             DiscardPending();
             return;

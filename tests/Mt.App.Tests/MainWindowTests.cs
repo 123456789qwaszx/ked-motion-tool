@@ -930,9 +930,7 @@ public class MainWindowTests
 
                 // 글 입력 칸에 포커스가 있으면 Ctrl+Z는 글자 되돌리기 — 문서는 그대로.
                 long revision = editor.Revision;
-                window.InspectorTab = 1; // 씬 탭이 보여야 칸에 포커스가 간다
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                TextBox box = window.ObjectXBox;
+                TextBox box = window.RangeStartBox; // 하단 바 — 항상 보인다
                 Assert.True(box.Focus());
                 window.KeyTextInput("5");
                 window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
@@ -1003,6 +1001,77 @@ public class MainWindowTests
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal(-16f, ValueAt1());
                 Assert.False(editor.CanRedo);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 복합_조작은_되돌리기_한_칸이다_여러_성분_pending_S_깊이_셋_첫_키와_재생_기준()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("step", "character", "0.6", MotionEnd.Commit);
+                var editor = window.Session.Editor;
+                MotionAsset Step() => editor.Document.Find("step")!;
+                window.AutoKeyChecked = false;
+                window.Viewport.ScrubTo(0.25);
+
+                // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸.
+                window.SetControllerValue("body", Axis.X, "10");
+                window.SetControllerValue("body", Axis.Y, "-5");
+                Assert.True(window.Viewport.HasPending);
+                Assert.Null(Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position));
+                long before = editor.Revision;
+                window.SetKeyFromShell();
+                ChannelAsset body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
+                Assert.Equal(10f, body.X!.Keys.Single().V, 3);
+                Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);
+                Assert.Equal(before + 1, editor.Revision);
+                editor.Undo();
+                Assert.Null(Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)); // 둘 다 한 번에
+                editor.Redo();
+                body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
+                Assert.Equal(10f, body.X!.Keys.Single().V, 3);
+                Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);
+
+                // Auto Key OFF에서 깊이를 바꾸고 S — DepthScale X·Y와 DepthY가 한 칸으로 생기고 한 칸으로 사라진다.
+                window.SetControllerValue("depth", Axis.X, "20");
+                Assert.Equal(MotionChannelMode.Absolute, Step().PreviewMode);
+                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                before = editor.Revision;
+                window.SetKeyFromShell();
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.X!.Keys.Single().V, 3);
+                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.Y!.Keys.Single().V, 3);
+                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
+                editor.Undo();
+                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                Assert.Null(Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
+                editor.Redo();
+                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
+
+                // Auto Key ON: 첫 키와 재생 기준 자동 변경(absolute 묶음)이 같은 칸 — 되돌리면 둘 다 돌아온다.
+                window.AddMotionFromForm("walk", "character", "0.6", MotionEnd.Commit);
+                Assert.Equal(MotionChannelMode.Relative, editor.Document.Find("walk")!.PreviewMode);
+                window.AutoKeyChecked = true;
+                before = editor.Revision;
+                window.SetControllerValue("place", Axis.X, "100");
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.Equal(MotionChannelMode.Absolute, editor.Document.Find("walk")!.PreviewMode);
+                Assert.NotNull(editor.Document.Find("walk")!.FindChannel("CharSlot_Track", MotionChannelKind.Position));
+                editor.Undo();
+                Assert.Equal(MotionChannelMode.Relative, editor.Document.Find("walk")!.PreviewMode);
+                Assert.Null(editor.Document.Find("walk")!.FindChannel("CharSlot_Track", MotionChannelKind.Position));
             }
             finally
             {
