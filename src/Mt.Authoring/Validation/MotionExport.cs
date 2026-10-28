@@ -9,15 +9,21 @@ namespace Mt.Authoring.Validation;
 /// </summary>
 public static class MotionExport
 {
+    /// <param name="filter">내보낼 모션 고르기(null이면 전부). 고른 모션의 문제만 막는다 — 문서 수준 문제(빈 이름)는 언제나 막는다.</param>
     public static bool TryExport(
         MotionDocument document,
         IReadOnlyDictionary<string, ICollection<string>>? rigNodeIds,
         out string json,
-        out IReadOnlyList<MotionProblem> problems)
+        out IReadOnlyList<MotionProblem> problems,
+        Func<MotionAsset, bool>? filter = null)
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        problems = MotionValidator.Validate(document, rigNodeIds);
+        List<MotionAsset> selected = document.Motions.Where(m => filter is null || filter(m)).ToList();
+        var names = new HashSet<string>(selected.Select(m => m.Name), StringComparer.Ordinal);
+        problems = MotionValidator.Validate(document, rigNodeIds)
+            .Where(p => string.IsNullOrEmpty(p.MotionName) || names.Contains(p.MotionName))
+            .ToList();
 
         if (problems.Count > 0)
         {
@@ -25,7 +31,7 @@ public static class MotionExport
             return false;
         }
 
-        json = MotionsJson.Write(ToClips(document));
+        json = MotionsJson.Write(selected.Select(MotionAssetCodec.ToClip).ToList());
         return true;
     }
 

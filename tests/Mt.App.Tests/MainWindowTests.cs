@@ -263,6 +263,48 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 내보내기_범위는_선택_오브젝트의_rigKind로_거르고_카메라_칸은_씬에_남는다()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                Assert.NotNull(window.Session.Depth); // 덤프 옆 presets/depth.json
+                window.Session.ImportMotions(TestDocuments.FixturePath("motions.nod-bow.json"));
+                window.Session.Editor.AddMotion("robot_wave", "robot", 1f);
+                window.Session.Editor.AddChannel("robot_wave", "Robot_Arm", MotionChannelKind.Position);
+
+                string export = Path.Combine(directory, "motions.json");
+                window.ExportScopeIndex = 0;
+                Assert.False(window.Session.Export(export, window.ExportFilter().Filter)); // robot_wave가 막는다
+                window.ExportScopeIndex = 1; // 선택 오브젝트 c1(character)의 rigKind만
+                Assert.True(window.Session.Export(export, window.ExportFilter().Filter), window.Session.Status);
+                string json = File.ReadAllText(export);
+                Assert.Contains("\"bow\"", json, StringComparison.Ordinal);
+                Assert.DoesNotContain("robot_wave", json, StringComparison.Ordinal);
+
+                window.CommitCameraFromForm(10f, 20f, -5f);
+                Mt.Authoring.Model.CameraSettings camera = window.Viewport.Scene!.Camera;
+                Assert.Equal(10f, camera.Zoom);
+                Assert.Equal(-5f, camera.PanY);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Directory.Delete(directory, recursive: true);
+    }
+
+    [Fact]
     public void 하이어아키에서_노드를_고르면_매니퓰레이터_노드와_채널_추가_대상이_되고_더블클릭은_채널을_더한다()
     {
         HeadlessUi.Run(() =>

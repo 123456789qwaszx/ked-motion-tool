@@ -310,6 +310,36 @@ public class ViewportViewTests
     });
 
     [Fact]
+    public void 카메라_zoom_pan은_보기만_바꾸고_ToRoot가_되돌린다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, MotionEditor editor) = Show();
+
+        try
+        {
+            Point origin = view.ToScreen(Vec2.Zero);
+            double plain = view.ToScreen(new Vec2(100f, 0f)).X - origin.X;
+
+            editor.SetCamera(null, 20f, 50f, 0f); // 배율 2, pan +50px
+            Assert.Equal(2f, view.CameraScale, 4);
+            Point shifted = view.ToScreen(Vec2.Zero);
+            Assert.True(shifted.X > origin.X);
+            Assert.Equal(plain * 2, view.ToScreen(new Vec2(100f, 0f)).X - shifted.X, 2);
+
+            Vec2 back = view.ToRoot(view.ToScreen(new Vec2(123f, -45f)));
+            Assert.Equal(123f, back.X, 2);
+            Assert.Equal(-45f, back.Y, 2);
+
+            // 루트 공간의 오브젝트 사각형은 카메라와 무관하다.
+            Quad quad = view.ObjectQuad("c1")!.Value;
+            Assert.Equal(0f, quad.Center.X, 1);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 초상_비트맵이_종횡비를_정하고_없으면_자리표시다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();

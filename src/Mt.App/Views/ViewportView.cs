@@ -57,6 +57,7 @@ public sealed class ViewportView : Control
     private MotionEditor? _editor;
     private string? _motionName;
     private RigSchemaFile? _rig;
+    private DepthTuningFile? _depth;
     // 씬 전체의 시작 상태(오브젝트마다 슬롯 접두사). 모션은 선택 오브젝트에만 얹는다.
     private RectNodeTree? _template;
     private readonly Dictionary<string, Bitmap?> _portraits = new();
@@ -626,6 +627,22 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
+    /// <summary>presets/depth.json — 레이어를 깊이(DepthY·DepthScale)로. null이면 레이어는 그리는 순서만.</summary>
+    public void SetDepth(DepthTuningFile? depth)
+    {
+        _depth = depth;
+        RebuildTemplate();
+        InvalidateVisual();
+    }
+
+    /// <summary>씬 카메라(보기 전용) 배율 — 코어 규약 zoom 1당 +0.05.</summary>
+    public float CameraScale => ShotIntentMath.EvaluateCameraScale(Scene?.Camera.Zoom ?? 0f);
+
+    private Vec2 CameraPan => Scene is { } scene ? new Vec2(scene.Camera.PanX, scene.Camera.PanY) : Vec2.Zero;
+
+    /// <summary>루트 공간 → 컨트롤 좌표(카메라 적용). 테스트가 쓴다.</summary>
+    public Point ToScreen(Vec2 root) => ToControl(root);
+
     /// <summary>선택 오브젝트의 초상 비트맵(호환용). null이면 자리표시 사각형.</summary>
     public void SetPortrait(Bitmap? portrait)
     {
@@ -703,7 +720,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _template = ScenePreview.Build(_rig, scene, AspectOf);
+        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth);
     }
 
     // ── 시계 ──────────────────────────────────────────────────────────
@@ -833,22 +850,25 @@ public sealed class ViewportView : Control
         }
     }
 
+    // 카메라(샷): 보이는 좌표 = 루트 × 배율 + pan (코어 ShotIntentMath와 같은 규약). 보기만 바뀐다.
     private Point ToControl(Vec2 root)
     {
         Rect stage = StageRect;
-        Vec2 canvas = PortraitLayout.ToCanvas(root, _stageSize);
+        Vec2 shot = root * CameraScale + CameraPan;
+        Vec2 canvas = PortraitLayout.ToCanvas(shot, _stageSize);
         double scale = stage.Width / _stageSize.X;
         return new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale);
     }
 
-    /// <summary>컨트롤 좌표 → 루트 공간(가운데 원점·y 위).</summary>
+    /// <summary>컨트롤 좌표 → 루트 공간(가운데 원점·y 위). 카메라를 벗긴다.</summary>
     public Vec2 ToRoot(Point control)
     {
         Rect stage = StageRect;
         double scale = stage.Width / _stageSize.X;
         double canvasX = (control.X - stage.X) / scale;
         double canvasY = (control.Y - stage.Y) / scale;
-        return new Vec2((float)(canvasX - _stageSize.X / 2), (float)(_stageSize.Y / 2 - canvasY));
+        var shot = new Vec2((float)(canvasX - _stageSize.X / 2), (float)(_stageSize.Y / 2 - canvasY));
+        return (shot - CameraPan) * (1f / CameraScale);
     }
 
     // ── 그리기 ────────────────────────────────────────────────────────

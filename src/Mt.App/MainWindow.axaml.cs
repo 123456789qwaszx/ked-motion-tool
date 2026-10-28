@@ -97,6 +97,10 @@ public partial class MainWindow : Window
     private readonly ComboBox _newObjectRig = new() { FontSize = 11, MinWidth = 100 };
     private readonly ComboBox _newObjectLayer = new() { ItemsSource = SceneLayers.Order, SelectedIndex = 2, FontSize = 11 };
     private readonly CheckBox _showGrid = new() { Content = "격자·축", IsChecked = true, FontSize = 11 };
+    private readonly ComboBox _exportScope = new() { ItemsSource = new[] { "전체", "이 rigKind만", "이 오브젝트가 입는 모션만" }, SelectedIndex = 0, FontSize = 11 };
+    private readonly TextBox _camZoom = new() { FontSize = 11, Width = 56 };
+    private readonly TextBox _camPanX = new() { FontSize = 11, Width = 56 };
+    private readonly TextBox _camPanY = new() { FontSize = 11, Width = 56 };
 
     // 오른쪽 — 오브젝트(채널 박스)
     private readonly TextBox _objX = new() { FontSize = 11, Width = 64 };
@@ -928,6 +932,7 @@ public partial class MainWindow : Window
     private void RefreshAssets()
     {
         _viewport.SetRig(_session.Rig);
+        _viewport.SetDepth(_session.Depth);
         _viewport.StageSize = _session.StageSize;
         _viewport.ClearPortraits();
         int portraits = 0;
@@ -987,6 +992,8 @@ public partial class MainWindow : Window
         Toolbar.Children.Add(Separator());
         Toolbar.Children.Add(ToolButton("리그 덤프…", OnLoadRigClick));
         Toolbar.Children.Add(ToolButton("motions.json 가져오기…", OnImportClick));
+        Toolbar.Children.Add(_exportScope);
+        ToolTip.SetTip(_exportScope, "내보낼 범위 — 전체 / 선택 오브젝트의 rigKind 모션만 / 선택 오브젝트가 입을 수 있는 모션만. 모션의 주인은 rigKind다");
         Toolbar.Children.Add(ToolButton("motions.json 내보내기…", OnExportClick));
         Toolbar.Children.Add(Separator());
         Toolbar.Children.Add(ToolButton("되돌리기", (_, _) => _session.Editor.Undo()));
@@ -1100,6 +1107,19 @@ public partial class MainWindow : Window
             }
         };
         _viewport.ObjectSelected += (_, _) => RefreshObjects();
+
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { Small("카메라(보기) zoom"), _camZoom, Small("pan X"), _camPanX, Small("Y"), _camPanY },
+        });
+        ToolTip.SetTip(_camZoom, "샷 zoom — 1당 배율 +0.05(코어 규약). 보기만 바뀐다");
+
+        foreach (TextBox box in new[] { _camZoom, _camPanX, _camPanY })
+        {
+            OnCommit(box, _ => CommitCamera());
+        }
 
         RightPanel.Children.Add(Header("모션"));
         RightPanel.Children.Add(Labeled("이름", _motionName));
@@ -1381,6 +1401,10 @@ public partial class MainWindow : Window
             _objSy.Text = selected is null ? "" : F(selected.ScaleY);
             _objLayer.SelectedIndex = selected is null ? -1 : SceneLayers.IndexOf(selected.Layer);
             _objVisible.IsChecked = selected?.Visible ?? false;
+            CameraSettings? camera = _viewport.Scene?.Camera;
+            _camZoom.Text = camera is null ? "" : F(camera.Zoom);
+            _camPanX.Text = camera is null ? "" : F(camera.PanX);
+            _camPanY.Text = camera is null ? "" : F(camera.PanY);
         }
         finally
         {
@@ -1557,6 +1581,29 @@ public partial class MainWindow : Window
 
     internal string? NewChannelNode => _newChannelNode.SelectedItem as string;
 
+    private void CommitCamera()
+    {
+        if (_refreshing || _viewport.Scene is not { } scene)
+        {
+            return;
+        }
+
+        if (!TryFloat(_camZoom.Text ?? "", out float zoom) || !TryFloat(_camPanX.Text ?? "", out float panX) || !TryFloat(_camPanY.Text ?? "", out float panY))
+        {
+            return;
+        }
+
+        Guard("카메라", () => _session.Editor.SetCamera(scene.Name, zoom, panX, panY));
+    }
+
+    internal void CommitCameraFromForm(float zoom, float panX, float panY)
+    {
+        _camZoom.Text = F(zoom);
+        _camPanX.Text = F(panX);
+        _camPanY.Text = F(panY);
+        CommitCamera();
+    }
+
     private void AddObject()
     {
         string id = (_newObjectId.Text ?? "").Trim();
@@ -1647,13 +1694,19 @@ public partial class MainWindow : Window
         try
         {
             string? selected = SelectedMotion ?? _graph.MotionName;
-            List<string> names = _session.Editor.Document.Motions.Select(m => m.Name).ToList();
+            // rigKind로 묶어 보인다(모션의 주인은 rigKind) — 같은 리그끼리 이름순.
+            List<string> names = _session.Editor.Document.Motions
+                .OrderBy(m => m.Rig, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)
+                .Select(m => m.Name).ToList();
             _motionList.ItemsSource = names;
-            _motionList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((name, _) => new TextBlock
+            _motionList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((name, _) =>
             {
-                Text = string.IsNullOrEmpty(name) ? "(이름 없음 — 아래 문제 칸의 '이름 고치기')" : name,
-                FontSize = 11,
-                Opacity = string.IsNullOrEmpty(name) ? 0.6 : 1,
+                MotionAsset? motion = _session.Editor.Document.Find(name);
+                bool fits = motion is null || _viewport.SelectedObject is not { } o || _session.Rig is null || ScenePreview.CanWear(_session.Rig, o, motion);
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Opacity = string.IsNullOrEmpty(name) ? 0.6 : fits ? 1 : 0.5 };
+                row.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(name) ? "(이름 없음 — 아래 문제 칸의 '이름 고치기')" : name, FontSize = 11 });
+                row.Children.Add(new TextBlock { Text = motion is null ? "" : motion.Rig + (fits ? "" : " · 안 맞음"), FontSize = 10, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
+                return row;
             });
             int index = selected is null ? -1 : names.IndexOf(selected);
             _motionList.SelectedIndex = index;
@@ -2228,6 +2281,30 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>툴바 범위 콤보 → 모션 거르기. 오브젝트가 없으면 전체.</summary>
+    internal (Func<MotionAsset, bool>? Filter, string? Label) ExportFilter()
+    {
+        SceneObject? o = _viewport.SelectedObject;
+
+        if (o is null || _session.Rig is not { } rig)
+        {
+            return (null, null);
+        }
+
+        return _exportScope.SelectedIndex switch
+        {
+            1 => (m => m.Rig == o.Rig, $"rigKind {o.Rig}"),
+            2 => (m => ScenePreview.CanWear(rig, o, m), $"{o.Id}가 입는 모션"),
+            _ => (null, null),
+        };
+    }
+
+    internal int ExportScopeIndex
+    {
+        get => _exportScope.SelectedIndex;
+        set => _exportScope.SelectedIndex = value;
+    }
+
     private async void OnExportClick(object? sender, RoutedEventArgs e)
     {
         try
@@ -2236,7 +2313,8 @@ public partial class MainWindow : Window
 
             if (path is not null)
             {
-                _session.Export(path);
+                (Func<MotionAsset, bool>? filter, string? label) = ExportFilter();
+                _session.Export(path, filter, label);
             }
         }
         catch (Exception exception)

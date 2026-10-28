@@ -115,6 +115,9 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 - 오른쪽 **오브젝트(채널 박스)**: X · Y · Rot Z · Scale X/Y · Layer · 보이기 — **배치**다(모션 키가 아니다). 값은 런타임이 움직이는 배치 축 노드(`CharSlot_Track` · `CharSlot_SwayPivot` · `CharSlot_Scale`)에 그대로 들어가고, 트리는 코어 `RigSchemaLoader.AddRigTo`가 슬롯 접두사(`c1/노드`)로 세운다 — 리듀서의 slot 폴드와 같은 함수.
 - **월드 축·격자**: 루트 공간(가운데 원점·y 위·px). 빨강 x·초록 y 축, 가는 선 1u(기준 폭/48 = 40px), 굵은 선 5u, 무대 프레임. "격자·축"으로 끈다.
 - **모션의 주인은 rigKind**다. 고른 오브젝트의 리그가 모션의 리그와 같거나 채널의 노드를 전부 가지면(공통 스키마) 그 오브젝트에 입혀 보인다. 아니면 "이 리그에 안 맞는다"로 표시된다.
+- **깊이**: 덤프 옆 `presets/depth.json`(ExportedTuning)이 있으면 레이어(far·back·mid·front·close)가 깊이(DepthY·DepthScale)가 된다. 런타임 size 폴드와 같은 코어 함수(`SetDepthStageReduction`, focus 보존 bust)를 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 없으면 레이어는 그리는 순서만 정한다.
+- **카메라(보기)**: 채널 박스 아래 zoom · pan X/Y. zoom 1당 배율 +0.05(코어 규약), 보기만 바뀌고 씬에 남는다. 카메라 키는 규약에 없다.
+- **모션 목록**은 rigKind 순으로 묶이고, 고른 오브젝트가 입을 수 없는 모션은 흐리게("안 맞음"). 툴바의 **내보내기 범위**: 전체 / 이 rigKind만 / 이 오브젝트가 입는 모션만 — 고른 모션의 문제만 내보내기를 막는다.
 - 씬은 저작본 `scenes[]`에 남고(미리보기 전용) `motions.json`에는 들어가지 않는다. 예전 문서의 `preview.portrait`는 열 때 c1의 초상이 된다.
 
 ## 뷰포트

@@ -157,6 +157,25 @@ public sealed class MotionEditor
         }
     }
 
+    /// <summary>카메라(샷) — 보기 전용. zoom 1당 배율 0.05, pan은 리그 공간 px(코어 ShotIntentState).</summary>
+    public void SetCamera(string? sceneName, float zoom, float panX, float panY)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        CameraSettings camera = scene.Camera;
+
+        if (camera.Zoom == zoom && camera.PanX == panX && camera.PanY == panY)
+        {
+            return;
+        }
+
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            camera.Zoom = zoom;
+            camera.PanX = panX;
+            camera.PanY = panY;
+        });
+    }
+
     /// <summary>미리보기 초상(문서 기준 상대 경로). null이면 자리표시.</summary>
     public void SetObjectPortrait(string? sceneName, string id, string? path)
     {

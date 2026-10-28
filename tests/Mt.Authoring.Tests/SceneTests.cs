@@ -4,6 +4,7 @@ using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
 using Mt.Authoring.Rig;
 using Mt.Authoring.Serialization;
+using Mt.Authoring.Validation;
 
 namespace Mt.Authoring.Tests;
 
@@ -112,5 +113,69 @@ public class SceneTests
 
         Assert.True(ScenePreview.CanWear(RigFile, scene.Find("c1")!, nod));
         Assert.False(ScenePreview.CanWear(RigFile, scene.Find("bg")!, nod)); // 배경 리그에는 그 노드가 없다
+    }
+
+    [Fact]
+    public void 깊이_커브가_있으면_레이어가_런타임_size_폴드와_같은_깊이가_된다()
+    {
+        string depthPath = DepthTuningFile.TryFindBeside(Fixtures.PathOf("rig-schemas.json")) ?? throw new InvalidOperationException("presets/depth.json이 없다");
+        var depth = DepthTuningFile.Load(depthPath);
+        Assert.True(depth.TryResolveLayer("mid", out float midY, out float midScale));
+        Assert.True(depth.TryResolveLayer("far", out float farY, out float farScale));
+        Assert.NotEqual(midScale, farScale);
+        Assert.False(depth.TryResolveLayer("sky", out _, out _));
+
+        var scene = new SceneAsset();
+        scene.Objects.Add(new SceneObject { Id = "c1", Rig = "character", Layer = SceneLayers.Mid });
+        scene.Objects.Add(new SceneObject { Id = "c2", Rig = "character", Layer = SceneLayers.Far });
+        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, null, depth);
+
+        Assert.Equal(midScale, tree.GetState("c1/CharSlot_DepthScale").LocalScale.X, 4);
+        Assert.Equal(farScale, tree.GetState("c2/CharSlot_DepthScale").LocalScale.X, 4);
+        Assert.NotEqual(tree.GetState("c1/CharSlot_DepthY").AnchoredPosition.Y, tree.GetState("c2/CharSlot_DepthY").AnchoredPosition.Y);
+
+        // 깊이 축에도 focus 보존이 들어가므로 날 커브 값과는 다를 수 있다 — 같은 코어 함수로 다시 접은 값과 같다.
+        var state = new StageState(new RectSpace(RigFile.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half));
+        RigSchemaLoader.AddRigTo(state.Nodes, RigFile.Dto.rigs.First(r => r.rigKind == "character"), "c1/");
+        state.RegisterSlot("c1");
+        PortraitLayout.ApplySizing(state.Nodes, PortraitLayout.PlaceholderAspect, "c1/");
+        Assert.True(SetDepthStageReduction.TryReduce(state, "c1", "", "mid", "bust", depth.Level, null, out StageNodeClaim y, out _, out _));
+        Assert.Equal(y.Value.Y, tree.GetState("c1/CharSlot_DepthY").AnchoredPosition.Y, 3);
+
+        // 커브가 없으면 깊이 축은 덤프 그대로다.
+        RectNodeTree plain = ScenePreview.Build(RigFile, scene);
+        Assert.Equal(1f, plain.GetState("c1/CharSlot_DepthScale").LocalScale.X);
+    }
+
+    [Fact]
+    public void 내보내기_필터는_고른_모션만_검증하고_쓴다()
+    {
+        MotionDocument document = Fixtures.NodBowDocument();
+        var editor = new MotionEditor(document);
+        editor.AddMotion("robot_wave", "robot", 1f);
+        editor.AddChannel("robot_wave", "Robot_Arm", MotionChannelKind.Position);
+
+        Assert.False(MotionExport.TryExport(document, RigFile.NodeIds, out _, out IReadOnlyList<MotionProblem> all));
+        Assert.Contains(all, p => p.MotionName == "robot_wave");
+
+        Assert.True(MotionExport.TryExport(document, RigFile.NodeIds, out string json, out IReadOnlyList<MotionProblem> problems, m => m.Rig == "character"));
+        Assert.Empty(problems);
+        Assert.Contains("\"nod\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("robot_wave", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 카메라는_씬에_남고_되돌리기_한_번이다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        long before = editor.Revision;
+        editor.SetCamera(null, 20f, 100f, -50f);
+        editor.SetCamera(null, 20f, 100f, -50f);
+        Assert.Equal(before + 1, editor.Revision);
+        CameraSettings camera = editor.Document.ActiveSceneAsset!.Camera;
+        Assert.Equal(20f, camera.Zoom);
+        Assert.Equal(-50f, camera.PanY);
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Equal(100f, MotionDocumentJson.Read(json).ActiveSceneAsset!.Camera.PanX);
     }
 }

@@ -29,6 +29,9 @@ public sealed class DocumentSession
 
     public string? RigPath { get; private set; }
 
+    /// <summary>덤프 옆 presets/depth.json. 없으면 레이어는 그리는 순서만 정한다.</summary>
+    public DepthTuningFile? Depth { get; private set; }
+
     public string Status { get; private set; } = "";
 
     /// <summary>미리보기 초상 PNG의 절대 경로. 문서에는 문서 기준 상대 경로로 적힌다.</summary>
@@ -126,7 +129,22 @@ public sealed class DocumentSession
         RigPath = path;
         Editor.SetRigSchemas(RelativeToDocument(path), rig.Sha256);
 
-        // 덤프 옆의 base-resolution.json을 같이 싣는다 — ExportedTuning 폴더를 통째로 복사하는 관례.
+        // 덤프 옆의 base-resolution.json·presets/depth.json을 같이 싣는다 — ExportedTuning 폴더를 통째로 복사하는 관례.
+        string? depthPath = DepthTuningFile.TryFindBeside(path);
+        Depth = null;
+
+        if (depthPath is not null)
+        {
+            try
+            {
+                Depth = DepthTuningFile.Load(depthPath);
+            }
+            catch (Exception exception)
+            {
+                SetStatus($"depth.json을 읽지 못했다: {exception.Message} — 깊이는 그리는 순서만 정한다.");
+            }
+        }
+
         string? baseResolution = BaseResolutionFile.TryFindBeside(path);
 
         if (baseResolution is not null)
@@ -137,7 +155,8 @@ public sealed class DocumentSession
 
         AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus($"리그 덤프: {string.Join(", ", rig.RigKinds)} ({Path.GetFileName(path)})"
-                  + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}"));
+                  + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}")
+                  + (Depth is null ? " · depth.json 없음(깊이 없이)" : " · 깊이 커브"));
     }
 
     /// <summary>오브젝트의 미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
@@ -170,16 +189,18 @@ public sealed class DocumentSession
     }
 
     /// <summary>문제가 0건일 때만 쓴다. 정규 바이트(UTF-8 BOM 없음·LF)로 — Unity 내보내기와 같은 바이트다.</summary>
-    public bool Export(string path)
+    /// <param name="filter">내보낼 모션(null이면 전부). <paramref name="scopeLabel"/>은 상태 줄 글자.</param>
+    public bool Export(string path, Func<MotionAsset, bool>? filter = null, string? scopeLabel = null)
     {
-        if (!MotionExport.TryExport(Editor.Document, RigNodeIds, out string json, out IReadOnlyList<MotionProblem> problems))
+        if (!MotionExport.TryExport(Editor.Document, RigNodeIds, out string json, out IReadOnlyList<MotionProblem> problems, filter))
         {
             SetStatus($"내보내기 막힘 — 문제 {problems.Count}건을 먼저 고친다.");
             return false;
         }
 
         File.WriteAllBytes(path, new System.Text.UTF8Encoding(false).GetBytes(json));
-        SetStatus($"내보냈다: {path}");
+        int count = Editor.Document.Motions.Count(m => filter is null || filter(m));
+        SetStatus($"내보냈다: {path} — 모션 {count}개{(scopeLabel is null ? "" : $" ({scopeLabel})")}");
         return true;
     }
 
@@ -190,6 +211,7 @@ public sealed class DocumentSession
         _savedRevision = Editor.Revision;
         Rig = null;
         RigPath = null;
+        Depth = null;
         StageSize = BaseResolutionFile.Default;
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
     }

@@ -144,4 +144,6 @@ Scene "scene_a"
 
 - **S1 완료**(`dev`): `SceneAsset/SceneObject` · 편집기 씬 명령(추가/삭제/배치/레이어/보이기/초상, 각각 되돌리기 하나) · 저작본 `scenes[]` 왕복과 예전 `preview.portrait` 이관 · `ScenePreview`(코어 `AddRigTo`로 접두사 트리, 배치 축 노드, 초상 사이징, 선택 오브젝트에만 모션) · 뷰포트 격자/축/프레임 · 오브젝트 클릭 선택 · 왼쪽 오브젝트 목록 · 오른쪽 채널 박스(X/Y/Rot/Scale/Layer/보이기).
 - **S2 완료**: 왼쪽 하이어아키 `TreeView`(Scene › stage › layer › 오브젝트 › 연기 축/배치 축 노드, 펼침 상태 기억) · 오브젝트 클릭 = 선택 · 노드 클릭 = 매니퓰레이터 노드 + 채널 추가 대상 · 더블클릭 = 채널 추가.
-- 다음: S3 모션 목록 rigKind 묶음·내보내기 필터, S4 깊이 프리셋·카메라 보기.
+- **S3 완료**: 모션 목록 rigKind 순 묶음·"안 맞음" 표시 · 새 모션 = 선택 오브젝트의 rigKind · 툴바 내보내기 범위(전체/이 rigKind/이 오브젝트가 입는 모션) — `MotionExport.TryExport(filter)`는 고른 모션의 문제만 막는다.
+- **S4 완료**: `DepthTuningFile`(덤프 옆 `presets/depth.json`) → 레이어 깊이를 코어 `SetDepthStageReduction`(focus 보존 bust, 캐릭터별 오프셋 없이)으로 — 런타임 size 폴드와 같은 값 · 카메라 zoom/pan 보기(`ShotIntentMath`)와 `SetCamera` 명령.
+- 남은 것: focus-tuning.json의 캐릭터별 오프셋(배역 개념이 툴에 없다 — 필요하면 오브젝트에 characterKey를 둔다) · 하이어아키 드래그로 레이어 옮기기 · 여러 씬 전환 UI(모델은 `scenes[]`로 이미 여럿).

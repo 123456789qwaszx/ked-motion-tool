@@ -14,13 +14,17 @@ public static class ScenePreview
     /// 씬 전체의 시작 상태. 덤프에 없는 rigKind의 오브젝트는 건너뛴다(<paramref name="missing"/>에 남긴다).
     /// 루트 공간은 덤프가 캡처된 공간이다(스트레치 노드 크기의 기준).
     /// </summary>
-    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null)
+    public const string DepthYNode = SetDepthStageReduction.DepthYNodeId;
+    public const string DepthScaleNode = SetDepthStageReduction.DepthScaleNodeId;
+
+    /// <param name="depth">presets/depth.json. 있으면 레이어 라벨을 깊이(DepthY·DepthScale)로 — 런타임 size 폴드와 같은 함수(focus 보존 bust, 캐릭터별 오프셋 없이).</param>
+    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(scene);
 
         var space = new RectSpace(rig.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half);
-        var tree = new RectNodeTree(space);
+        var state = new StageState(space);
 
         foreach (SceneObject o in scene.DrawOrder())
         {
@@ -30,12 +34,14 @@ public static class ScenePreview
                 continue;
             }
 
-            RigSchemaLoader.AddRigTo(tree, dto, o.Prefix);
-            ApplyPlacement(tree, o);
-            PortraitLayout.ApplySizing(tree, aspectOf?.Invoke(o) ?? PortraitLayout.PlaceholderAspect, o.Prefix);
+            RigSchemaLoader.AddRigTo(state.Nodes, dto, o.Prefix);
+            state.RegisterSlot(o.Id);
+            ApplyPlacement(state.Nodes, o);
+            PortraitLayout.ApplySizing(state.Nodes, aspectOf?.Invoke(o) ?? PortraitLayout.PlaceholderAspect, o.Prefix);
+            ApplyDepth(state, o, depth);
         }
 
-        return tree;
+        return state.Nodes;
     }
 
     /// <summary>배치 값을 배치 축 노드에. 노드가 없는 리그면 그 값은 건너뛴다.</summary>
@@ -64,6 +70,30 @@ public static class ScenePreview
             RectNodeState state = tree.GetState(scale);
             tree.SetState(scale, state.WithLocalScale(new Vec3(o.ScaleX, o.ScaleY, state.LocalScale.Z)));
         }
+    }
+
+    /// <summary>
+    /// 레이어 → 깊이(DepthY 위치·DepthScale 배율). 런타임 size 폴드와 **같은 함수**(<see cref="SetDepthStageReduction"/>, focus 보존 bust)를
+    /// 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 커브가 없거나 리그에 깊이 축이 없으면 건너뛴다(false).
+    /// </summary>
+    public static bool ApplyDepth(StageState state, SceneObject o, DepthTuningFile? depth)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(o);
+
+        if (depth is null || !SceneLayers.IsKnown(o.Layer))
+        {
+            return false;
+        }
+
+        if (!SetDepthStageReduction.TryReduce(state, o.Id, "", o.Layer, "bust", depth.Level, null, out StageNodeClaim depthY, out StageNodeClaim depthScale, out _))
+        {
+            return false;
+        }
+
+        state.Apply(depthY);
+        state.Apply(depthScale);
+        return true;
     }
 
     /// <summary>모션을 오브젝트 하나에 얹은 시각 t의 포즈. 채널의 노드가 그 리그에 없으면 그 채널은 건너뛴다.</summary>

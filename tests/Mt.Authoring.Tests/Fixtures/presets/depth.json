@@ -1,0 +1,13 @@
+{
+  "MonoBehaviour": {
+    "level": {
+      "yCurve": { "m_Curve": [
+        { "time": 0.0, "value": 120.0, "inSlope": 0.0, "outSlope": -56.0 },
+        { "time": 20.0, "value": -1000.0, "inSlope": -56.0, "outSlope": 0.0 } ] },
+      "scaleCurve": { "m_Curve": [
+        { "time": 0.0, "value": 0.86, "inSlope": 0.0, "outSlope": 0.052 },
+        { "time": 10.0, "value": 1.38, "inSlope": 0.052, "outSlope": 0.082 },
+        { "time": 20.0, "value": 2.2, "inSlope": 0.082, "outSlope": 0.0 } ] }
+    }
+  }
+}
