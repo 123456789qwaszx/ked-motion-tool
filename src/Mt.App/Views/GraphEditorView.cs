@@ -1035,7 +1035,7 @@ public sealed class GraphEditorView : Control
                     if (selected)
                     {
                         DrawHandles(context, keys, i, center, keyRef);
-                        DrawLabel(context, $"{TimeText.Format(keys[i].T, TimeDisplay)}  {keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10);
+                        DrawLabel(context, $"{keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10); // 값만(소유자) — 프레임은 눈금자·현재 시각으로
                     }
 
                     // 마야: 키는 작은 주황 점, 선택 키는 흰색으로 조금 크게.
