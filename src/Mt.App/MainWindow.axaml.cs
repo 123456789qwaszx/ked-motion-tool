@@ -51,7 +51,6 @@ public partial class MainWindow : Window
     private readonly string _settingsPath;
     private readonly DispatcherTimer _autoSaveTimer = new();
     private readonly Button _recentButton = new() { Content = "최근…", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
-    private readonly ComboBox _onionFrames = new() { ItemsSource = new[] { "0", "1", "2", "3", "4", "6" }, SelectedIndex = 2, FontSize = 11 };
     private readonly ComboBox _snapStepCombo = new() { ItemsSource = new[] { "1/60초", "1/24초(프레임)", "1/120초" }, SelectedIndex = 0, FontSize = 11 };
     private readonly ComboBox _autoSaveCombo = new() { ItemsSource = new[] { "끔", "1분", "5분", "10분" }, SelectedIndex = 2, FontSize = 11 };
     private static readonly double[] SnapSteps = { 1.0 / 60.0, 1.0 / 24.0, 1.0 / 120.0 };
@@ -69,8 +68,6 @@ public partial class MainWindow : Window
     private readonly RangeSliderView _rangeSlider = new();
     private readonly ToggleButton _autoKeyToggle = new() { Content = "● Auto Key", FontSize = 10, Padding = new Avalonia.Thickness(6, 2) };
     private static readonly IBrush AutoKeyOnBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0x3C, 0x3C));
-    private readonly CheckBox _onion = new() { Content = "어니언 스킨", FontSize = 11 };
-    private readonly TextBlock _stageInfo = new() { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
     private bool _syncingTime;
 
     // 채널 박스(마야) — 선택 노드의 Translate/Rotate/Scale. 칸에 값을 넣으면 매니퓰레이터를 놓은 것과 같다.
@@ -493,7 +490,7 @@ public partial class MainWindow : Window
         Shell.ColumnDefinitions[4].Width = new GridLength(_settings.RightPanelWidth);
         Shell.ColumnDefinitions[0].MinWidth = ToolSettings.MinPanelWidth;
         Shell.ColumnDefinitions[4].MinWidth = ToolSettings.MinPanelWidth;
-        Shell.ColumnDefinitions[2].MinWidth = 400;
+        Shell.ColumnDefinitions[2].MinWidth = 600; // 트랜스포트·레인지 줄이 겹치지 않는 폭
 
         if (_centerGrid is { } center)
         {
@@ -525,8 +522,6 @@ public partial class MainWindow : Window
             _snapStepCombo.SelectedIndex = snapIndex < 0 ? 0 : snapIndex;
             int tangentIndex = Array.IndexOf(NewKeyTangentChoices, _settings.DefaultTangent);
             _newKeyTangent.SelectedIndex = tangentIndex < 0 ? 0 : tangentIndex;
-            int onionIndex = Array.IndexOf(new[] { 0, 1, 2, 3, 4, 6 }, _settings.OnionSkinFrames);
-            _onionFrames.SelectedIndex = onionIndex < 0 ? 2 : onionIndex;
             _autoKey.IsChecked = _settings.AutoKey;
             int autoSaveIndex = Array.IndexOf(AutoSaveMinutes, _settings.AutoSaveMinutes);
             _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
@@ -552,7 +547,6 @@ public partial class MainWindow : Window
         _dope.SnapStep = _settings.SnapStep;
         _viewport.SnapStep = _settings.SnapStep;
         _viewport.DefaultTangent = _settings.DefaultTangent;
-        _viewport.OnionSkinFrames = _settings.OnionSkinFrames;
         _viewport.AutoKey = _settings.AutoKey;
         _viewport.PlayWholeFrames = _settings.PlayWholeFrames;
         _graph.TimeDisplay = _settings.TimeDisplay;
@@ -761,12 +755,6 @@ public partial class MainWindow : Window
         OnCommit(_rangeStart, text => Guard("재생 범위", () => { if (TimeText.TryParse(text, Display, out double v)) _viewport.SetRange(v, _viewport.Clock.RangeEnd); }));
         OnCommit(_rangeEnd, text => Guard("재생 범위", () => { if (TimeText.TryParse(text, Display, out double v)) _viewport.SetRange(_viewport.Clock.RangeStart, v); }));
         _viewport.RangeChanged += (_, _) => RefreshTransport();
-        _onion.IsCheckedChanged += (_, _) =>
-        {
-            _viewport.OnionSkinEnabled = _onion.IsChecked == true;
-            _viewport.InvalidateVisual();
-        };
-
         // 마야 트랜스포트: [현재 프레임] ⏮ |◀ ◁ ◀ ▶ ▷ ▶| ⏭  — 타임 슬라이더가 나머지를 채운다.
         _playButton.Content = "▶";
         _playButton.FontSize = 10;
@@ -835,7 +823,7 @@ public partial class MainWindow : Window
         Grid.SetRow(transportRow, 1);
         grid.Children.Add(transportRow);
 
-        // 레인지 슬라이더 줄: [0][범위 시작] ═바═ [범위 끝][길이] · 모드 · 속도 · fps · Auto Key · 어니언 · 초상.
+        // 레인지 슬라이더 줄: [0][범위 시작] ═바═ [범위 끝][길이] · 모드 · 속도 · fps · Auto Key.
         var rangeLeft = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -843,8 +831,6 @@ public partial class MainWindow : Window
             Margin = new Avalonia.Thickness(0, 0, 4, 0),
             Children = { new TextBlock { Text = "0", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, Width = 20, TextAlignment = TextAlignment.Center }, _rangeStart },
         };
-        Button fitView = SmallButton("보기 맞춤 (F)", (_, _) => _viewport.ResetView());
-        ToolTip.SetTip(fitView, "뷰포트 보기를 되돌린다 — 휠 = 커서 축으로 확대·축소 · MMB 드래그 = 이동 · F = 맞춤");
         var rangeRight = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -859,9 +845,6 @@ public partial class MainWindow : Window
                 _playStep,
                 new TextBlock { Text = "24 fps", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 },
                 _autoKeyToggle,
-                _onion,
-                _stageInfo,
-                fitView,
             },
         };
         var rangeRow = new DockPanel { Margin = new Avalonia.Thickness(4, 2, 4, 2) };
@@ -1525,7 +1508,6 @@ public partial class MainWindow : Window
         _viewport.SetFocus(_session.Focus);
         _viewport.StageSize = _session.StageSize;
         _viewport.ClearPortraits();
-        int portraits = 0;
 
         foreach (SceneObject o in _viewport.SceneObjects)
         {
@@ -1537,7 +1519,6 @@ public partial class MainWindow : Window
             try
             {
                 _viewport.SetPortrait(o.Id, new Bitmap(portraitPath));
-                portraits++;
             }
             catch (Exception exception)
             {
@@ -1548,9 +1529,6 @@ public partial class MainWindow : Window
         _dope.Controllers = _session.ControllersOf(_graph.Motion?.Rig);
         RefreshChannelBox();
         RefreshObjects();
-        _stageInfo.Text = $"무대 {_session.StageSize.X:0}×{_session.StageSize.Y:0}"
-                          + (_session.IsBuiltinRig ? $" · 내장 리그({BuiltinTuning.Source})" : "")
-                          + $" · 오브젝트 {_viewport.SceneObjects.Count} · 초상 {portraits}";
         RefreshProblems();
     }
 
@@ -1984,14 +1962,6 @@ public partial class MainWindow : Window
                 PushSettingsToViews();
             }
         };
-        _onionFrames.SelectionChanged += (_, _) =>
-        {
-            if (!_refreshing && _onionFrames.SelectedIndex >= 0)
-            {
-                _settings.OnionSkinFrames = new[] { 0, 1, 2, 3, 4, 6 }[_onionFrames.SelectedIndex];
-                PushSettingsToViews();
-            }
-        };
         _autoSaveCombo.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _autoSaveCombo.SelectedIndex >= 0)
@@ -2001,7 +1971,6 @@ public partial class MainWindow : Window
             }
         };
         RightPanel.Children.Add(Labeled("스냅 간격", _snapStepCombo));
-        RightPanel.Children.Add(Labeled("어니언 프레임", _onionFrames));
         RightPanel.Children.Add(Labeled("자동 저장", _autoSaveCombo));
         RightPanel.Children.Add(Labeled("시간 표시", _timeDisplayCombo));
         RightPanel.Children.Add(Labeled("새 키 탄젠트", _newKeyTangent));

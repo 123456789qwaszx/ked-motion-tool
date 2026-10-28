@@ -17,6 +17,11 @@ public static class TimeText
 {
     public static string Format(double seconds, TimeDisplay display)
     {
+        if (Math.Abs(seconds) < 1e-9)
+        {
+            seconds = 0; // 스냅이 남긴 -0.0이 "-0"으로 보이지 않게
+        }
+
         if (display == TimeDisplay.Seconds)
         {
             return seconds.ToString("0.###", CultureInfo.InvariantCulture) + "s";

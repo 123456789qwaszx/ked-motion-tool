@@ -361,24 +361,6 @@ public class KeyTimesTests
     }
 }
 
-public class OnionSkinTests
-{
-    [Fact]
-    public void 앞뒤_프레임이고_멀수록_옅고_범위_밖은_없다()
-    {
-        List<(double Time, double Opacity)> frames = OnionSkin.Frames(0.1, 0.6, 2);
-
-        Assert.Equal(4, frames.Count);
-        Assert.Contains(frames, f => Math.Abs(f.Time - (0.1 - 1 / 24.0)) < 1e-9);
-        double near = frames.First(f => Math.Abs(f.Time - (0.1 + 1 / 24.0)) < 1e-9).Opacity;
-        double far = frames.First(f => Math.Abs(f.Time - (0.1 + 2 / 24.0)) < 1e-9).Opacity;
-        Assert.True(near > far);
-
-        Assert.Equal(2, OnionSkin.Frames(0, 0.6, 2).Count);
-        Assert.Empty(OnionSkin.Frames(0.3, 0.6, 0));
-    }
-}
-
 public class BaseResolutionFileTests
 {
     [Fact]

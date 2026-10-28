@@ -31,8 +31,6 @@ public sealed class ToolSettings
 
     public TangentMode DefaultTangent { get; set; } = TangentMode.Auto;
 
-    public int OnionSkinFrames { get; set; } = 2;
-
     public bool AutoKey { get; set; }
 
     /// <summary>1프레임 단위 재생(마야 Real-time 24fps 표시). 꺼지면 연속.</summary>
@@ -93,7 +91,6 @@ public sealed class ToolSettings
             ToolSettings settings = JsonSerializer.Deserialize<ToolSettings>(File.ReadAllText(path), Options) ?? new ToolSettings();
             settings.RecentFiles ??= new List<string>();
             settings.SnapStep = settings.SnapStep > 0 ? settings.SnapStep : 1.0 / 60.0;
-            settings.OnionSkinFrames = Math.Clamp(settings.OnionSkinFrames, 0, 12);
             settings.AutoSaveMinutes = Math.Clamp(settings.AutoSaveMinutes, 0, 120);
             settings.LeftPanelWidth = Math.Clamp(settings.LeftPanelWidth, MinPanelWidth, 800);
             settings.RightPanelWidth = Math.Clamp(settings.RightPanelWidth, MinPanelWidth, 800);

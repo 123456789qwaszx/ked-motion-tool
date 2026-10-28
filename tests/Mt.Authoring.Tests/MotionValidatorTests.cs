@@ -248,7 +248,6 @@ public class ToolSettingsTests
 
             settings.SnapEnabled = false;
             settings.DefaultTangent = TangentMode.Plateau;
-            settings.OnionSkinFrames = 4;
             settings.AutoSaveMinutes = 1;
             settings.Touch("/a/one.motion-authoring.json");
             settings.Touch("/a/two.motion-authoring.json");
@@ -258,7 +257,6 @@ public class ToolSettingsTests
             var back = Mt.Authoring.Settings.ToolSettings.Load(path);
             Assert.False(back.SnapEnabled);
             Assert.Equal(TangentMode.Plateau, back.DefaultTangent);
-            Assert.Equal(4, back.OnionSkinFrames);
             Assert.Equal(1, back.AutoSaveMinutes);
             Assert.Equal(2, back.RecentFiles.Count);
             Assert.EndsWith("one.motion-authoring.json", back.RecentFiles[0]);

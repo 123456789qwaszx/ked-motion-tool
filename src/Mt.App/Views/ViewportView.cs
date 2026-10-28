@@ -605,10 +605,6 @@ public sealed class ViewportView : Control
         set => _clock.Loop = value;
     }
 
-    public bool OnionSkinEnabled { get; set; }
-
-    public int OnionSkinFrames { get; set; } = 2;
-
     /// <summary>축을 그릴 노드. null이면 안 그린다.</summary>
     public string? SelectedNode { get; set; }
 
@@ -965,17 +961,6 @@ public sealed class ViewportView : Control
             {
                 DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 오브젝트가 선다." : "씬에 오브젝트가 없다 — 왼쪽 '씬'에서 추가한다.", new Point(stage.X + 10, stage.Y + 10));
                 return;
-            }
-
-            if (OnionSkinEnabled && motion is not null && SelectedObject is { } onionTarget && CanWear(onionTarget))
-            {
-                foreach ((double t, double opacity) in OnionSkin.Frames(_clock.Time, _clock.Duration, OnionSkinFrames))
-                {
-                    using (context.PushOpacity(opacity))
-                    {
-                        DrawObject(context, ScenePreview.Pose(_template, onionTarget, motion, t, _flags.IsMuted), onionTarget, selected: false);
-                    }
-                }
             }
 
             RectNodeTree pose = CurrentPose() ?? _template;
