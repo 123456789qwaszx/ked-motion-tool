@@ -263,6 +263,40 @@ public class MainWindowTests
     }
 
     [Fact]
+    public void 하이어아키에서_노드를_고르면_매니퓰레이터_노드와_채널_추가_대상이_되고_더블클릭은_채널을_더한다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                window.AddObjectFromForm("c2", "character", "front");
+                Assert.Equal(2, window.HierarchyObjectCount);
+
+                window.SelectInHierarchy("c1", null);
+                Assert.Equal("c1", window.Viewport.SelectedObjectId);
+
+                window.SelectInHierarchy("c2", "CharacterPortrait_Track_Move_Y");
+                Assert.Equal("c2", window.Viewport.SelectedObjectId);
+                Assert.Equal("CharacterPortrait_Track_Move_Y", window.Viewport.SelectedNode);
+                Assert.Equal("CharacterPortrait_Track_Move_Y", window.NewChannelNode);
+
+                window.AddChannelFromHierarchy("c2", "CharacterPortrait_SwayPivot");
+                MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
+                Assert.NotNull(nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Position));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 씬에_오브젝트를_더하고_채널_박스로_배치하면_되돌리기_한_번이다()
     {
         HeadlessUi.Run(() =>

@@ -89,7 +89,10 @@ public partial class MainWindow : Window
     private TangentMode DefaultTangent => NewKeyTangentChoices[Math.Max(0, _newKeyTangent.SelectedIndex)];
 
     // 왼쪽 — 씬
-    private readonly ListBox _objectList = new() { MinHeight = 72, FontSize = 11 };
+    private readonly TreeView _hierarchy = new() { MinHeight = 160, MaxHeight = 320, FontSize = 11 };
+    private readonly HashSet<string> _collapsedHierarchy = new() { "acting", "placement" };
+    private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
+    private static readonly IBrush PlacementNodeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
     private readonly TextBox _newObjectId = new() { PlaceholderText = "id (c2)", Width = 70, FontSize = 11 };
     private readonly ComboBox _newObjectRig = new() { FontSize = 11, MinWidth = 100 };
     private readonly ComboBox _newObjectLayer = new() { ItemsSource = SceneLayers.Order, SelectedIndex = 2, FontSize = 11 };
@@ -993,14 +996,16 @@ public partial class MainWindow : Window
     private void BuildLeft()
     {
         LeftPanel.Children.Add(Header("씬 — 오브젝트"));
-        _objectList.SelectionChanged += (_, _) =>
+        _hierarchy.SelectionChanged += (_, _) => OnHierarchySelected();
+        _hierarchy.DoubleTapped += (_, _) =>
         {
-            if (!_refreshing && _objectList.SelectedItem is string id)
+            if (_hierarchy.SelectedItem is TreeViewItem { Tag: HierarchyNode node })
             {
-                _viewport.SelectedObjectId = id;
+                SelectNodeInHierarchy(node);
+                Guard("채널 추가", AddChannel);
             }
         };
-        LeftPanel.Children.Add(_objectList);
+        LeftPanel.Children.Add(_hierarchy);
         LeftPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -1024,7 +1029,7 @@ public partial class MainWindow : Window
             _viewport.ShowGrid = _showGrid.IsChecked == true;
             _viewport.InvalidateVisual();
         };
-        ToolTip.SetTip(_objectList, "씬의 오브젝트(리그 인스턴스). 클릭 = 선택 — 매니퓰레이터·모션 미리보기·초상의 대상. 뷰포트에서 초상을 클릭해도 된다");
+        ToolTip.SetTip(_hierarchy, "Scene › stage › layer › 오브젝트 › 리그 노드. 오브젝트 클릭 = 선택(매니퓰레이터·모션 미리보기·초상의 대상). 노드 클릭 = 매니퓰레이터 노드·채널 추가 대상, 더블클릭 = 그 노드에 채널 추가");
 
         LeftPanel.Children.Add(Header("모션"));
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
@@ -1351,20 +1356,7 @@ public partial class MainWindow : Window
 
         try
         {
-            IReadOnlyList<SceneObject> objects = _viewport.SceneObjects;
-            List<string> ids = objects.Select(o => o.Id).ToList();
-            _objectList.ItemsSource = ids;
-            _objectList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((id, _) =>
-            {
-                SceneObject? item = _viewport.SceneObjects.FirstOrDefault(o => o.Id == id);
-                return new TextBlock
-                {
-                    Text = item is null ? id : $"{item.Id} · {item.Rig} · {item.Layer}{(item.Visible ? "" : " · 숨김")}",
-                    FontSize = 11,
-                    Opacity = item?.Visible == false ? 0.5 : 1,
-                };
-            });
-            _objectList.SelectedIndex = _viewport.SelectedObjectId is null ? -1 : ids.IndexOf(_viewport.SelectedObjectId);
+            RebuildHierarchy();
 
             List<string> rigs = _session.Rig?.RigKinds.ToList() ?? new List<string> { SceneObject.DefaultRig };
             string? rigSelected = _newObjectRig.SelectedItem as string;
@@ -1398,6 +1390,172 @@ public partial class MainWindow : Window
         RefreshNodeChoices();
         RefreshNewForms();
     }
+
+    // ── 하이어아키 ─────────────────────────────────────────────────────
+
+    /// <summary>트리 항목의 꼬리표 — 오브젝트 또는 오브젝트의 리그 노드.</summary>
+    private sealed record HierarchyNode(string ObjectId, string? NodeId);
+
+    /// <summary>Scene › stage › layer › 오브젝트 › (연기 축 / 배치 축) 노드. 펼침 상태는 키로 기억한다.</summary>
+    private void RebuildHierarchy()
+    {
+        SceneAsset? scene = _viewport.Scene;
+        bool nodeWasSelected = _hierarchy.SelectedItem is TreeViewItem { Tag: HierarchyNode { NodeId: not null } };
+        _hierarchy.Items.Clear();
+
+        if (scene is null)
+        {
+            return;
+        }
+
+        TreeViewItem? selectedItem = null;
+        var root = Folder($"Scene  {scene.Name}", "scene");
+
+        foreach (string stage in scene.Objects.Select(o => o.Stage).Distinct().OrderBy(s => s, StringComparer.Ordinal))
+        {
+            TreeViewItem stageItem = Folder(stage, "stage:" + stage);
+
+            foreach (string layer in SceneLayers.Order)
+            {
+                List<SceneObject> inLayer = scene.Objects.Where(o => o.Stage == stage && o.Layer == layer).ToList();
+
+                if (inLayer.Count == 0)
+                {
+                    continue;
+                }
+
+                TreeViewItem layerItem = Folder(layer, $"layer:{stage}/{layer}");
+
+                foreach (SceneObject o in inLayer)
+                {
+                    TreeViewItem objectItem = Folder($"{o.Id}  ·  {o.Rig}{(o.Visible ? "" : "  ·  숨김")}", "object:" + o.Id);
+                    objectItem.Tag = new HierarchyNode(o.Id, null);
+                    objectItem.FontWeight = FontWeight.SemiBold;
+                    objectItem.Opacity = o.Visible ? 1 : 0.55;
+
+                    if (_session.Rig is { } rig && rig.NodeIds.TryGetValue(o.Rig, out ICollection<string>? ids))
+                    {
+                        List<string> nodes = ids.Where(id => id != "__root" && !PlacementNodes.IsForbidden(id)).OrderBy(id => id, StringComparer.Ordinal).ToList();
+                        TreeViewItem acting = Folder("연기 축", "acting");
+                        TreeViewItem placement = Folder("배치 축 (고급 — place/size와 겹칠 수 있다)", "placement");
+
+                        foreach (string nodeId in nodes)
+                        {
+                            bool isPlacement = PlacementNodes.IsPlacementAxis(nodeId);
+                            var nodeItem = new TreeViewItem
+                            {
+                                Header = nodeId,
+                                FontSize = 11,
+                                Foreground = isPlacement ? PlacementNodeBrush : ActingNodeBrush,
+                                Tag = new HierarchyNode(o.Id, nodeId),
+                            };
+                            (isPlacement ? placement : acting).Items.Add(nodeItem);
+
+                            if (nodeWasSelected && o.Id == _viewport.SelectedObjectId && nodeId == _viewport.SelectedNode)
+                            {
+                                selectedItem = nodeItem;
+                            }
+                        }
+
+                        objectItem.Items.Add(acting);
+                        objectItem.Items.Add(placement);
+                    }
+
+                    if (selectedItem is null && o.Id == _viewport.SelectedObjectId)
+                    {
+                        selectedItem = objectItem;
+                    }
+
+                    layerItem.Items.Add(objectItem);
+                }
+
+                stageItem.Items.Add(layerItem);
+            }
+
+            root.Items.Add(stageItem);
+        }
+
+        root.Items.Add(new TreeViewItem { Header = $"camera  ·  zoom {scene.Camera.Zoom:0.##}  pan {scene.Camera.PanX:0},{scene.Camera.PanY:0}", FontSize = 11, Opacity = 0.6 });
+        _hierarchy.Items.Add(root);
+        _hierarchy.SelectedItem = selectedItem;
+    }
+
+    private TreeViewItem Folder(string header, string key)
+    {
+        var item = new TreeViewItem { Header = header, FontSize = 11, IsExpanded = !_collapsedHierarchy.Contains(key) };
+        item.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TreeViewItem.IsExpandedProperty)
+            {
+                if (item.IsExpanded)
+                {
+                    _collapsedHierarchy.Remove(key);
+                }
+                else
+                {
+                    _collapsedHierarchy.Add(key);
+                }
+            }
+        };
+        return item;
+    }
+
+    private void OnHierarchySelected()
+    {
+        if (_refreshing || _hierarchy.SelectedItem is not TreeViewItem { Tag: HierarchyNode node })
+        {
+            return;
+        }
+
+        if (node.NodeId is null)
+        {
+            _viewport.SelectedObjectId = node.ObjectId;
+            return;
+        }
+
+        SelectNodeInHierarchy(node);
+    }
+
+    /// <summary>노드 항목: 그 오브젝트를 고르고, 매니퓰레이터 노드와 채널 추가 대상을 그 노드로. 키 따라가기는 끈다(사용자가 직접 골랐다).</summary>
+    private void SelectNodeInHierarchy(HierarchyNode node)
+    {
+        _viewport.SelectedObjectId = node.ObjectId;
+        _followSelection.IsChecked = false;
+        _viewport.SelectedNode = node.NodeId;
+        _viewport.InvalidateVisual();
+        RefreshNodeChoices();
+
+        if (_newChannelNode.ItemsSource is IEnumerable<string> choices && choices.Contains(node.NodeId!))
+        {
+            _newChannelNode.SelectedItem = node.NodeId;
+        }
+    }
+
+    /// <summary>테스트 손잡이 — 하이어아키에서 노드(또는 오브젝트)를 고른 것과 같다.</summary>
+    internal void SelectInHierarchy(string objectId, string? nodeId)
+    {
+        var node = new HierarchyNode(objectId, nodeId);
+
+        if (nodeId is null)
+        {
+            _viewport.SelectedObjectId = objectId;
+        }
+        else
+        {
+            SelectNodeInHierarchy(node);
+        }
+    }
+
+    /// <summary>테스트 손잡이 — 노드 더블클릭(그 노드에 채널 추가).</summary>
+    internal void AddChannelFromHierarchy(string objectId, string nodeId)
+    {
+        SelectNodeInHierarchy(new HierarchyNode(objectId, nodeId));
+        AddChannel();
+    }
+
+    internal int HierarchyObjectCount => _viewport.SceneObjects.Count;
+
+    internal string? NewChannelNode => _newChannelNode.SelectedItem as string;
 
     private void AddObject()
     {
