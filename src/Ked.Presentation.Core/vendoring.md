@@ -6,7 +6,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 원본 | `ked-stage-runtime` `motion/motions-2` @ `40d19d7` (motions/2 — `dev`에 합쳐지면 그 커밋으로 갱신) |
+| 원본 | `ked-stage-runtime` `dev` @ `4ff3c2a` (motions/2) |
 | 반입일 | 2026-10-28 |
 | 범위 | `Ease/`·`Motion/`·`Primitives/`·`Reduce/`·`State/`·`Tokens/`·`Transforms/`·`Tuning/` 소스와 `Documentation~/` |
 | 제외 | `Tests/`·`*.meta`·`*.asmdef` |
