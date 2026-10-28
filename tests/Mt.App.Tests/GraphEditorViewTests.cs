@@ -487,7 +487,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 박스_드래그가_커브를_지나면_커브가_선택되고_빈_자리_RMB_드래그는_팬이다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, _) = Show();
 
         try
         {
@@ -523,16 +523,12 @@ public class GraphEditorViewTests
             window.MouseUp(new Point(far.X - 40, far.Y), MouseButton.Right);
             Assert.True(view.Camera.TimeOrigin > panned.TimeOrigin);
 
-            // 선택 둘레 밖의 MMB 드래그도 팬이고 키는 그대로다(뷰포트와 같이 MMB·RMB 둘 다 — 소유자).
-            float keyBefore = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V;
-            long revisionBefore = editor.Revision;
+            // 그래프의 팬은 RMB뿐이다(소유자) — 선택 둘레 밖 MMB 드래그는 화면을 안 움직인다.
             GraphCamera beforeMiddle = view.Camera;
             window.MouseDown(far, MouseButton.Middle);
             window.MouseMove(new Point(far.X + 30, far.Y), RawInputModifiers.MiddleMouseButton);
             window.MouseUp(new Point(far.X + 30, far.Y), MouseButton.Middle);
-            Assert.True(view.Camera.TimeOrigin < beforeMiddle.TimeOrigin);
-            Assert.Equal(revisionBefore, editor.Revision);
-            Assert.Equal(keyBefore, Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V);
+            Assert.Equal(beforeMiddle.TimeOrigin, view.Camera.TimeOrigin, 6);
         }
         finally
         {
