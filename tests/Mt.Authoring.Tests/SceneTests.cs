@@ -342,8 +342,7 @@ public class SceneTests
     public void 자리_있는_오브젝트도_카메라_pan_zoom을_따라_움직인다()
     {
         // place는 런타임에서 커맨드 순간 한 번 풀리는 것 — 그 뒤의 shot은 무대째 움직여야 한다. 샷을 먼저 넣으면 place가 pan을 되감는다.
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddSceneObject(null, "s1", "character");
+        var editor = new MotionEditor(new MotionDocument()); // 새 문서 = 캐릭터 s1 하나짜리 기본 씬
         editor.SetObjectPlace(null, "s1", "center");
         RectNodeTree rest = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
         Vec2 placed = rest.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
