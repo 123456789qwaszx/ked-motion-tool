@@ -300,6 +300,8 @@ public partial class MainWindow : Window
                 StepFrame(+1);
                 break;
             case PhysicalKey.Q when alt:
+                _viewport.TogglePlay();
+                break;
             case PhysicalKey.Backquote when alt:
                 _viewport.PlayFromStart();
                 break;
