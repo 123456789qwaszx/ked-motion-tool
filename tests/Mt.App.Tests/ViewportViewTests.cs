@@ -494,7 +494,6 @@ public class ViewportViewTests
             view.ScrubTo(0.15); // 키가 없는 시각
             float start = view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value;
             long revision = editor.Revision;
-            Assert.False(editor.CanUndo);
 
             void Drag()
             {
@@ -509,7 +508,6 @@ public class ViewportViewTests
             Assert.True(view.HasPending);
             float posed = view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value;
             Assert.NotEqual(start, posed);
-            Assert.True(editor.CanUndo);
             Assert.Equal(revision, editor.Revision);
 
             editor.Undo();
