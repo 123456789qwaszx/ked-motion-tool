@@ -238,6 +238,33 @@ PresentataionUIRoot
 - 뼈대 노드의 편집·삭제·키잉 — 뼈대는 런타임이 정한다.
 - 비-character 리그의 재생 — 이전 결정 그대로.
 
+### 7.7 추가 조사 — 실제 게임 진행 중 프리팹(캐릭터 둘 + 배경, 2026-10-28 두 번째 업로드)
+
+RectTransform 161개. 뼈대(85)는 첫 프리팹과 같고 전부 항등이다. 그 위에 선 인스턴스:
+
+| 인스턴스 | 부모 | 유니티 이름 규칙 | 눈에 띄는 값 |
+|---|---|---|---|
+| `s1_CharacterRig` | `Stage00Depth_Mid_Content` | `{slot}_{노드}` (덤프의 `__root` = `{slot}_CharacterRig`) | `CharSlot_Track_Focus` (518.4, −340) · `CharSlot_DepthY` (0, −580.56) · `CharSlot_DepthScale` 1.708 · `CharSlot_Track` **항등** · `Sprite_Image` sizeDelta (772.03, 0), preserveAspect 1 |
+| `s2_CharacterRig` | 같은 Content | | `Track_Focus` (−518.4, −340), 나머지 s1과 같음 |
+| `bg_main_BackgroundRig` | `Stage00Depth_Far_Content` | `{slot}_{노드}` | `BackgroundSprite_Image` sizeDelta (1702.8, 0), preserveAspect 0 · `Background_DepthScale` 항등 · `Background_ObjectSlotRoot` scale 2 (덤프 초기값 그대로) |
+| `ScreenEffectRig` | `ScreenEffectLayer` | 접두사 없음 | 항등. 레이어에 정적 `ScreenOverlay_Root`가 하나 더 있다(이름 중복) |
+
+CanvasGroup 13개(alpha 0/1 섞임 — 가시성은 alpha로).
+
+**설계에 바로 영향을 주는 것**
+
+1. **캐릭터 자리는 `place`가 정한다, `move`가 아니다.** 실제 위치는 `CharSlot_Track_Focus`(place 폴드 `PlaceFocusStageReduction`이 "focus 프리셋이 화면 지점에 오도록" 푼 값)에 있고 `CharSlot_Track`(move·nudge)은 항등이다. 툴의 배치 X/Y는 지금 `CharSlot_Track`에 들어가므로 "런타임과 같은 자리"를 만들려면 **place 개념이 필요하다**: 채널 박스에 `자리: 화면 지점(left/center/right/top/bottom/tl…, 또는 좌표) × focus 프리셋(bust/face/body…)`을 두고 코어 `PlaceFocusStageReduction`으로 `Track_Focus`를 풀어 넣는다(툴이 좌표를 짓지 않는다). 자유 오프셋 X/Y는 그대로 `CharSlot_Track`(= move). 이렇게 하면 씬이 곧 `slot → cast → place → size → move` 열과 1:1이 된다 — 7.3 F의 Yarn 내보내기가 자연스러워진다.
+2. **깊이는 S7의 focus 표가 맞았다.** `DepthY = −(1.708 − 1) × 820 = −580.56` — focus 보존 bust(base 820)가 들어간 값이다. focus.json이 없던 S4의 0은 게임과 달랐다. **내장 기본값에 `presets/focus.json`이 반드시 들어가야 한다**(질문 1에 포함).
+3. **배경도 프리비즈 대상이다.** 배경 리그는 `Far_Content`에 서고 크기는 런타임 사이징(코어에 없다)으로 정해진다. 프리팹 값으로 역산하면 `폭 = 높이 × 종횡비` 꼴(이미지 rect 1920 + 1702.8 = 3622.8 = 1080 × 3.354, preserveAspect 0 → 그대로 채움). 7.3 E의 "캐릭터만"을 **캐릭터 + 배경**으로 넓히기를 권한다: `Far_Content` 우클릭 "배경 리그 만들기(PNG)". 배경 사이징 공식은 런타임 확인이 필요하다(질문 7). 배경은 깊이 폴드를 타지 않는다(`Background_DepthScale` 항등).
+4. **기본 스테이지는 `stage00`.** 실제 게임이 Stage00을 쓰고 코어 `slot` 기본도 `"stage00"`이다. 툴의 기본 `stage01`은 **`stage00`으로 바꾼다**(예전 문서는 적힌 값 그대로).
+5. **이름 규칙.** 툴 키 `s1/CharSlot_Track`은 유니티 이름 `s1_CharSlot_Track`과 같은 뜻이다. 하이어아키 표시는 유니티처럼 `s1_…`로 보여도 되고(표시만), 오브젝트 id는 슬롯 키(`s1`, `bg_main`)다 — 새 오브젝트 기본 id를 `c1`이 아니라 **`s1`, `s2`…**(배경은 `bg_main`, `bg_2`…)로 바꾸면 Yarn과 같아진다.
+6. **초상 종횡비.** `772.03 = 1080 × 0.7148` — `PortraitSizingReduction`(높이 맞춤) 그대로다. 툴은 PNG의 종횡비를 쓰므로 PNG가 실제 스프라이트면 같은 값이 나온다. 런타임은 `portrait-dimensions.json`(배역·변형·표정별)을 쓰므로, 내장 기본값에 그 파일도 넣으면 PNG 없이도 자리표시 크기가 맞는다(질문 1에 포함).
+7. **화면 효과 리그**는 `ScreenEffectLayer` 밑에 접두사 없이 선다. 뼈대 데이터에 `ScreenEffectLayer › ScreenOverlay_Root`를 두되 만들기는 없다.
+
+**7.3 표의 수정**: E → "캐릭터 리그 만들기" + "배경 리그 만들기"(Far 권장, 어느 Content든 가능). 채널 박스 → `자리(place: 화면 지점 × focus)` 행 추가, X/Y는 "오프셋(move)"로 이름을 바꾼다. 7.5 S8c에 place 행을 더한다.
+
+**7.4에 더하는 질문**: 7. 배경 사이징 공식(런타임 `BackgroundRig` 사이징 정책)을 알려 주시거나, 역산값(`폭 = 높이 × 종횡비`, preserveAspect 0)으로 가도 되는지. 8. 새 오브젝트 기본 id를 `s1`·`bg_main`처럼 Yarn 슬롯 키 꼴로 바꿀지.
+
 ## 결정 (2026-10-28, 소유자)
 
 - 모션의 주인은 **rigKind**. 공통 스키마를 가진 리그끼리는 모션을 공유할 수 있다 → 툴은 "rigKind가 같거나 채널 노드가 전부 있으면" 그 오브젝트에 입혀 보인다(`ScenePreview.CanWear`).
