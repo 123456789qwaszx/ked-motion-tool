@@ -748,7 +748,77 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 인스펙터는_탭_셋이고_설정_단축키는_창이며_채널_박스_묶음은_접히고_뼈대는_기본_숨김이다()
+    public void 인스펙터는_탭_셋이고_마지막_탭은_설정에_남는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                Assert.Equal(3, window.InspectorTabCount);
+                Assert.Equal(0, window.InspectorTab);
+                window.InspectorTab = 2;
+                Assert.Equal(2, window.Settings.InspectorTab);
+                window.InspectorTab = 0;
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 설정_창은_같은_컨트롤을_붙였다_떼므로_두_번_열린다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.OpenSettingsFromMenu();
+                Assert.NotNull(window.SettingsWindow);
+                window.SettingsWindow!.Close();
+                Assert.Null(window.SettingsWindow);
+                window.OpenSettingsFromMenu();
+                Assert.NotNull(window.SettingsWindow);
+                window.SettingsWindow!.Close();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 단축키_창은_F1이다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
+                Assert.NotNull(window.ShortcutsWindow);
+                window.ShortcutsWindow!.Close();
+                Assert.Null(window.ShortcutsWindow);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 채널_박스_묶음은_접히고_접힌_묶음에도_값이_들어가며_무대_뼈대는_기본_숨김이다()
     {
         HeadlessUi.Run(() =>
         {
@@ -758,30 +828,6 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-
-                // 탭 셋, 기본은 채널 박스. 마지막 탭은 설정에 남는다.
-                Assert.Equal(3, window.InspectorTabCount);
-                Assert.Equal(0, window.InspectorTab);
-                window.InspectorTab = 2;
-                Assert.Equal(2, window.Settings.InspectorTab);
-                window.InspectorTab = 0;
-
-                // 설정 창은 같은 컨트롤을 붙였다 떼므로 두 번 열어도 된다. 닫으면 저장.
-                window.OpenSettingsFromMenu();
-                Assert.NotNull(window.SettingsWindow);
-                window.SettingsWindow!.Close();
-                Assert.Null(window.SettingsWindow);
-                window.OpenSettingsFromMenu();
-                Assert.NotNull(window.SettingsWindow);
-                window.SettingsWindow!.Close();
-
-                // 단축키 창 = F1.
-                window.KeyPressQwerty(PhysicalKey.F1, RawInputModifiers.None);
-                Assert.NotNull(window.ShortcutsWindow);
-                window.ShortcutsWindow!.Close();
-                Assert.Null(window.ShortcutsWindow);
-
-                // 채널 박스 묶음 접기 — 설정에 남고, 접힌 묶음에도 값은 들어간다.
                 window.AddMotionFromForm("step", "character", "0.5", MotionEnd.Commit);
                 window.SelectInHierarchy("s1", null);
                 window.ToggleChannelBoxGroup("placement");
