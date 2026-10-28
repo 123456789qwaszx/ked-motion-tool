@@ -564,7 +564,7 @@ public class MainWindowTests
 
                 // 리그 노드는 연기/배치 폴더가 아니라 덤프의 parent 사슬이다. 오브젝트 항목이 곧 __root.
                 IReadOnlyList<string> path = window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move_Y");
-                Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "Stage00", "Mid  ·  Stage00Depth_Mid_Content", "s1  ·  character", "CharSlot_Track_Focus", "CharSlot_DepthY", "CharSlot_DepthScale", "CharSlot_Track_Idle", "CharSlot_Track", "CharSlot_Track_X", "CharSlot_Track_Y", "CharSlot_Rotation", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_Track", "CharacterPortrait_Rotation", "CharacterPortrait_Track_Move", "CharacterPortrait_Track_Move_X", "CharacterPortrait_Track_Move_Y" }, path);
+                Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "StageViewportLayer", "StageShot_Root", "StagePan_Root  ·  pan 0,0", "StageZoom_Root  ·  zoom 0", "Stage00_Root", "Stage00Mask_Root", "Stage00DepthSystem_Root", "Stage00Depth_Mid_Root", "Stage00Depth_Mid_FramingTransform", "Stage00Depth_Mid_FramingScale", "Stage00Depth_Mid_Content", "s1  ·  character", "CharSlot_Track_Focus", "CharSlot_DepthY", "CharSlot_DepthScale", "CharSlot_Track_Idle", "CharSlot_Track", "CharSlot_Track_X", "CharSlot_Track_Y", "CharSlot_Rotation", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_Track", "CharacterPortrait_Rotation", "CharacterPortrait_Track_Move", "CharacterPortrait_Track_Move_X", "CharacterPortrait_Track_Move_Y" }, path);
                 Assert.DoesNotContain("연기 축", window.HierarchyPathOf("s1", "CharacterPortrait_SwayPivot"));
 
                 // 노드 위에서 "만들기" = 그 노드의 자식. 트리에서는 그 노드 밑에 보인다.
@@ -574,12 +574,6 @@ public class MainWindowTests
                 IReadOnlyList<string> propPath = window.HierarchyPathOf("s2", null);
                 Assert.Equal("CharacterPortrait_Track_Move", propPath[^2]);
                 Assert.StartsWith("s2  ·  character", propPath[^1], StringComparison.Ordinal);
-
-                // 압축 보기를 끄면 유니티 PresentataionUIRoot의 모든 노드가 그대로 보인다.
-                window.CompactHierarchy = false;
-                IReadOnlyList<string> full = window.HierarchyPathOf("s1", null);
-                Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "StageViewportLayer", "StageShot_Root", "StagePan_Root  ·  pan 0,0", "StageZoom_Root  ·  zoom 0", "Stage00_Root", "Stage00Mask_Root", "Stage00DepthSystem_Root", "Stage00Depth_Mid_Root", "Stage00Depth_Mid_FramingTransform", "Stage00Depth_Mid_FramingScale", "Stage00Depth_Mid_Content", "s1  ·  character" }, full);
-                window.CompactHierarchy = true;
 
                 // 빈자리에서 만들면 선택 오브젝트의 무대·층의 최상위. 리그 없는 오브젝트는 없다.
                 string s3 = window.CreateObjectFromMenu("character", null, null);
@@ -663,7 +657,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 씬을_더하고_전환하고_이름을_바꾸며_부모_콤보는_월드_위치를_지킨다()
+    public void 부모_콤보는_월드_위치를_지키고_자리_콤보는_place_폴드를_탄다()
     {
         HeadlessUi.Run(() =>
         {
@@ -693,21 +687,6 @@ public class MainWindowTests
                 Assert.NotEqual(-150f, s2.PositionX);
                 Assert.Equal(before.X, RootOfC2().X, 1);
                 Assert.Equal(before.Y, RootOfC2().Y, 1);
-
-                // 새 씬 — 활성이 되고 기본 s1 하나. 전환하면 하이어아키가 그 씬.
-                window.AddSceneFromMenu();
-                Assert.Equal(new[] { "scene", "scene_2" }, window.SceneNames);
-                Assert.Equal("scene_2", window.Viewport.Scene!.Name);
-                Assert.Equal(1, window.HierarchyObjectCount);
-
-                window.SwitchSceneFromCombo("scene");
-                Assert.Equal("scene", window.Viewport.Scene!.Name);
-                Assert.Equal(2, window.HierarchyObjectCount);
-
-                window.RenameSceneFromForm("main");
-                Assert.Equal("main", window.Viewport.Scene!.Name);
-                Assert.Equal(new[] { "main", "scene_2" }, window.SceneNames);
-                Assert.Equal("Scene  main  ·  PresentataionUIRoot", window.HierarchyPathOf("s1", null)[0]);
 
                 // 자리(place) — 채널 박스 콤보로. Track_Focus가 코어 place 폴드로 풀린다.
                 window.SelectInHierarchy("s1", null);
