@@ -314,41 +314,6 @@ public class GraphHitTestTests
     }
 }
 
-public class CurveViewTransformTests
-{
-    private static KeyAsset K(float t, float v) => new() { T = t, V = v };
-
-    [Fact]
-    public void 절대는_항등이고_정규화는_최소_최대를_0_1로_누른다()
-    {
-        var keys = new List<KeyAsset> { K(0, -18), K(1, 0), K(2, 18) };
-
-        Assert.Equal(CurveViewTransform.Identity, CurveViewTransform.For(keys, GraphViewMode.Absolute, 3));
-
-        CurveViewTransform n = CurveViewTransform.For(keys, GraphViewMode.Normalized, 3);
-        Assert.Equal(0, n.ToView(-18), 9);
-        Assert.Equal(0.5, n.ToView(0), 9);
-        Assert.Equal(1, n.ToView(18), 9);
-        Assert.Equal(18, n.ToValue(1), 9);
-
-        CurveViewTransform s = CurveViewTransform.For(keys, GraphViewMode.Stacked, 2);
-        Assert.Equal(2, s.ToView(-18), 9);
-        Assert.Equal(3, s.ToView(18), 9);
-    }
-
-    [Fact]
-    public void 평평한_커브는_1대1로_가운데_둔다_0으로_나누지_않는다()
-    {
-        var keys = new List<KeyAsset> { K(0, 5), K(1, 5) };
-        CurveViewTransform n = CurveViewTransform.For(keys, GraphViewMode.Normalized, 0);
-
-        Assert.Equal(1, n.Scale, 9);
-        Assert.Equal(0.5, n.ToView(5), 9);
-        Assert.Equal(6, n.ToValue(1.5), 9);
-        Assert.Equal(1.5, CurveViewTransform.For(new List<KeyAsset>(), GraphViewMode.Stacked, 1).ToView(0), 9); // 빈 커브: 0이 띠 가운데
-    }
-}
-
 public class CurveFlagsTests
 {
     [Fact]

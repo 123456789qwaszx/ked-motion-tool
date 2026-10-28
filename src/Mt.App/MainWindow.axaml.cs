@@ -45,7 +45,6 @@ public partial class MainWindow : Window
 
     /// <summary>잠금·뮤트 — 그래프·도프시트·뷰포트가 같은 객체를 든다.</summary>
     private readonly CurveFlags _flags = new();
-    private readonly ComboBox _viewMode = new() { ItemsSource = new[] { "절대", "정규화", "쌓기" }, SelectedIndex = 0, FontSize = 11 };
     private readonly KeyClipboardSlot _clipboard = new();
     private readonly ToolSettings _settings;
     private readonly string _settingsPath;
@@ -175,8 +174,6 @@ public partial class MainWindow : Window
 
     // 오른쪽 — 키
     private readonly TextBox _keyValue = new() { FontSize = 11 };
-    private readonly TextBox _keyIn = new() { FontSize = 11 };
-    private readonly TextBox _keyOut = new() { FontSize = 11 };
 
     // 오른쪽 — 보기
     private readonly CheckBox _snap = new() { Content = "시간 스냅", IsChecked = true, FontSize = 11 };
@@ -950,25 +947,7 @@ public partial class MainWindow : Window
         });
         ToolTip.SetTip(_bufferButton, "버퍼 커브 — 없으면 보이는 커브를 흐린 점선으로 찍어 두고(Ctrl+B), 있으면 찍어 둔 것과 지금을 바꾼다(Ctrl+Shift+B). 새로 찍으려면 먼저 지운다");
 
-        _keyIn.Width = 56;
-        _keyOut.Width = 56;
-        ToolTip.SetTip(_keyIn, "선택 키 하나의 in 기울기(초당 값). 끊기지 않은 키는 out도 같이 바뀐다");
-        ToolTip.SetTip(_keyOut, "선택 키 하나의 out 기울기(초당 값)");
         OnCommit(_keyValue, text => ApplyValueToSelectedKeys(text));
-        OnCommit(_keyIn, text => WithSingleKey((key, k) =>
-        {
-            if (TryFloat(text, out float v) && v != k.InTangent)
-            {
-                _session.Editor.SetTangents(_graph.MotionName!, key, v, k.Broken ? k.OutTangent : v);
-            }
-        }));
-        OnCommit(_keyOut, text => WithSingleKey((key, k) =>
-        {
-            if (TryFloat(text, out float v) && v != k.OutTangent)
-            {
-                _session.Editor.SetTangents(_graph.MotionName!, key, k.Broken ? k.InTangent : v, v);
-            }
-        }));
         ToolTip.SetTip(_snap, "키 배치·이동 및 타임라인 탐색 시, 시간을 지정한 간격의 배수에 맞춥니다. 간격은 설정 창의 \"시간 스냅 간격\"");
         _valueSnap.IsCheckedChanged += (_, _) =>
         {
@@ -1024,10 +1003,9 @@ public partial class MainWindow : Window
             RefreshToolButtons();
         }), Separator());
         Add(_regionButton, Separator());
-        Add(_snap, _valueSnap, _viewMode, Separator());
+        Add(_snap, _valueSnap, Separator());
         Add(new TextBlock { Text = "무한", FontSize = 10, Opacity = 0.7 }, _preInfinity, _postInfinity, Separator());
         Add(new TextBlock { Text = "값", FontSize = 10, Opacity = 0.7 }, _keyValue);
-        Add(new TextBlock { Text = "기울기 in/out", FontSize = 10, Opacity = 0.7 }, _keyIn, _keyOut);
         ToolTip.SetTip(bar, "툴 Q 선택 · W 이동 · R 스케일 · I 현재 시각에 키 끼우기 · A 전체 맞춤 · F 선택 맞춤 · 탄젠트 Ctrl+1 auto · 2 flat · 3 linear · 4 free · 5 spline · 6 plateau · 버퍼 Ctrl+B 찍기 / Ctrl+Shift+B 바꾸기");
         RefreshToolButtons();
         return bar;
@@ -1974,13 +1952,6 @@ public partial class MainWindow : Window
             {
                 _settings.AutoSaveMinutes = AutoSaveMinutes[_autoSaveCombo.SelectedIndex];
                 PushSettingsToViews();
-            }
-        };
-        _viewMode.SelectionChanged += (_, _) =>
-        {
-            if (!_refreshing && _viewMode.SelectedIndex >= 0)
-            {
-                _graph.ViewMode = (GraphViewMode)_viewMode.SelectedIndex;
             }
         };
         _newKeyTangent.SelectionChanged += (_, _) =>
@@ -3432,15 +3403,9 @@ public partial class MainWindow : Window
             MotionAsset? motion = _graph.Motion;
             int count = _graph.Selection.Count;
             KeyAsset? single = count == 1 && motion is not null ? _graph.Selection.First().Resolve(motion) : null;
-            bool editable = single is not null;
-
             _keyValue.IsEnabled = count > 0;
-            _keyIn.IsEnabled = editable;
-            _keyOut.IsEnabled = editable;
 
             _keyValue.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.V);
-            _keyIn.Text = single is null ? "" : F(single.InTangent);
-            _keyOut.Text = single is null ? "" : F(single.OutTangent);
             RefreshToolButtons();
         }
         finally
