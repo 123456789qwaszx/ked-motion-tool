@@ -242,7 +242,7 @@ public class MotionEditorTests
         Assert.Empty(log);
         editor.Undo();
         Assert.Equal(new[] { "u1" }, log);
-        Assert.Equal(revision + 1, editor.Revision); // 손만 있는 칸은 Revision을 안 올린다(문서 복원 한 번만)
+        Assert.Equal(revision + 2, editor.Revision); // 길이 3으로 바꾼 조작 + 그 복원뿐 — 손만 있는 칸은 Revision을 안 올린다
         editor.Undo();
         Assert.Equal(0.6f, editor.Document.Find("nod")!.Duration);
 
