@@ -273,12 +273,12 @@ public class ViewportViewTests
 
         try
         {
-            Assert.Equal("c1", view.SelectedObjectId);
-            editor.AddSceneObject(null, "c2", "character", SceneLayers.Front);
-            editor.SetObjectPlacement(null, "c2", 300f, 0f, 0f, 1f, 1f);
+            Assert.Equal("s1", view.SelectedObjectId);
+            editor.AddSceneObject(null, "s2", "character", SceneLayers.Front);
+            editor.SetObjectPlacement(null, "s2", 300f, 0f, 0f, 1f, 1f);
 
-            Quad first = view.ObjectQuad("c1")!.Value;
-            Quad second = view.ObjectQuad("c2")!.Value;
+            Quad first = view.ObjectQuad("s1")!.Value;
+            Quad second = view.ObjectQuad("s2")!.Value;
             Assert.Equal(300f, second.BottomLeft.X - first.BottomLeft.X, 1);
 
             // 두 번째 오브젝트의 초상 가운데를 클릭하면 그것이 선택된다.
@@ -290,18 +290,18 @@ public class ViewportViewTests
             view.Manipulator = ManipulatorMode.Select;
             window.MouseDown(at, MouseButton.Left);
             window.MouseUp(at, MouseButton.Left);
-            Assert.Equal("c2", view.SelectedObjectId);
+            Assert.Equal("s2", view.SelectedObjectId);
 
-            // nod(y 0 → -18)는 선택 오브젝트(c2)에만 얹힌다.
+            // nod(y 0 → -18)는 선택 오브젝트(s2)에만 얹힌다.
             view.ScrubTo(0.3);
-            Quad c1At = view.ObjectQuad("c1")!.Value;
-            Quad c2At = view.ObjectQuad("c2")!.Value;
+            Quad c1At = view.ObjectQuad("s1")!.Value;
+            Quad c2At = view.ObjectQuad("s2")!.Value;
             Assert.Equal(first.BottomLeft.Y, c1At.BottomLeft.Y, 2);
             Assert.Equal(second.BottomLeft.Y - 18f, c2At.BottomLeft.Y, 1);
 
             // 오브젝트 삭제는 선택을 남은 것으로 옮긴다.
-            editor.RemoveSceneObject(null, "c2");
-            Assert.Equal("c1", view.SelectedObjectId);
+            editor.RemoveSceneObject(null, "s2");
+            Assert.Equal("s1", view.SelectedObjectId);
         }
         finally
         {
@@ -310,28 +310,27 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 카메라_zoom_pan은_보기만_바꾸고_ToRoot가_되돌린다() => HeadlessUi.Run(() =>
+    public void 카메라는_뼈대의_Zoom_Pan_노드에_들어가고_보기_변환은_항등이다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, MotionEditor editor) = Show();
 
         try
         {
+            Assert.True(view.CameraInTree);
             Point origin = view.ToScreen(Vec2.Zero);
-            double plain = view.ToScreen(new Vec2(100f, 0f)).X - origin.X;
+            Quad rest = view.ObjectQuad("s1")!.Value;
+            Assert.Equal(0f, rest.Center.X, 1);
 
             editor.SetCamera(null, 20f, 50f, 0f); // 배율 2, pan +50px
             Assert.Equal(2f, view.CameraScale, 4);
-            Point shifted = view.ToScreen(Vec2.Zero);
-            Assert.True(shifted.X > origin.X);
-            Assert.Equal(plain * 2, view.ToScreen(new Vec2(100f, 0f)).X - shifted.X, 2);
+            Assert.Equal(origin, view.ToScreen(Vec2.Zero)); // 격자(StageShot_Root 공간)는 안 움직인다
+            Quad shot = view.ObjectQuad("s1")!.Value; // 오브젝트는 pan + 2·(자리) 만큼 — 런타임 StagePan/Zoom과 같다
+            Assert.Equal(50f, shot.Center.X, 1);
+            Assert.Equal((rest.TopRight.X - rest.TopLeft.X) * 2f, shot.TopRight.X - shot.TopLeft.X, 1);
 
             Vec2 back = view.ToRoot(view.ToScreen(new Vec2(123f, -45f)));
             Assert.Equal(123f, back.X, 2);
             Assert.Equal(-45f, back.Y, 2);
-
-            // 루트 공간의 오브젝트 사각형은 카메라와 무관하다.
-            Quad quad = view.ObjectQuad("c1")!.Value;
-            Assert.Equal(0f, quad.Center.X, 1);
         }
         finally
         {
@@ -383,7 +382,7 @@ public class ViewportViewTests
             view.SetRig(RigSchemaFile.Load(TestDocuments.FixturePath("rig-schemas.json")));
             Assert.True(view.HasRig);
 
-            // 리그가 다른 모션: 오브젝트(c1 character)는 그대로 서고, 모션만 안 맞는다.
+            // 리그가 다른 모션: 오브젝트(s1 character)는 그대로 서고, 모션만 안 맞는다.
             view.Bind(editor, "robot_wave");
             Assert.True(view.HasRig);
             Assert.NotNull(view.CurrentPortraitQuad());
@@ -398,38 +397,31 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 자식_오브젝트는_부모를_따라_움직이고_빈_오브젝트는_기즈모_클릭으로_고른다() => HeadlessUi.Run(() =>
+    public void 자식_오브젝트는_부모를_따라_움직이고_부모가_숨으면_클릭에_안_잡힌다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, MotionEditor editor) = Show();
 
         try
         {
-            editor.AddSceneObject(null, "prop", "character", SceneLayers.Mid, parent: "c1", parentNode: "CharacterPortrait_Track_Move");
-            editor.AddSceneObject(null, "pivot", "", SceneLayers.Front);
-            editor.SetObjectPlacement(null, "pivot", 400f, 100f, 0f, 1f, 1f);
+            editor.AddSceneObject(null, "prop", "character", SceneLayers.Mid, parent: "s1", parentNode: "CharacterPortrait_Track_Move");
+            Assert.Throws<InvalidOperationException>(() => editor.AddSceneObject(null, "pivot", "", SceneLayers.Front)); // 빈 오브젝트는 없다
 
             Quad propBefore = view.ObjectQuad("prop")!.Value;
-            editor.SetObjectPlacement(null, "c1", 150f, 0f, 0f, 1f, 1f);
+            editor.SetObjectPlacement(null, "s1", 150f, 0f, 0f, 1f, 1f);
             Quad propAfter = view.ObjectQuad("prop")!.Value;
             Assert.Equal(150f, propAfter.BottomLeft.X - propBefore.BottomLeft.X, 1);
 
-            // 빈 오브젝트는 크기가 없다 — 기즈모 자리 클릭으로 고른다.
-            Point at = view.TranslatePoint(view.ToScreen(new Vec2(400f, 100f)), window)!.Value;
-            view.Manipulator = ManipulatorMode.Select;
-            window.MouseDown(at, MouseButton.Left);
-            window.MouseUp(at, MouseButton.Left);
-            Assert.Equal("pivot", view.SelectedObjectId);
-            Assert.False(view.CanWear(view.SelectedObject!)); // 리그가 없으니 모션을 못 입는다
-            Assert.Empty(view.NodeChoices);
-
             // 부모를 숨기면 자식도 안 보이고 클릭에도 안 잡힌다.
+            view.Manipulator = ManipulatorMode.Select;
+            view.SelectedObjectId = "prop";
             Quad prop = view.ObjectQuad("prop")!.Value;
             Vec2 center = (prop.BottomLeft + prop.TopRight) * 0.5f;
             Point onProp = view.TranslatePoint(view.ToScreen(center), window)!.Value;
-            editor.SetObjectVisible(null, "c1", false);
+            editor.SetObjectVisible(null, "s1", false);
+            view.SelectedObjectId = null;
             window.MouseDown(onProp, MouseButton.Left);
             window.MouseUp(onProp, MouseButton.Left);
-            Assert.Equal("pivot", view.SelectedObjectId);
+            Assert.Null(view.SelectedObjectId);
         }
         finally
         {

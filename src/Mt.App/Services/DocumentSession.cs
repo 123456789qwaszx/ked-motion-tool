@@ -19,15 +19,30 @@ public sealed class DocumentSession
     public DocumentSession()
     {
         Editor = new MotionEditor(new MotionDocument());
+        UseBuiltinTuning();
+    }
+
+    /// <summary>내장 기본값으로 — 덤프 파일이 없는 문서의 시작 상태.</summary>
+    private void UseBuiltinTuning()
+    {
+        Rig = BuiltinTuning.RigSchemas;
+        RigPath = null;
+        Depth = BuiltinTuning.Depth;
+        Focus = BuiltinTuning.Focus;
+        StageSize = BuiltinTuning.BaseResolution;
     }
 
     public MotionEditor Editor { get; private set; }
 
     public string? DocumentPath { get; private set; }
 
+    /// <summary>리그 덤프 — 파일을 싣지 않았으면 내장 기본값(<see cref="BuiltinTuning"/>). null이 아니다.</summary>
     public RigSchemaFile? Rig { get; private set; }
 
+    /// <summary>실은 덤프 파일의 경로. null이면 내장 리그다.</summary>
     public string? RigPath { get; private set; }
+
+    public bool IsBuiltinRig => RigPath is null;
 
     /// <summary>덤프 옆 presets/depth.json. 없으면 레이어는 그리는 순서만 정한다.</summary>
     public DepthTuningFile? Depth { get; private set; }
@@ -132,9 +147,9 @@ public sealed class DocumentSession
         RigPath = path;
         Editor.SetRigSchemas(RelativeToDocument(path), rig.Sha256);
 
-        // 덤프 옆의 base-resolution.json·presets/depth.json을 같이 싣는다 — ExportedTuning 폴더를 통째로 복사하는 관례.
+        // 덤프 옆의 base-resolution.json·presets/depth.json을 같이 싣는다 — ExportedTuning 폴더를 통째로 복사하는 관례. 옆에 없으면 내장 기본값.
         string? depthPath = DepthTuningFile.TryFindBeside(path);
-        Depth = null;
+        Depth = BuiltinTuning.Depth;
 
         if (depthPath is not null)
         {
@@ -149,7 +164,7 @@ public sealed class DocumentSession
         }
 
         string? focusPath = FocusTuningFile.TryFindBeside(path);
-        Focus = null;
+        Focus = BuiltinTuning.Focus;
 
         if (focusPath is not null)
         {
@@ -174,8 +189,8 @@ public sealed class DocumentSession
         AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus($"리그 덤프: {string.Join(", ", rig.RigKinds)} ({Path.GetFileName(path)})"
                   + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}")
-                  + (Depth is null ? " · depth.json 없음(깊이 없이)" : " · 깊이 커브")
-                  + (Focus is null ? "" : " · focus 표"));
+                  + (depthPath is null ? " · depth.json 없음(내장 깊이 커브)" : " · 깊이 커브")
+                  + (focusPath is null ? " · focus 없음(내장 표)" : " · focus 표"));
     }
 
     /// <summary>오브젝트의 미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
@@ -228,11 +243,7 @@ public sealed class DocumentSession
         Editor = new MotionEditor(document);
         DocumentPath = path;
         _savedRevision = Editor.Revision;
-        Rig = null;
-        RigPath = null;
-        Depth = null;
-        Focus = null;
-        StageSize = BaseResolutionFile.Default;
+        UseBuiltinTuning();
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
     }
 
@@ -281,13 +292,25 @@ public sealed class DocumentSession
 
         if (!File.Exists(resolved))
         {
-            SetStatus($"리그 덤프를 찾지 못했다: {resolved} — 덤프를 다시 지정한다.");
+            SetStatus($"리그 덤프를 찾지 못했다: {resolved} — 내장 리그({BuiltinTuning.Source})로 연다.");
             return;
         }
 
         RigSchemaFile rig = RigSchemaFile.Load(resolved);
         Rig = rig;
         RigPath = resolved;
+
+        try
+        {
+            Depth = DepthTuningFile.TryFindBeside(resolved) is { } depthPath ? DepthTuningFile.Load(depthPath) : BuiltinTuning.Depth;
+            Focus = FocusTuningFile.TryFindBeside(resolved) is { } focusPath ? FocusTuningFile.Load(focusPath) : BuiltinTuning.Focus;
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"덤프 옆 프리셋을 읽지 못했다: {exception.Message} — 내장 프리셋으로 둔다.");
+            Depth = BuiltinTuning.Depth;
+            Focus = BuiltinTuning.Focus;
+        }
 
         if (!string.IsNullOrEmpty(reference.Sha256) && !string.Equals(reference.Sha256, rig.Sha256, StringComparison.Ordinal))
         {

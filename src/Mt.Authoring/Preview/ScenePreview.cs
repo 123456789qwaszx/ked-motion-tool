@@ -19,14 +19,24 @@ public static class ScenePreview
 
     /// <param name="depth">presets/depth.json. 있으면 레이어 라벨을 깊이(DepthY·DepthScale)로 — 런타임 size 폴드와 같은 함수(focus 보존 bust, 캐릭터별 오프셋 없이).</param>
     /// <param name="fallenBack">부모 노드가 그 리그에 없어 부모 루트에 붙인 오브젝트들(알림용).</param>
-    /// <param name="focus">presets/focus.json. 있으면 배역(<see cref="SceneObject.Character"/>)별 focus 오프셋이 깊이 폴드에 들어간다.</param>
-    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null, List<SceneObject>? fallenBack = null, FocusTuningFile? focus = null)
+    /// <param name="focus">presets/focus.json. 있으면 배역(<see cref="SceneObject.Character"/>)별 focus 오프셋이 깊이·place 폴드에 들어간다.</param>
+    /// <param name="stage">
+    /// 무대 뼈대(<c>PresentataionUIRoot</c>, rigKind "stage"). 있으면 <c>stage/</c> 접두사로 먼저 서고 최상위 오브젝트는
+    /// <c>Stage{NN}Depth_{Layer}_Content</c> 밑에 붙으며, 카메라(zoom·pan)와 층 패럴랙스가 뼈대 노드에 들어간다. 없으면 루트 직속(좌표는 같다 — 뼈대는 항등).
+    /// </param>
+    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null, List<SceneObject>? fallenBack = null, FocusTuningFile? focus = null, RigSchemaRigDto? stage = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(scene);
 
         var space = new RectSpace(rig.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half);
         var state = new StageState(space);
+
+        if (stage is not null)
+        {
+            RigSchemaLoader.AddRigTo(state.Nodes, stage, StageNodes.Prefix);
+            StageShotResponse.Apply(state.Nodes, scene.Camera);
+        }
 
         // DrawOrder는 부모가 자식보다 먼저다 — 자식은 이미 선 부모의 노드 밑에 붙는다(코어 AddRigTo의 attachParentKey).
         foreach (SceneObject o in scene.DrawOrder())
@@ -51,11 +61,11 @@ public static class ScenePreview
                     attach = RootKeyOf(parent);
                 }
             }
-
-            if (o.IsEmpty)
+            else if (stage is not null)
             {
-                state.Nodes.Add(RootKeyOf(o), attach!, EmptyState(o));
-                continue;
+                // 최상위 = 그 무대·층의 Content. 런타임 GetDepthContent(stage, layer)와 같은 자리. 모르는 라벨은 루트 직속.
+                string content = StageNodes.KeyOf(StageNodes.ContentOf(o.Stage, o.Layer));
+                attach = state.Nodes.Contains(content) ? content : null;
             }
 
             if (!rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
@@ -69,29 +79,45 @@ public static class ScenePreview
             ApplyPlacement(state.Nodes, o);
             PortraitLayout.ApplySizing(state.Nodes, aspectOf?.Invoke(o) ?? PortraitLayout.PlaceholderAspect, o.Prefix);
 
-            // 깊이는 최상위에만 — 자식은 부모 사슬을 따라 같이 깊어진다.
+            // 깊이·place는 최상위에만 — 자식은 부모 사슬을 따라 같이 간다. 순서는 런타임과 같이 size(깊이) → place.
             if (o.Parent is null)
             {
                 ApplyDepth(state, o, depth, focus);
+                ApplyPlace(state, o, focus);
             }
         }
 
         return state.Nodes;
     }
 
-    /// <summary>빈 오브젝트의 노드 하나 — 가운데 앵커·피벗, 크기 0, 배치 값 그대로(유니티 Create Empty).</summary>
-    public static RectNodeState EmptyState(SceneObject o)
+    /// <summary>
+    /// 자리(place) — focus 프리셋 점이 화면 지점에 오도록 <c>CharSlot_Track_Focus</c>를 푼다. 코어 <see cref="PlaceFocusStageReduction"/> 그대로.
+    /// place가 없거나 리그에 그 축이 없으면 건너뛴다(false). 깊이 뒤에 부른다(런타임 순서: size → place; 그래야 DepthY가 게임과 같다).
+    /// </summary>
+    public static bool ApplyPlace(StageState state, SceneObject o, FocusTuningFile? focus)
     {
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(o);
-        return new RectNodeState(
-            anchoredPosition: new Vec2(o.PositionX, o.PositionY),
-            anchorMin: Vec2.Half,
-            anchorMax: Vec2.Half,
-            pivot: Vec2.Half,
-            sizeDelta: Vec2.Zero,
-            localScale: new Vec3(o.ScaleX, o.ScaleY, 1f),
-            localEulerAngles: new Vec3(0f, 0f, o.RotationZ));
+
+        if (string.IsNullOrEmpty(o.Place))
+        {
+            return false;
+        }
+
+        if (!PlaceFocusStageReduction.TryReduce(state, o.Id, o.Character ?? "", o.PlaceFocus ?? SceneObject.DefaultPlaceFocus, o.Place, focus?.Body, out StageNodeClaim claim, out _))
+        {
+            return false;
+        }
+
+        state.Apply(claim);
+        return true;
     }
+
+    /// <summary>화면 지점 이름들 — 코어 <see cref="ScreenPointRatios"/>가 아는 것.</summary>
+    public static readonly IReadOnlyList<string> ScreenPoints = new[] { "center", "left", "right", "top", "bottom", "tl", "tr", "bl", "br" };
+
+    /// <summary>focus 프리셋 이름들 — 코어 <see cref="FocusPresetName"/>이 아는 것.</summary>
+    public static readonly IReadOnlyList<string> FocusPresets = new[] { "bust", "face", "body", "feet", "faceAura", "handLeft", "handRight" };
 
     /// <summary>배치 값을 배치 축 노드에. 그 노드가 없는 리그(배경 등)면 루트 노드에 — 그래서 어느 오브젝트든 옮길 수 있다.</summary>
     public static void ApplyPlacement(RectNodeTree tree, SceneObject o)
@@ -151,7 +177,7 @@ public static class ScenePreview
     /// 새 부모 밑에 같은 배치로 세운 트리에서 그 점이 어디로 가는지 본 뒤, 차이를 배치 노드의 부모 공간으로 되돌려 더한다.
     /// 회전·배율은 지키지 않는다(위치만). 리그가 없어 못 재면 지금 값 그대로.
     /// </summary>
-    public static (float X, float Y) PlacementKeepingWorld(RigSchemaFile rig, SceneAsset scene, string id, string? newParent, string? newParentNode, DepthTuningFile? depth = null, FocusTuningFile? focus = null)
+    public static (float X, float Y) PlacementKeepingWorld(RigSchemaFile rig, SceneAsset scene, string id, string? newParent, string? newParentNode, DepthTuningFile? depth = null, FocusTuningFile? focus = null, RigSchemaRigDto? stage = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(scene);
@@ -159,7 +185,7 @@ public static class ScenePreview
         (float X, float Y) current = (o.PositionX, o.PositionY);
         string root = RootKeyOf(o);
 
-        RectNodeTree before = Build(rig, scene, null, null, depth, null, focus);
+        RectNodeTree before = Build(rig, scene, null, null, depth, null, focus, stage);
 
         if (!before.Contains(root))
         {
@@ -181,12 +207,13 @@ public static class ScenePreview
                 {
                     Id = original.Id, Rig = original.Rig, Stage = parent?.Stage ?? original.Stage, Layer = parent?.Layer ?? original.Layer,
                     PositionX = original.PositionX, PositionY = original.PositionY, RotationZ = original.RotationZ, ScaleX = original.ScaleX, ScaleY = original.ScaleY,
-                    Visible = original.Visible, Character = original.Character, Parent = parent?.Id, ParentNode = parent is null ? null : newParentNode,
+                    Visible = original.Visible, Character = original.Character, Place = original.Place, PlaceFocus = original.PlaceFocus,
+                    Parent = parent?.Id, ParentNode = parent is null ? null : newParentNode,
                 }
                 : original);
         }
 
-        RectNodeTree after = Build(rig, trial, null, null, depth, null, focus);
+        RectNodeTree after = Build(rig, trial, null, null, depth, null, focus, stage);
 
         if (!after.Contains(positionKey))
         {
@@ -217,11 +244,6 @@ public static class ScenePreview
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(o);
         ArgumentNullException.ThrowIfNull(motion);
-
-        if (o.IsEmpty)
-        {
-            return false;
-        }
 
         if (string.Equals(o.Rig, motion.Rig, StringComparison.Ordinal))
         {

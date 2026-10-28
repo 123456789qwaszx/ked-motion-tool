@@ -1,0 +1,3414 @@
+{
+  "capturedUnderParentSize": {
+    "x": 1920.0,
+    "y": 1080.0
+  },
+  "rigs": [
+    {
+      "rigKind": "stage",
+      "sourcePrefab": "Assets/Samples/Prefabs/PresentataionUIRoot.prefab",
+      "nodes": [
+        {
+          "id": "__root",
+          "parent": "",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "StageViewportLayer",
+          "parent": "",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "StageShot_Root",
+          "parent": "StageViewportLayer",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "StagePan_Root",
+          "parent": "StageShot_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "StageZoom_Root",
+          "parent": "StagePan_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00_Root",
+          "parent": "StageZoom_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Mask_Root",
+          "parent": "Stage00_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00DepthSystem_Root",
+          "parent": "Stage00Mask_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Far_Root",
+          "parent": "Stage00DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Far_FramingTransform",
+          "parent": "Stage00Depth_Far_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Far_FramingScale",
+          "parent": "Stage00Depth_Far_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Far_Content",
+          "parent": "Stage00Depth_Far_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Back_Root",
+          "parent": "Stage00DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Back_FramingTransform",
+          "parent": "Stage00Depth_Back_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Back_FramingScale",
+          "parent": "Stage00Depth_Back_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Back_Content",
+          "parent": "Stage00Depth_Back_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Mid_Root",
+          "parent": "Stage00DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Mid_FramingTransform",
+          "parent": "Stage00Depth_Mid_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Mid_FramingScale",
+          "parent": "Stage00Depth_Mid_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Mid_Content",
+          "parent": "Stage00Depth_Mid_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Front_Root",
+          "parent": "Stage00DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Front_FramingTransform",
+          "parent": "Stage00Depth_Front_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Front_FramingScale",
+          "parent": "Stage00Depth_Front_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Front_Content",
+          "parent": "Stage00Depth_Front_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Close_Root",
+          "parent": "Stage00DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Close_FramingTransform",
+          "parent": "Stage00Depth_Close_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Close_FramingScale",
+          "parent": "Stage00Depth_Close_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00Depth_Close_Content",
+          "parent": "Stage00Depth_Close_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00MaskEdge_Root",
+          "parent": "Stage00_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage00MaskEdgeGraphic",
+          "parent": "Stage00MaskEdge_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01_Root",
+          "parent": "StageZoom_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Mask_Root",
+          "parent": "Stage01_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01DepthSystem_Root",
+          "parent": "Stage01Mask_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Far_Root",
+          "parent": "Stage01DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Far_FramingTransform",
+          "parent": "Stage01Depth_Far_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Far_FramingScale",
+          "parent": "Stage01Depth_Far_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Far_Content",
+          "parent": "Stage01Depth_Far_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Back_Root",
+          "parent": "Stage01DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Back_FramingTransform",
+          "parent": "Stage01Depth_Back_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Back_FramingScale",
+          "parent": "Stage01Depth_Back_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Back_Content",
+          "parent": "Stage01Depth_Back_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Mid_Root",
+          "parent": "Stage01DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Mid_FramingTransform",
+          "parent": "Stage01Depth_Mid_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Mid_FramingScale",
+          "parent": "Stage01Depth_Mid_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Mid_Content",
+          "parent": "Stage01Depth_Mid_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Front_Root",
+          "parent": "Stage01DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Front_FramingTransform",
+          "parent": "Stage01Depth_Front_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Front_FramingScale",
+          "parent": "Stage01Depth_Front_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Front_Content",
+          "parent": "Stage01Depth_Front_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Close_Root",
+          "parent": "Stage01DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Close_FramingTransform",
+          "parent": "Stage01Depth_Close_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Close_FramingScale",
+          "parent": "Stage01Depth_Close_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01Depth_Close_Content",
+          "parent": "Stage01Depth_Close_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01MaskEdge_Root",
+          "parent": "Stage01_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage01MaskEdgeGraphic",
+          "parent": "Stage01MaskEdge_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02_Root",
+          "parent": "StageZoom_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Mask_Root",
+          "parent": "Stage02_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02DepthSystem_Root",
+          "parent": "Stage02Mask_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Far_Root",
+          "parent": "Stage02DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Far_FramingTransform",
+          "parent": "Stage02Depth_Far_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Far_FramingScale",
+          "parent": "Stage02Depth_Far_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Far_Content",
+          "parent": "Stage02Depth_Far_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Back_Root",
+          "parent": "Stage02DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Back_FramingTransform",
+          "parent": "Stage02Depth_Back_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Back_FramingScale",
+          "parent": "Stage02Depth_Back_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Back_Content",
+          "parent": "Stage02Depth_Back_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Mid_Root",
+          "parent": "Stage02DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Mid_FramingTransform",
+          "parent": "Stage02Depth_Mid_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Mid_FramingScale",
+          "parent": "Stage02Depth_Mid_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Mid_Content",
+          "parent": "Stage02Depth_Mid_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Front_Root",
+          "parent": "Stage02DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Front_FramingTransform",
+          "parent": "Stage02Depth_Front_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Front_FramingScale",
+          "parent": "Stage02Depth_Front_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Front_Content",
+          "parent": "Stage02Depth_Front_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Close_Root",
+          "parent": "Stage02DepthSystem_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Close_FramingTransform",
+          "parent": "Stage02Depth_Close_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Close_FramingScale",
+          "parent": "Stage02Depth_Close_FramingTransform",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02Depth_Close_Content",
+          "parent": "Stage02Depth_Close_FramingScale",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02MaskEdge_Root",
+          "parent": "Stage02_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "Stage02MaskEdgeGraphic",
+          "parent": "Stage02MaskEdge_Root",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "StageOverlayLayer",
+          "parent": "",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "SpriteRig_Root",
+          "parent": "StageOverlayLayer",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "TextRig_Root",
+          "parent": "StageOverlayLayer",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "ScreenEffectLayer",
+          "parent": "",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        },
+        {
+          "id": "ScreenOverlay_Root",
+          "parent": "ScreenEffectLayer",
+          "anchoredPosition": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "anchorMax": {
+            "x": 1.0,
+            "y": 1.0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "sizeDelta": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "localEulerAngles": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "measuredRectSize": {
+            "x": 1920.0,
+            "y": 1080.0
+          },
+          "hasCanvasGroup": false,
+          "canvasGroupAlpha": 1.0
+        }
+      ]
+    }
+  ]
+}

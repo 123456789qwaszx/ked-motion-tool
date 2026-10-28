@@ -109,22 +109,23 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 
 움직인 키가 안 움직인 키의 시각에 닿으면 움직인 키가 이긴다(마야와 같다). 시간은 0 아래로 내려가지 않는다.
 
-## 씬 · 오브젝트 · 월드 축 (`docs/PLAN-scene.md` S1–S7)
+## 씬 · 오브젝트 · 월드 축 (`docs/PLAN-scene.md` S1–S8)
 
-- 왼쪽 **씬 — 오브젝트** 하이어아키(유니티 하이어아키와 같은 모양): `Scene › stage › layer › 오브젝트 › 리그 노드 › 자식 오브젝트`. 리그 노드는 덤프 `rig-schemas.json`의 `parent` **그대로 중첩**된다(`CharSlot_Track_Focus › CharSlot_DepthY › … › CharSlot_Scale › CharacterPortrait_VisualOffset › … › CharacterPortraitSprite_Image`). 오브젝트 항목이 곧 리그 루트(`__root`)다. 연기 축은 파랑, 배치 축은 회색, 키잉 금지 노드는 기울임이다. 오브젝트는 기본 접힘(우클릭 "노드 전부 펼치기/접기"). 트리에서 클릭하거나 뷰포트에서 클릭해 고른다. 고른 오브젝트가 매니퓰레이터·모션 미리보기·초상 PNG의 대상이다. **노드를 클릭**하면 그 노드가 매니퓰레이터 노드·채널 추가 대상이 되고(키 따라가기는 꺼진다), **더블클릭**하면 그 노드에 채널이 생긴다. 기본 씬은 `c1 · character` 하나다.
-- **우클릭 메뉴**(유니티): 이름 바꾸기(F2) · 복제(Ctrl+D, 자손까지) · 삭제(Del, 자손까지) · 숨기기/보이기 · 레이어 › · 부모에서 떼기 · **빈 오브젝트 만들기**(Ctrl+Shift+N) · **리그 오브젝트 만들기 › rigKind…** · 노드 전부 펼치기/접기. **오브젝트나 노드 위에서 만들면 그 자리의 자식**이 되고, 레이어 폴더 위에서는 그 레이어의 최상위가 된다. 헤더의 `+`도 같은 메뉴다. id는 자동(c1·c2… / empty1… / rigKind+번호)이고 채널 박스에서 바꾼다.
-- **오브젝트 계층**: 오브젝트는 다른 오브젝트의 노드 밑에 붙는다(저작본 `parent`·`parentNode`). 트리는 코어 `AddRigTo(attachParentKey)`로 그 노드 밑에 세우므로 **부모가 움직이면 자식이 따라온다**(코어 체인, 툴이 좌표를 더하지 않는다). 자식은 부모의 stage·layer·깊이를 따르고(채널 박스의 Layer가 잠긴다), 부모를 숨기면 자손도 숨는다. 부모 노드가 그 리그에 없으면 부모 루트에 붙는다. **끌어다 놓기**: 오브젝트를 다른 오브젝트/노드에 놓으면 자식, 레이어 폴더에 놓으면 그 레이어의 최상위, Scene/stage에 놓으면 최상위. 부모를 바꿔도 배치 값은 그대로다(월드 위치 보존 아님).
-- **빈 오브젝트**(유니티 Create Empty): 리그 없이 노드 하나 — 그룹·피벗용. 뷰포트에는 마름모 기즈모와 이름으로 보이고 그 자리를 클릭해 고른다. 모션은 못 입는다.
-- 오른쪽 **오브젝트(채널 박스)**: id(이름 바꾸기) · 부모 · 부모 노드 · X · Y · Rot Z · Scale X/Y · Layer · 보이기 · 배역 — **배치**다(모션 키가 아니다). 값은 런타임이 움직이는 배치 축 노드(`CharSlot_Track` · `CharSlot_SwayPivot` · `CharSlot_Scale`)에 그대로 들어가고(그 노드가 없는 리그·빈 오브젝트는 루트 노드에), 트리는 코어 `RigSchemaLoader.AddRigTo`가 슬롯 접두사(`c1/노드`)로 세운다 — 리듀서의 slot 폴드와 같은 함수.
+- **덤프 없이 시작한다.** 런타임 `ExportedTuning/`(리그 덤프 · 기준 해상도 · 깊이 커브 · focus 표)의 사본이 내장되어 있어(`Mt.Authoring/Defaults`, 원본 커밋은 `BuiltinTuning.Source`) 새 문서를 열면 바로 캐릭터 리그가 선다. 상태 줄에 "내장 리그(…)"로 보인다. "리그 덤프…"로 파일을 실으면 그것이 우선하고, 문서가 기억한 덤프 파일이 없으면 내장본으로 열며 알린다.
+- **무대 뼈대**: 유니티 `PresentataionUIRoot.prefab`에서 뽑은 85노드(`StageViewportLayer › StageShot_Root › StagePan_Root › StageZoom_Root › Stage00~02_Root › Mask › DepthSystem › Depth_{Far…Close} › FramingTransform › FramingScale › Content`, 전부 항등)를 코어 `AddRigTo`로 먼저 세우고(`stage/…` 키), 오브젝트는 그 무대·층의 `Stage{NN}Depth_{Layer}_Content` 밑에 선다 — 런타임 `GetDepthContent(stage, layer)`와 같은 자리. 뼈대는 데이터(`Defaults/stage-skeleton.json`, `tools/prefab-to-stage-rig.py`로 다시 뽑는다)이고 오브젝트가 아니다.
+- 왼쪽 **씬 — 오브젝트** 하이어아키(유니티 하이어아키와 같은 모양): `Scene › Stage00 › 층(Content) › 오브젝트 › 리그 노드 › 자식 오브젝트`. **압축 보기**(기본)는 뼈대를 Stage › 층만 남기고, 끄면 PresentataionUIRoot의 모든 노드가 그대로 보인다. 리그 노드는 덤프 `rig-schemas.json`의 `parent` **그대로 중첩**된다. 오브젝트 항목이 곧 리그 루트(`__root`)다. 연기 축은 파랑, 배치 축은 회색, 키잉 금지 노드는 기울임이다. 오브젝트는 기본 접힘(우클릭 "노드 전부 펼치기/접기"). **노드를 클릭**하면 그 노드가 매니퓰레이터 노드·채널 추가 대상이 되고(키 따라가기는 꺼진다), **더블클릭**하면 그 노드에 채널이 생긴다. 기본 씬은 `s1 · character`(Stage00 Mid) 하나다.
+- **만들 수 있는 것은 캐릭터 리그뿐이다.** 층(Content)·Stage 항목·빈자리 우클릭 → "캐릭터 리그 만들기"(Ctrl+Shift+N): 그 무대·층의 최상위에 선다. 오브젝트나 노드 위에서 만들면 그 자리의 자식. id는 자동(`s1`·`s2`… — Yarn 슬롯 키 꼴)이고 채널 박스에서 바꾼다. 그 밖의 메뉴: 이름 바꾸기(F2) · 복제(Ctrl+D, 자손까지) · 삭제(Del, 자손까지) · 숨기기/보이기 · 레이어 › · 부모에서 떼기 · 노드 전부 펼치기/접기. 헤더의 `+`도 같은 메뉴다.
+- **오브젝트 계층**: 오브젝트는 다른 오브젝트의 노드 밑에 붙는다(저작본 `parent`·`parentNode`). 트리는 코어 `AddRigTo(attachParentKey)`로 그 노드 밑에 세우므로 **부모가 움직이면 자식이 따라온다**. 자식은 부모의 stage·layer·깊이·자리를 따르고, 부모를 숨기면 자손도 숨는다. **끌어다 놓기**: 다른 오브젝트/노드에 놓으면 자식, 층(Content)에 놓으면 그 무대·층의 최상위.
+- 오른쪽 **오브젝트(채널 박스)**: id · 부모 · 부모 노드 · **자리(place) × focus** · 오프셋 X/Y(move) · Rot Z · Scale X/Y · Stage · Layer · 보이기 · 배역. 런타임과 같은 두 겹이다: **자리**는 코어 place 폴드(`PlaceFocusStageReduction`)가 focus 프리셋(bust 기본) 점이 화면 지점(center/left/right/top/bottom/tl/tr/bl/br)에 오도록 `CharSlot_Track_Focus`를 푼 값이고, **오프셋**은 `CharSlot_Track`(move)·`CharSlot_SwayPivot`(rotate)·`CharSlot_Scale`(scale)에 그대로 들어간다(그 노드가 없는 리그는 루트에). 순서는 런타임과 같이 깊이(size) → place라 내장 깊이·focus 표로 세우면 실제 게임 프리팹의 `DepthY −580.56 · DepthScale 1.708`(Stage00 Mid)이 그대로 나온다. 모션 키가 아니다.
 - **월드 축·격자**: 루트 공간(가운데 원점·y 위·px). 빨강 x·초록 y 축, 가는 선 1u(기준 폭/48 = 40px), 굵은 선 5u, 무대 프레임. "격자·축"으로 끈다.
 - **모션의 주인은 rigKind**다. 고른 오브젝트의 리그가 모션의 리그와 같거나 채널의 노드를 전부 가지면(공통 스키마) 그 오브젝트에 입혀 보인다. 아니면 "이 리그에 안 맞는다"로 표시된다.
 - **깊이**: 덤프 옆 `presets/depth.json`(ExportedTuning)이 있으면 레이어(far·back·mid·front·close)가 깊이(DepthY·DepthScale)가 된다. 런타임 size 폴드와 같은 코어 함수(`SetDepthStageReduction`, focus 보존 bust)를 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 없으면 레이어는 그리는 순서만 정한다.
-- **여러 씬**: 하이어아키 위 "씬" 콤보로 전환하고(활성 씬은 문서에 남는다), 옆 칸에서 이름을 바꾼다. Scene 항목 우클릭 → 새 씬 · 씬 복제 · 씬 삭제(마지막 씬은 못 지운다). 새 씬은 `c1 · character` 하나로 시작한다.
+- **여러 씬**: 하이어아키 위 "씬" 콤보로 전환하고(활성 씬은 문서에 남는다), 옆 칸에서 이름을 바꾼다. Scene 항목 우클릭 → 새 씬 · 씬 복제 · 씬 삭제(마지막 씬은 못 지운다). 새 씬은 `s1 · character` 하나로 시작한다.
 - **배역**: 채널 박스의 배역 콤보 — 덤프 옆 `presets/focus.json`(또는 `focus-tuning.json`)의 entries 키. 깊이 폴드의 focus 보존이 그 배역의 오프셋(base + defaultOffset + bust)을 쓴다 — 런타임 cast와 같은 뜻. 표가 없으면 base 오프셋 없이(0).
 - **부모 바꾸기는 월드 위치를 지킨다**(유니티 Set Parent 기본): 드래그·부모 콤보·"부모에서 떼기" 모두 배치 X/Y를 새 부모 공간으로 환산해 그 자리에 둔다. 회전·배율은 지키지 않는다(깊이가 다른 부모 밑에 들어가면 크기는 부모를 따라 바뀐다). 드래그 중 놓을 자리는 헤더 앞 `⇥`로 보인다.
-- **카메라(보기)**: 채널 박스 아래 zoom · pan X/Y. zoom 1당 배율 +0.05(코어 규약), 보기만 바뀌고 씬에 남는다. 카메라 키는 규약에 없다.
+- **카메라**: 채널 박스 아래 zoom · pan X/Y. 런타임과 같은 자리에 들어간다 — `StageZoom_Root.localScale = 1 + 0.05·zoom`, `StagePan_Root.anchoredPosition = pan`(`PresentationCameraRootApplier`). 깊이 층마다 패럴랙스(`PresentationResponseProfile`: Far는 pan×−0.04·scale^−0.15 … Close는 pan×0.2·scale^0.16, Mid는 0)가 `FramingTransform`·`FramingScale`에 붙는다(`StageShotResponse`). 격자·축은 `StageShot_Root` 공간이라 움직이지 않는다. 카메라 키는 규약에 없고 씬에만 남는다.
 - **모션 목록**은 rigKind 순으로 묶이고, 고른 오브젝트가 입을 수 없는 모션은 흐리게("안 맞음"). 툴바의 **내보내기 범위**: 전체 / 이 rigKind만 / 이 오브젝트가 입는 모션만 — 고른 모션의 문제만 내보내기를 막는다.
-- 씬은 저작본 `scenes[]`에 남고(미리보기 전용) `motions.json`에는 들어가지 않는다. 예전 문서의 `preview.portrait`는 열 때 c1의 초상이 된다.
+- 씬은 저작본 `scenes[]`에 남고(미리보기 전용) `motions.json`에는 들어가지 않는다. 예전 문서의 `preview.portrait`는 열 때 첫 오브젝트의 초상이 된다.
 
 ## 뷰포트
 

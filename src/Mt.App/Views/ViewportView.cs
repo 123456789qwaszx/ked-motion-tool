@@ -59,6 +59,8 @@ public sealed class ViewportView : Control
     private RigSchemaFile? _rig;
     private DepthTuningFile? _depth;
     private FocusTuningFile? _focus;
+    // 무대 뼈대(PresentataionUIRoot). 리그가 있으면 내장 뼈대를 쓴다 — 카메라·패럴랙스가 이 트리에 들어간다.
+    private RigSchemaRigDto? _stage;
     // 씬 전체의 시작 상태(오브젝트마다 슬롯 접두사). 모션은 선택 오브젝트에만 얹는다.
     private RectNodeTree? _template;
     private readonly Dictionary<string, Bitmap?> _portraits = new();
@@ -623,10 +625,14 @@ public sealed class ViewportView : Control
     public void SetRig(RigSchemaFile? rig)
     {
         _rig = rig;
+        _stage = rig is null ? null : BuiltinTuning.StageRig;
         PickSelectedObject();
         RebuildTemplate();
         InvalidateVisual();
     }
+
+    /// <summary>카메라가 트리(뼈대의 Zoom/Pan 노드)에 들어가 있나. 뼈대가 없으면 보기 변환으로 입힌다(같은 식).</summary>
+    public bool CameraInTree => _stage is not null;
 
     /// <summary>presets/depth.json — 레이어를 깊이(DepthY·DepthScale)로. null이면 레이어는 그리는 순서만.</summary>
     public void SetDepth(DepthTuningFile? depth)
@@ -655,7 +661,7 @@ public sealed class ViewportView : Control
             return (o?.PositionX ?? 0f, o?.PositionY ?? 0f);
         }
 
-        return ScenePreview.PlacementKeepingWorld(_rig, scene, id, parent, parentNode, _depth, _focus);
+        return ScenePreview.PlacementKeepingWorld(_rig, scene, id, parent, parentNode, _depth, _focus, _stage);
     }
 
     /// <summary>씬 카메라(보기 전용) 배율 — 코어 규약 zoom 1당 +0.05.</summary>
@@ -743,7 +749,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth, null, _focus);
+        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth, null, _focus, _stage);
     }
 
     // ── 시계 ──────────────────────────────────────────────────────────
@@ -877,7 +883,7 @@ public sealed class ViewportView : Control
     private Point ToControl(Vec2 root)
     {
         Rect stage = StageRect;
-        Vec2 shot = root * CameraScale + CameraPan;
+        Vec2 shot = CameraInTree ? root : root * CameraScale + CameraPan;
         Vec2 canvas = PortraitLayout.ToCanvas(shot, _stageSize);
         double scale = stage.Width / _stageSize.X;
         return new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale);
@@ -891,7 +897,7 @@ public sealed class ViewportView : Control
         double canvasX = (control.X - stage.X) / scale;
         double canvasY = (control.Y - stage.Y) / scale;
         var shot = new Vec2((float)(canvasX - _stageSize.X / 2), (float)(_stageSize.Y / 2 - canvasY));
-        return (shot - CameraPan) * (1f / CameraScale);
+        return CameraInTree ? shot : (shot - CameraPan) * (1f / CameraScale);
     }
 
     // ── 그리기 ────────────────────────────────────────────────────────
@@ -997,30 +1003,9 @@ public sealed class ViewportView : Control
         }
     }
 
-    /// <summary>빈 오브젝트 기즈모 반지름(px) — 클릭 판정도 이 안.</summary>
-    public const double EmptyGizmoRadius = 9;
-
     private void DrawObject(DrawingContext context, RectNodeTree pose, SceneObject o, bool selected)
     {
         string? imageKey = ScenePreview.ImageKeyOf(pose, o);
-
-        if (o.IsEmpty)
-        {
-            // 빈 오브젝트(그룹·피벗): 마름모와 이름.
-            string rootKey = ScenePreview.RootKeyOf(o);
-
-            if (!pose.Contains(rootKey))
-            {
-                return;
-            }
-
-            Point c = ToControl(pose.TransformPoint(rootKey, Vec3.Zero).XY);
-            double r = EmptyGizmoRadius;
-            var diamond = new PolylineGeometry(new[] { new Point(c.X, c.Y - r), new Point(c.X + r, c.Y), new Point(c.X, c.Y + r), new Point(c.X - r, c.Y), new Point(c.X, c.Y - r) }, true);
-            context.DrawGeometry(selected ? PlaceholderFill : null, selected ? SelectedObjectPen : ObjectOutlinePen, diamond);
-            DrawLabel(context, o.Id, new Point(c.X + r + 3, c.Y - 6));
-            return;
-        }
 
         if (imageKey is null)
         {
@@ -1200,24 +1185,6 @@ public sealed class ViewportView : Control
         {
             if (!scene.IsShown(o))
             {
-                continue;
-            }
-
-            if (o.IsEmpty)
-            {
-                string rootKey = ScenePreview.RootKeyOf(o);
-
-                if (pose.Contains(rootKey))
-                {
-                    Point c = ToControl(pose.TransformPoint(rootKey, Vec3.Zero).XY);
-
-                    if (new Pixel(c.X, c.Y).DistanceTo(at) <= EmptyGizmoRadius + 2)
-                    {
-                        objectId = o.Id;
-                        return true;
-                    }
-                }
-
                 continue;
             }
 

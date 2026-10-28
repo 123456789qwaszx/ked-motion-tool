@@ -284,7 +284,7 @@ public class MainWindowTests
                 string export = Path.Combine(directory, "motions.json");
                 window.ExportScopeIndex = 0;
                 Assert.False(window.Session.Export(export, window.ExportFilter().Filter)); // robot_wave가 막는다
-                window.ExportScopeIndex = 1; // 선택 오브젝트 c1(character)의 rigKind만
+                window.ExportScopeIndex = 1; // 선택 오브젝트 s1(character)의 rigKind만
                 Assert.True(window.Session.Export(export, window.ExportFilter().Filter), window.Session.Status);
                 string json = File.ReadAllText(export);
                 Assert.Contains("\"bow\"", json, StringComparison.Ordinal);
@@ -316,18 +316,18 @@ public class MainWindowTests
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
                 window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
-                window.AddObjectFromForm("c2", "character", "front");
+                window.AddObjectFromForm("s2", "character", "front");
                 Assert.Equal(2, window.HierarchyObjectCount);
 
-                window.SelectInHierarchy("c1", null);
-                Assert.Equal("c1", window.Viewport.SelectedObjectId);
+                window.SelectInHierarchy("s1", null);
+                Assert.Equal("s1", window.Viewport.SelectedObjectId);
 
-                window.SelectInHierarchy("c2", "CharacterPortrait_Track_Move_Y");
-                Assert.Equal("c2", window.Viewport.SelectedObjectId);
+                window.SelectInHierarchy("s2", "CharacterPortrait_Track_Move_Y");
+                Assert.Equal("s2", window.Viewport.SelectedObjectId);
                 Assert.Equal("CharacterPortrait_Track_Move_Y", window.Viewport.SelectedNode);
                 Assert.Equal("CharacterPortrait_Track_Move_Y", window.NewChannelNode);
 
-                window.AddChannelFromHierarchy("c2", "CharacterPortrait_SwayPivot");
+                window.AddChannelFromHierarchy("s2", "CharacterPortrait_SwayPivot");
                 MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
                 Assert.NotNull(nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Position));
             }
@@ -349,25 +349,25 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                Assert.Single(window.Viewport.SceneObjects); // 기본 씬 c1
+                Assert.Single(window.Viewport.SceneObjects); // 기본 씬 s1
 
-                window.AddObjectFromForm("c2", "character", "front");
+                window.AddObjectFromForm("s2", "character", "front");
                 Assert.Equal(2, window.Viewport.SceneObjects.Count);
-                Assert.Equal("c2", window.Viewport.SelectedObjectId);
+                Assert.Equal("s2", window.Viewport.SelectedObjectId);
 
                 long before = window.Session.Editor.Revision;
                 window.CommitObjectPlacementFromForm(120f, -30f, 5f, 1.2f, 1f);
                 Assert.Equal(before + 1, window.Session.Editor.Revision);
-                Mt.Authoring.Model.SceneObject c2 = window.Viewport.SelectedObject!;
-                Assert.Equal(120f, c2.PositionX);
-                Assert.Equal(-30f, c2.PositionY);
-                Assert.Equal(5f, c2.RotationZ);
-                Assert.Equal(1.2f, c2.ScaleX);
+                Mt.Authoring.Model.SceneObject s2 = window.Viewport.SelectedObject!;
+                Assert.Equal(120f, s2.PositionX);
+                Assert.Equal(-30f, s2.PositionY);
+                Assert.Equal(5f, s2.RotationZ);
+                Assert.Equal(1.2f, s2.ScaleX);
 
                 window.Session.Editor.Undo();
                 Assert.Equal(0f, window.Viewport.SelectedObject!.PositionX);
 
-                Assert.Throws<InvalidOperationException>(() => window.AddObjectFromForm("c2", "character", "mid")); // 겹치는 id
+                Assert.Throws<InvalidOperationException>(() => window.AddObjectFromForm("s2", "character", "mid")); // 겹치는 id
                 Assert.Throws<InvalidOperationException>(() => window.AddObjectFromForm("C3", "character", "mid")); // 규칙 밖
             }
             finally
@@ -563,35 +563,44 @@ public class MainWindowTests
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
 
                 // 리그 노드는 연기/배치 폴더가 아니라 덤프의 parent 사슬이다. 오브젝트 항목이 곧 __root.
-                IReadOnlyList<string> path = window.HierarchyPathOf("c1", "CharacterPortrait_Track_Move_Y");
-                Assert.Equal(new[] { "Scene  scene", "stage01", "mid", "c1  ·  character", "CharSlot_Track_Focus", "CharSlot_DepthY", "CharSlot_DepthScale", "CharSlot_Track_Idle", "CharSlot_Track", "CharSlot_Track_X", "CharSlot_Track_Y", "CharSlot_Rotation", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_Track", "CharacterPortrait_Rotation", "CharacterPortrait_Track_Move", "CharacterPortrait_Track_Move_X", "CharacterPortrait_Track_Move_Y" }, path);
-                Assert.DoesNotContain("연기 축", window.HierarchyPathOf("c1", "CharacterPortrait_SwayPivot"));
+                IReadOnlyList<string> path = window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move_Y");
+                Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "Stage00", "Mid  ·  Stage00Depth_Mid_Content", "s1  ·  character", "CharSlot_Track_Focus", "CharSlot_DepthY", "CharSlot_DepthScale", "CharSlot_Track_Idle", "CharSlot_Track", "CharSlot_Track_X", "CharSlot_Track_Y", "CharSlot_Rotation", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_Track", "CharacterPortrait_Rotation", "CharacterPortrait_Track_Move", "CharacterPortrait_Track_Move_X", "CharacterPortrait_Track_Move_Y" }, path);
+                Assert.DoesNotContain("연기 축", window.HierarchyPathOf("s1", "CharacterPortrait_SwayPivot"));
 
                 // 노드 위에서 "만들기" = 그 노드의 자식. 트리에서는 그 노드 밑에 보인다.
-                string prop = window.CreateObjectFromMenu("character", "c1", "CharacterPortrait_Track_Move");
-                Assert.Equal("c2", prop);
+                string prop = window.CreateObjectFromMenu("character", "s1", "CharacterPortrait_Track_Move");
+                Assert.Equal("s2", prop);
                 Assert.Equal(prop, window.Viewport.SelectedObjectId);
-                IReadOnlyList<string> propPath = window.HierarchyPathOf("c2", null);
+                IReadOnlyList<string> propPath = window.HierarchyPathOf("s2", null);
                 Assert.Equal("CharacterPortrait_Track_Move", propPath[^2]);
-                Assert.StartsWith("c2  ·  character", propPath[^1], StringComparison.Ordinal);
+                Assert.StartsWith("s2  ·  character", propPath[^1], StringComparison.Ordinal);
 
-                // 빈 오브젝트 — 오브젝트 위에서 만들면 루트 자식.
-                string pivot = window.CreateObjectFromMenu("", "c1", null);
-                Assert.Equal("empty1", pivot);
-                Assert.Equal(new[] { "Scene  scene", "stage01", "mid", "c1  ·  character", "empty1  ·  빈 오브젝트" }, window.HierarchyPathOf("empty1", null));
+                // 압축 보기를 끄면 유니티 PresentataionUIRoot의 모든 노드가 그대로 보인다.
+                window.CompactHierarchy = false;
+                IReadOnlyList<string> full = window.HierarchyPathOf("s1", null);
+                Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "StageViewportLayer", "StageShot_Root", "StagePan_Root  ·  pan 0,0", "StageZoom_Root  ·  zoom 0", "Stage00_Root", "Stage00Mask_Root", "Stage00DepthSystem_Root", "Stage00Depth_Mid_Root", "Stage00Depth_Mid_FramingTransform", "Stage00Depth_Mid_FramingScale", "Stage00Depth_Mid_Content", "s1  ·  character" }, full);
+                window.CompactHierarchy = true;
+
+                // 빈자리에서 만들면 선택 오브젝트의 무대·층의 최상위. 리그 없는 오브젝트는 없다.
+                string s3 = window.CreateObjectFromMenu("character", null, null);
+                Assert.Equal("s3", s3);
+                window.SelectInHierarchy("s3", null);
+                Assert.Equal("stage00", window.Viewport.SelectedObject!.Stage);
+                Assert.Throws<InvalidOperationException>(() => window.AddObjectFromForm("x1", "", "mid"));
+                window.Session.Editor.RemoveSceneObject(null, "s3");
 
                 // 이름 바꾸기(채널 박스 id) — 선택이 따라간다.
-                window.SelectInHierarchy("c2", null);
+                window.SelectInHierarchy("s2", null);
                 window.RenameSelectedFromForm("hand");
                 Assert.Equal("hand", window.Viewport.SelectedObjectId);
-                Assert.Equal("c1", window.Viewport.SelectedObject!.Parent);
+                Assert.Equal("s1", window.Viewport.SelectedObject!.Parent);
 
                 // 복제 — 자손까지, 새 것이 선택된다.
-                window.SelectInHierarchy("c1", null);
+                window.SelectInHierarchy("s1", null);
                 window.DuplicateSelectedFromMenu();
-                Assert.Equal("c2", window.Viewport.SelectedObjectId);
-                Assert.Equal(6, window.HierarchyObjectCount);
-                Assert.Equal("c2", window.Viewport.Scene!.Find("hand_2")!.Parent);
+                Assert.Equal("s2", window.Viewport.SelectedObjectId);
+                Assert.Equal(4, window.HierarchyObjectCount);
+                Assert.Equal("s2", window.Viewport.Scene!.Find("hand_2")!.Parent);
             }
             finally
             {
@@ -611,31 +620,31 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.AddObjectFromForm("c2", "character", "front");
-                window.AddObjectFromForm("c3", "character", "close");
+                window.AddObjectFromForm("s2", "character", "front");
+                window.AddObjectFromForm("s3", "character", "close");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 자기 자신에게 놓는 것은 아무 일도 아니다(6px 안은 드래그가 아니다).
                 long before = window.Session.Editor.Revision;
-                Point from = window.HierarchyItemCenter("c2", null) ?? throw new InvalidOperationException("c2 항목이 없다");
+                Point from = window.HierarchyItemCenter("s2", null) ?? throw new InvalidOperationException("s2 항목이 없다");
                 Drag(window, from, from + new Point(0, 2));
                 Assert.Equal(before, window.Session.Editor.Revision);
 
-                // c2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
-                Point to = window.HierarchyItemCenter(null, null, "stage01", "mid") ?? throw new InvalidOperationException("레이어 항목이 없다");
+                // s2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
+                Point to = window.HierarchyItemCenter(null, null, "stage00", "mid") ?? throw new InvalidOperationException("층 항목이 없다");
                 Drag(window, from, to);
-                Assert.Equal("mid", window.Viewport.Scene!.Find("c2")!.Layer);
-                Assert.Null(window.Viewport.Scene!.Find("c2")!.Parent);
+                Assert.Equal("mid", window.Viewport.Scene!.Find("s2")!.Layer);
+                Assert.Null(window.Viewport.Scene!.Find("s2")!.Parent);
 
-                // c3를 c1 오브젝트 항목에 놓는다 → 루트 자식(노드 위에 놓으면 그 노드 — 같은 길, 메뉴 테스트가 덮는다).
-                // (이 뒤로는 선택된 c3의 조상 c1이 펼쳐져 트리가 길어진다 — 그래서 마지막에 한다.)
-                from = window.HierarchyItemCenter("c3", null) ?? throw new InvalidOperationException("c3 항목이 없다");
-                to = window.HierarchyItemCenter("c1", null) ?? throw new InvalidOperationException("c1 항목이 없다");
+                // s3를 s1 오브젝트 항목에 놓는다 → 루트 자식(노드 위에 놓으면 그 노드 — 같은 길, 메뉴 테스트가 덮는다).
+                // (이 뒤로는 선택된 s3의 조상 s1이 펼쳐져 트리가 길어진다 — 그래서 마지막에 한다.)
+                from = window.HierarchyItemCenter("s3", null) ?? throw new InvalidOperationException("s3 항목이 없다");
+                to = window.HierarchyItemCenter("s1", null) ?? throw new InvalidOperationException("s1 항목이 없다");
                 Drag(window, from, to);
-                Mt.Authoring.Model.SceneObject c3 = window.Viewport.Scene!.Find("c3")!;
-                Assert.Equal("c1", c3.Parent);
-                Assert.Null(c3.ParentNode);
-                Assert.Equal("mid", c3.Layer);
+                Mt.Authoring.Model.SceneObject s3 = window.Viewport.Scene!.Find("s3")!;
+                Assert.Equal("s1", s3.Parent);
+                Assert.Null(s3.ParentNode);
+                Assert.Equal("mid", s3.Layer);
             }
             finally
             {
@@ -664,28 +673,28 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.CommitObjectPlacementFromForm(200f, -40f, 0f, 1f, 1f); // c1
-                window.AddObjectFromForm("c2", "character", "front");
+                window.CommitObjectPlacementFromForm(200f, -40f, 0f, 1f, 1f); // s1
+                window.AddObjectFromForm("s2", "character", "front");
                 window.CommitObjectPlacementFromForm(-150f, 30f, 0f, 1f, 1f);
-                Vec2 RootOfC2() => window.Viewport.CurrentPose()!.TransformPoint("c2/CharSlot_Track", Vec3.Zero).XY; // 배치가 움직이는 노드
+                Vec2 RootOfC2() => window.Viewport.CurrentPose()!.TransformPoint("s2/CharSlot_Track", Vec3.Zero).XY; // 배치가 움직이는 노드
                 Vec2 before = RootOfC2();
 
-                // 채널 박스 부모 콤보 → c1의 자식(루트), 월드 위치 그대로.
-                window.SetParentFromForm("c1");
-                Mt.Authoring.Model.SceneObject c2 = window.Viewport.Scene!.Find("c2")!;
-                Assert.Equal("c1", c2.Parent);
+                // 채널 박스 부모 콤보 → s1의 자식(루트), 월드 위치 그대로.
+                window.SetParentFromForm("s1");
+                Mt.Authoring.Model.SceneObject s2 = window.Viewport.Scene!.Find("s2")!;
+                Assert.Equal("s1", s2.Parent);
                 Assert.Equal(before.X, RootOfC2().X, 1);
                 Assert.Equal(before.Y, RootOfC2().Y, 1);
 
                 // 부모 노드 콤보 → 그 노드 밑으로 옮겨도 월드 위치는 그대로(배치 값은 부모 공간으로 바뀐다).
                 window.SetParentNodeFromForm("CharacterPortrait_Track_Move");
-                c2 = window.Viewport.Scene!.Find("c2")!;
-                Assert.Equal("CharacterPortrait_Track_Move", c2.ParentNode);
-                Assert.NotEqual(-150f, c2.PositionX);
+                s2 = window.Viewport.Scene!.Find("s2")!;
+                Assert.Equal("CharacterPortrait_Track_Move", s2.ParentNode);
+                Assert.NotEqual(-150f, s2.PositionX);
                 Assert.Equal(before.X, RootOfC2().X, 1);
                 Assert.Equal(before.Y, RootOfC2().Y, 1);
 
-                // 새 씬 — 활성이 되고 기본 c1 하나. 전환하면 하이어아키가 그 씬.
+                // 새 씬 — 활성이 되고 기본 s1 하나. 전환하면 하이어아키가 그 씬.
                 window.AddSceneFromMenu();
                 Assert.Equal(new[] { "scene", "scene_2" }, window.SceneNames);
                 Assert.Equal("scene_2", window.Viewport.Scene!.Name);
@@ -698,7 +707,15 @@ public class MainWindowTests
                 window.RenameSceneFromForm("main");
                 Assert.Equal("main", window.Viewport.Scene!.Name);
                 Assert.Equal(new[] { "main", "scene_2" }, window.SceneNames);
-                Assert.Equal("Scene  main", window.HierarchyPathOf("c1", null)[0]);
+                Assert.Equal("Scene  main  ·  PresentataionUIRoot", window.HierarchyPathOf("s1", null)[0]);
+
+                // 자리(place) — 채널 박스 콤보로. Track_Focus가 코어 place 폴드로 풀린다.
+                window.SelectInHierarchy("s1", null);
+                window.SetPlaceFromForm("right", "face");
+                Mt.Authoring.Model.SceneObject s1 = window.Viewport.Scene!.Find("s1")!;
+                Assert.Equal("right", s1.Place);
+                Assert.Equal("face", s1.PlaceFocus);
+                Assert.Equal(0.24f * 1920f, window.Viewport.CurrentPose()!.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.X, 1);
             }
             finally
             {

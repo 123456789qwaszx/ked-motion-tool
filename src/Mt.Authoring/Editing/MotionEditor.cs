@@ -92,15 +92,25 @@ public sealed class MotionEditor
     }
 
     /// <summary>
-    /// 오브젝트(리그 인스턴스, rig가 비면 빈 오브젝트)를 더한다. id는 [a-z0-9_]+이고 씬 안에서 하나뿐이어야 한다.
+    /// 오브젝트(리그 인스턴스)를 더한다. id는 [a-z0-9_]+이고 씬 안에서 하나뿐이어야 한다. stage는 stage00·stage01·stage02.
     /// parent를 주면 그 오브젝트의 parentNode(없으면 루트) 밑에 붙는다 — 유니티에서 자식으로 만들기.
     /// </summary>
-    public SceneObject AddSceneObject(string? sceneName, string id, string rig, string layer = SceneLayers.Mid, string? parent = null, string? parentNode = null)
+    public SceneObject AddSceneObject(string? sceneName, string id, string rig, string layer = SceneLayers.Mid, string? parent = null, string? parentNode = null, string stage = SceneObject.DefaultStage)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(rig);
         SceneAsset scene = RequireScene(sceneName);
         RequireObjectId(id);
+
+        if (rig.Length == 0)
+        {
+            throw new InvalidOperationException("리그 없는 오브젝트는 만들 수 없다 — rigKind를 준다.");
+        }
+
+        if (!StageNodes.IsKnownStage(stage))
+        {
+            throw new InvalidOperationException($"무대는 {string.Join("·", StageNodes.Stages)} 중 하나다 ('{stage}')");
+        }
 
         if (scene.Find(id) is not null)
         {
@@ -115,7 +125,7 @@ public sealed class MotionEditor
             Id = id,
             Rig = rig,
             Layer = parentObject?.Layer ?? layer,
-            Stage = parentObject?.Stage ?? new SceneObject().Stage,
+            Stage = parentObject?.Stage ?? stage,
             Parent = parentObject?.Id,
             ParentNode = parentObject is null ? null : NormalizeParentNode(parentNode),
         };
@@ -203,6 +213,8 @@ public sealed class MotionEditor
                 Portrait = original.Portrait,
                 Visible = original.Visible,
                 Character = original.Character,
+                Place = original.Place,
+                PlaceFocus = original.PlaceFocus,
                 Parent = original.Parent is { } p && idMap.TryGetValue(p, out string? mapped) ? mapped : original.Parent,
                 ParentNode = original.ParentNode,
             });
@@ -255,7 +267,7 @@ public sealed class MotionEditor
     /// 자기 자신·자손 밑에는 못 간다. position을 주면 배치 위치도 같이 바꾼다(월드 위치 보존 — 값은 <c>ScenePreview.PlacementKeepingWorld</c>가 센다).
     /// 되돌리기 한 번.
     /// </summary>
-    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null, (float X, float Y)? position = null)
+    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null, (float X, float Y)? position = null, string? stage = null)
     {
         SceneAsset scene = RequireScene(sceneName);
         SceneObject o = RequireObject(scene, id);
@@ -268,8 +280,13 @@ public sealed class MotionEditor
 
         string? node = parentObject is null ? null : NormalizeParentNode(parentNode);
         string newLayer = parentObject?.Layer ?? layer ?? o.Layer;
-        string newStage = parentObject?.Stage ?? o.Stage;
+        string newStage = parentObject?.Stage ?? stage ?? o.Stage;
         RequireLayer(newLayer);
+
+        if (!StageNodes.IsKnownStage(newStage))
+        {
+            throw new InvalidOperationException($"무대는 {string.Join("·", StageNodes.Stages)} 중 하나다 ('{newStage}')");
+        }
 
         (float X, float Y) at = position ?? (o.PositionX, o.PositionY);
 
@@ -365,6 +382,58 @@ public sealed class MotionEditor
             camera.PanX = panX;
             camera.PanY = panY;
         });
+    }
+
+    /// <summary>무대(stage00…) — 자손도 같이 간다. 최상위만 뜻이 있다.</summary>
+    public void SetObjectStage(string? sceneName, string id, string stage)
+    {
+        if (!StageNodes.IsKnownStage(stage))
+        {
+            throw new InvalidOperationException($"무대는 {string.Join("·", StageNodes.Stages)} 중 하나다 ('{stage}')");
+        }
+
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+
+        if (o.Stage != stage)
+        {
+            List<SceneObject> subtree = scene.DescendantsOf(id).Prepend(o).ToList();
+            Mutate(MotionChangeKind.Scene, () =>
+            {
+                foreach (SceneObject s in subtree)
+                {
+                    s.Stage = stage;
+                }
+            });
+        }
+    }
+
+    /// <summary>자리(place) — 화면 지점 × focus 프리셋. screenPoint가 null이면 place 없음. 이름은 코어 어휘여야 한다.</summary>
+    public void SetObjectPlace(string? sceneName, string id, string? screenPoint, string? focusPreset = null)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+        string? point = string.IsNullOrWhiteSpace(screenPoint) ? null : screenPoint.Trim();
+        string? focus = string.IsNullOrWhiteSpace(focusPreset) || focusPreset.Trim() == SceneObject.DefaultPlaceFocus ? null : focusPreset.Trim();
+
+        if (point is not null && !Preview.ScenePreview.ScreenPoints.Contains(point))
+        {
+            throw new InvalidOperationException($"화면 지점은 {string.Join("·", Preview.ScenePreview.ScreenPoints)} 중 하나다 ('{point}')");
+        }
+
+        if (focus is not null && !Preview.ScenePreview.FocusPresets.Contains(focus))
+        {
+            throw new InvalidOperationException($"focus 프리셋은 {string.Join("·", Preview.ScenePreview.FocusPresets)} 중 하나다 ('{focus}')");
+        }
+
+        if (o.Place != point || o.PlaceFocus != focus)
+        {
+            Mutate(MotionChangeKind.Scene, () =>
+            {
+                o.Place = point;
+                o.PlaceFocus = focus;
+            });
+        }
     }
 
     /// <summary>배역(characterKey) — focus 오프셋 표의 키. null이면 base 오프셋만.</summary>

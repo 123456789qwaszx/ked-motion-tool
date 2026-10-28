@@ -114,7 +114,7 @@ public sealed class SceneAsset
         }
     }
 
-    /// <summary>캐릭터 리그 하나를 가운데 세운 기본 씬 — 씬이 없던 문서(예전 판)와 새 문서가 이것으로 시작한다.</summary>
+    /// <summary>캐릭터 리그 하나(s1, stage00/mid)를 세운 기본 씬 — 씬이 없던 문서(예전 판)와 새 문서가 이것으로 시작한다.</summary>
     public static SceneAsset Default(string? portrait = null) => new()
     {
         Objects = { new SceneObject { Id = SceneObject.DefaultId, Rig = SceneObject.DefaultRig, Portrait = portrait } },
@@ -132,25 +132,24 @@ public sealed class CameraSettings
 }
 
 /// <summary>
-/// 씬의 오브젝트 하나 = 리그 인스턴스(또는 빈 오브젝트). 배치 값은 런타임이 움직이는 배치 축 노드에 그대로 들어간다:
-/// 위치 → <c>CharSlot_Track</c>(move), 회전 → <c>CharSlot_SwayPivot</c>(rotate), 배율 → <c>CharSlot_Scale</c>(scale).
-/// 그 노드가 없는 리그(배경 등)와 빈 오브젝트는 루트 노드에 들어간다.
-/// 오브젝트는 다른 오브젝트의 노드 밑에 붙을 수 있다(<see cref="Parent"/>·<see cref="ParentNode"/>) — 유니티 하이어아키와 같다.
+/// 씬의 오브젝트 하나 = 리그 인스턴스(슬롯). 자리는 런타임과 같은 두 겹이다:
+/// <see cref="Place"/>(화면 지점 × focus 프리셋 → <c>CharSlot_Track_Focus</c>, 코어 place 폴드)와
+/// 오프셋(<see cref="PositionX"/>/<see cref="PositionY"/> → <c>CharSlot_Track</c>, move) · 회전 → <c>CharSlot_SwayPivot</c> · 배율 → <c>CharSlot_Scale</c>.
+/// 그 노드가 없는 리그는 루트 노드에 들어간다.
+/// 최상위 오브젝트는 무대 뼈대의 <c>Stage{NN}Depth_{Layer}_Content</c>에 서고, 다른 오브젝트의 노드 밑에 붙을 수도 있다(<see cref="Parent"/>·<see cref="ParentNode"/>).
 /// </summary>
 public sealed class SceneObject
 {
-    public const string DefaultId = "c1";
+    public const string DefaultId = "s1";
     public const string DefaultRig = "character";
+    public const string DefaultStage = "stage00";
+    public const string DefaultPlaceFocus = "bust";
 
-    /// <summary>슬롯 키. <c>[a-z0-9_]+</c>. 노드 키 접두사가 된다.</summary>
+    /// <summary>슬롯 키. <c>[a-z0-9_]+</c>. 노드 키 접두사가 된다(유니티 이름 <c>s1_노드</c>와 같은 뜻).</summary>
     public string Id { get; set; } = DefaultId;
 
-    /// <summary>리그 덤프의 rigKind. 비어 있으면 빈 오브젝트(노드 하나, 그룹·피벗용).</summary>
+    /// <summary>리그 덤프의 rigKind. 지금은 character만 만든다.</summary>
     public string Rig { get; set; } = DefaultRig;
-
-    /// <summary>빈 오브젝트(유니티 Create Empty) — 리그 없이 노드 하나.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsEmpty => string.IsNullOrEmpty(Rig);
 
     /// <summary>배역(characterKey) — focus 오프셋 표(presets/focus.json)의 entries 키. null이면 base 오프셋만. 런타임 cast와 같은 뜻.</summary>
     public string? Character { get; set; }
@@ -161,12 +160,22 @@ public sealed class SceneObject
     /// <summary>부모 리그에서 붙는 노드 id. null이면 부모 루트.</summary>
     public string? ParentNode { get; set; }
 
-    public string Stage { get; set; } = "stage01";
+    /// <summary>무대(stage00·stage01·stage02) — 런타임 slot 커맨드의 어휘. 뼈대의 <c>Stage{NN}_Root</c>.</summary>
+    public string Stage { get; set; } = DefaultStage;
 
     /// <summary>깊이 레이어(far · back · mid · front · close). 그리는 순서를 정한다.</summary>
     public string Layer { get; set; } = SceneLayers.Mid;
 
-    /// <summary>px, 루트 공간(가운데 원점·y 위).</summary>
+    /// <summary>
+    /// 자리(place) — 화면 지점 이름(center·left·right·top·bottom·tl·tr·bl·br). null이면 place 없음(Track_Focus 그대로).
+    /// 코어 <c>PlaceFocusStageReduction</c>이 <see cref="PlaceFocus"/> 점이 그 지점에 오도록 <c>CharSlot_Track_Focus</c>를 푼다 — 런타임 place와 같은 함수.
+    /// </summary>
+    public string? Place { get; set; }
+
+    /// <summary>place가 맞추는 focus 프리셋(bust·face·body·feet·faceAura·handLeft·handRight). null이면 bust.</summary>
+    public string? PlaceFocus { get; set; }
+
+    /// <summary>오프셋(move) px, 부모 공간(가운데 원점·y 위) — <c>CharSlot_Track</c>.</summary>
     public float PositionX { get; set; }
 
     public float PositionY { get; set; }
