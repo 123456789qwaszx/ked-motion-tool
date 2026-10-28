@@ -364,7 +364,23 @@ public sealed class TimeSliderView : Control
             context.FillRectangle(HandleBrush, new Rect(rect.Right - 2, 1, 4, rect.Height));
         }
 
-        // 키 틱.
+        // 현재 프레임: 검은 상자 + 숫자(마야). 키 틱보다 먼저 그려 그 프레임의 빨간 키 표시가 상자에 덮이지 않게(소유자).
+        if (Clock is { } clock)
+        {
+            double x = XAtTime(clock.Time);
+            double width = Math.Max(16, pixelsPerFrame);
+            var box = new Rect(x, 1, width, track.Height - 4);
+            context.FillRectangle(CurrentFrameBrush, box);
+
+            if (_viewport?.IsHoldingPose == true)
+            {
+                context.DrawRectangle(HoldPen, box);
+            }
+
+            DrawLabel(context, TimeText.Format(clock.Time, TimeDisplay), new Point(x + 3, 2), CurrentFrameLabel, 10);
+        }
+
+        // 키 틱 — 현재 프레임 상자 위에.
         if (Motion is { } motion && KeyTicks != KeyTickMode.None)
         {
             List<float> selected = KeyTimes.OfSelection(motion, _selection);
@@ -387,22 +403,6 @@ public sealed class TimeSliderView : Control
 
                 context.FillRectangle(isSelected ? SelectedKeyTickBrush : KeyTickBrush, new Rect(tx - 1, 2, 2, track.Height - 6));
             }
-        }
-
-        // 현재 프레임: 검은 상자 + 숫자(마야).
-        if (Clock is { } clock)
-        {
-            double x = XAtTime(clock.Time);
-            double width = Math.Max(16, pixelsPerFrame);
-            var box = new Rect(x, 1, width, track.Height - 4);
-            context.FillRectangle(CurrentFrameBrush, box);
-
-            if (_viewport?.IsHoldingPose == true)
-            {
-                context.DrawRectangle(HoldPen, box);
-            }
-
-            DrawLabel(context, TimeText.Format(clock.Time, TimeDisplay), new Point(x + 3, 2), CurrentFrameLabel, 10);
         }
 
         context.DrawLine(BottomLinePen, new Point(track.X, track.Bottom - 1), new Point(track.Right, track.Bottom - 1));
