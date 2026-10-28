@@ -479,4 +479,93 @@ public class ViewportViewTests
             window.Close();
         }
     });
+
+    [Fact]
+    public void 키_없는_포즈도_되돌리기_다시하기가_되고_S로_키한_것을_되돌리면_그_포즈로_돌아온다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, MotionEditor editor) = Show();
+
+        try
+        {
+            const string node = "CharacterPortrait_Track_Move_Y";
+            view.SelectedNode = node;
+            view.Manipulator = ManipulatorMode.Move;
+            view.AutoKey = false;
+            view.ScrubTo(0.15); // 키가 없는 시각
+            float start = view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value;
+            long revision = editor.Revision;
+            Assert.False(editor.CanUndo);
+
+            void Drag()
+            {
+                Point center = view.TranslatePoint(view.GizmoCenter()!.Value, window)!.Value;
+                window.MouseDown(center, MouseButton.Left);
+                window.MouseMove(new Point(center.X, center.Y - 30), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(new Point(center.X, center.Y - 30), MouseButton.Left);
+            }
+
+            // 드래그 한 번 = 포즈 칸 하나(문서는 그대로).
+            Drag();
+            Assert.True(view.HasPending);
+            float posed = view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value;
+            Assert.NotEqual(start, posed);
+            Assert.True(editor.CanUndo);
+            Assert.Equal(revision, editor.Revision);
+
+            editor.Undo();
+            Assert.False(view.HasPending);
+            Assert.Equal(start, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            editor.Redo();
+            Assert.True(view.HasPending);
+            Assert.Equal(posed, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+
+            // S = 키 확정 한 칸. 되돌리면 키 확정 직전의 포즈로, 한 번 더 되돌리면 그 전으로. 다시하기는 같은 순서.
+            view.SetKey();
+            Assert.False(view.HasPending);
+            Assert.Equal(revision + 1, editor.Revision);
+            Assert.Equal(4, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+
+            editor.Undo();
+            Assert.Equal(3, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+            Assert.True(view.HasPending);
+            Assert.Equal(posed, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            editor.Undo();
+            Assert.False(view.HasPending);
+            Assert.Equal(start, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            editor.Redo();
+            Assert.True(view.HasPending);
+            editor.Redo();
+            Assert.False(view.HasPending);
+            Assert.Equal(4, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+
+            // Esc로 버린 포즈도, 스크럽으로 사라진 포즈도 되돌리기로 돌아온다.
+            view.ScrubTo(0.2);
+            Drag();
+            Assert.True(view.HasPending);
+            view.Focus();
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Assert.False(view.HasPending);
+            editor.Undo();
+            Assert.True(view.HasPending);
+
+            view.ScrubTo(0.25);
+            Assert.False(view.HasPending);
+            editor.Undo();
+            Assert.True(view.HasPending);
+
+            // 포즈를 든 채 한 문서 조작을 되돌려도 포즈는 그대로다(순서대로).
+            editor.SetDuration("nod", 2f);
+            editor.Undo();
+            Assert.Equal(0.6f, editor.Document.Find("nod")!.Duration);
+            Assert.True(view.HasPending);
+
+            // 문서를 갈아 끼우면 이전 문서의 포즈·이력은 남지 않는다.
+            view.Bind(new MotionEditor(new MotionDocument()), null);
+            Assert.False(view.HasPending);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 }

@@ -106,6 +106,9 @@ public sealed class ViewportView : Control
     // 들고 있는 포즈(마야 MMB 스크럽). 시각이 바뀌어도 이것을 보여 주고, S가 이것을 키한다.
     private RectNodeTree? _held;
     private bool _holdScrub;
+
+    // 드래그 시작 때의 키 없는 포즈 — 놓을 때 이력에 올릴 차이의 기준.
+    private PendingSnapshot? _dragPendingBefore;
     private Vec2 _dragStartRoot;
     private Vec2 _dragPivotRoot;
     private RectNodeState _dragStartState;
@@ -308,8 +311,10 @@ public sealed class ViewportView : Control
         return ToControl(pose.TransformPoint(key, Vec3.Zero).XY);
     }
 
-    /// <summary>키 없는 포즈를 버린다(시각이 바뀌거나 Esc).</summary>
-    public void DiscardPending()
+    /// <summary>키 없는 포즈를 버린다(시각이 바뀌거나 Esc·선택 변경·재생). 버린 것도 이력에 올라 Ctrl+Z로 돌아온다.</summary>
+    public void DiscardPending() => WithPendingHistory(ClearPending);
+
+    private void ClearPending()
     {
         if (_overrides.Count == 0 && _pending.Count == 0 && _held is null)
         {
@@ -324,6 +329,110 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
+    // ── 키 없는 포즈의 이력 ────────────────────────────────────────────
+    //
+    // 키 없는 포즈(_overrides·_pending·_held)는 문서 밖이라 스냅샷에 없다. 그래서 조작의 경계(드래그 끝·값 확정·S·Esc·스크럽·선택 변경·재생)마다
+    // 앞뒤 상태를 재어 편집기 이력에 손(RecordExternal)으로 올린다 — 문서 조작과 한 줄에서 실제 순서대로 되돌아가고, S로 키한 것을 되돌리면
+    // 키 확정 직전의 포즈로 돌아온다(키 칸에 손이 붙는다). 저장 파일·산출물에는 아무것도 안 들어간다. 복원 중의 반응은 편집기가 거른다.
+
+    private sealed record PendingSnapshot(
+        IReadOnlyDictionary<string, RectNodeState> Overrides,
+        IReadOnlyDictionary<(string Node, MotionChannelKind Kind), IReadOnlyList<Axis>> Pending,
+        RectNodeTree? Held,
+        bool HoldScrub);
+
+    private PendingSnapshot CapturePending()
+        => new(
+            new Dictionary<string, RectNodeState>(_overrides),
+            _pending.ToDictionary(p => p.Key, p => (IReadOnlyList<Axis>)p.Value.ToList()),
+            _held,
+            _holdScrub);
+
+    private void ApplyPending(PendingSnapshot snapshot)
+    {
+        _overrides.Clear();
+
+        foreach ((string key, RectNodeState state) in snapshot.Overrides)
+        {
+            _overrides[key] = state;
+        }
+
+        _pending.Clear();
+
+        foreach (((string Node, MotionChannelKind Kind) key, IReadOnlyList<Axis> axes) in snapshot.Pending)
+        {
+            _pending[key] = new HashSet<Axis>(axes);
+        }
+
+        _held = snapshot.Held;
+        _holdScrub = snapshot.HoldScrub;
+        PendingChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateVisual();
+    }
+
+    private static bool SamePending(PendingSnapshot a, PendingSnapshot b)
+    {
+        if (!ReferenceEquals(a.Held, b.Held) || a.HoldScrub != b.HoldScrub || a.Overrides.Count != b.Overrides.Count || a.Pending.Count != b.Pending.Count)
+        {
+            return false;
+        }
+
+        foreach ((string key, RectNodeState state) in a.Overrides)
+        {
+            if (!b.Overrides.TryGetValue(key, out RectNodeState other) || !state.Equals(other))
+            {
+                return false;
+            }
+        }
+
+        foreach (((string Node, MotionChannelKind Kind) key, IReadOnlyList<Axis> axes) in a.Pending)
+        {
+            if (!b.Pending.TryGetValue(key, out IReadOnlyList<Axis>? others) || !new HashSet<Axis>(axes).SetEquals(others))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>경계 시작 때의 상태와 지금을 견줘 달라졌으면 이력에 올린다. 묶음 안이면 그 칸에 붙는다.</summary>
+    private void RecordPendingChange(PendingSnapshot before)
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        PendingSnapshot after = CapturePending();
+
+        if (SamePending(before, after))
+        {
+            return;
+        }
+
+        _editor.RecordExternal(() => ApplyPending(before), () => ApplyPending(after));
+    }
+
+    private void WithPendingHistory(Action operation)
+    {
+        PendingSnapshot before = CapturePending();
+        operation();
+        RecordPendingChange(before);
+    }
+
+    /// <summary>조작 하나 = 되돌리기 한 칸: 문서 변화와 키 없는 포즈 변화를 같은 칸에.</summary>
+    private void AsOneEdit(Action operation)
+    {
+        if (_editor is null)
+        {
+            operation();
+            return;
+        }
+
+        _editor.Batch(MotionChangeKind.Keys, () => WithPendingHistory(operation));
+    }
+
     /// <summary>
     /// Set Key(S). 키 없는 포즈가 있으면 그것을 키로. 없으면 선택 노드의 있는 채널·성분을 지금 포즈 값으로 키(홀드 키).
     /// </summary>
@@ -336,6 +445,12 @@ public sealed class ViewportView : Control
             return;
         }
 
+        // 조작 하나 — 되돌리기 한 칸(성분·노드가 여럿이어도). 되돌리면 키 확정 직전의 키 없는 포즈로.
+        AsOneEdit(() => SetKeyCore(motion));
+    }
+
+    private void SetKeyCore(MotionAsset motion)
+    {
         if (_held is not null)
         {
             KeyHeldPose(motion);
@@ -344,16 +459,12 @@ public sealed class ViewportView : Control
 
         if (_pending.Count > 0)
         {
-            // 키 없는 포즈 전부가 조작 하나 — 되돌리기 한 칸(성분·노드가 여럿이어도).
-            _editor.Batch(MotionChangeKind.Keys, () =>
+            foreach (((string node, MotionChannelKind kind), HashSet<Axis> axes) in _pending.ToList())
             {
-                foreach (((string node, MotionChannelKind kind), HashSet<Axis> axes) in _pending.ToList())
-                {
-                    KeyNow(node, kind, axes.ToList());
-                }
-            });
+                KeyNow(node, kind, axes.ToList());
+            }
 
-            DiscardPending();
+            ClearPending();
             return;
         }
 
@@ -388,7 +499,7 @@ public sealed class ViewportView : Control
 
         if (_editor is null || _template is null || pose is null)
         {
-            DiscardPending();
+            ClearPending();
             return;
         }
 
@@ -419,7 +530,7 @@ public sealed class ViewportView : Control
         }
 
         float time = (float)Math.Max(0, SnapTime(_clock.Time));
-        DiscardPending();
+        ClearPending();
         _editor.KeyPose(motion.Name, time, items, DefaultTangent);
         PoseKeyed?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
@@ -635,6 +746,15 @@ public sealed class ViewportView : Control
 
     public void Bind(MotionEditor? editor, string? motionName)
     {
+        if (ReferenceEquals(_editor, editor))
+        {
+            DiscardPending(); // 같은 문서에서 모션을 바꾸는 것 — 버린 포즈도 이력에
+        }
+        else
+        {
+            ClearPending(); // 문서가 갈렸다 — 이전 문서의 포즈·이력은 남지 않는다
+        }
+
         if (_editor is not null)
         {
             _editor.Changed -= OnEditorChanged;
@@ -650,10 +770,6 @@ public sealed class ViewportView : Control
 
         _clock.Stop();
         _timer.Stop();
-        _overrides.Clear();
-        _pending.Clear();
-        _held = null;
-        _holdScrub = false;
         SyncDuration();
         PickSelectedObject();
         RebuildTemplate();
@@ -1288,6 +1404,7 @@ public sealed class ViewportView : Control
         _dragStartRoot = ToRoot(position);
         _dragPivotRoot = pose.TransformPoint(key, Vec3.Zero).XY;
         _dragStartState = pose.GetState(key);
+        _dragPendingBefore = CapturePending();
         return true;
     }
 
@@ -1450,9 +1567,12 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _overrides[key] = state;
-        InvalidateVisual();
-        CommitPose(motion, node, kind, changed);
+        AsOneEdit(() =>
+        {
+            _overrides[key] = state;
+            InvalidateVisual();
+            CommitPose(motion, node, kind, changed);
+        });
     }
 
     /// <summary>채널 박스의 ● — 성분 하나를 지금 포즈 값으로 지금 키(마야 Key Selected). 없는 채널·성분은 생긴다.</summary>
@@ -1465,7 +1585,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        KeyNow(node, kind, axes);
+        AsOneEdit(() => KeyNow(node, kind, axes));
     }
 
     /// <summary>드래그 종류의 채널 종류와, 실제로 값이 바뀐 성분만(마야 Auto Key의 "바뀐 속성만").</summary>
@@ -1540,7 +1660,22 @@ public sealed class ViewportView : Control
 
             if (drag is Drag.MoveFree or Drag.MoveX or Drag.MoveY or Drag.Rotate or Drag.ScaleFree or Drag.ScaleX or Drag.ScaleY)
             {
-                EndManipulation();
+                // 드래그 하나 = 되돌리기 한 칸: 키가 됐으면 문서 변화, 키 없는 포즈로 남았으면 포즈 변화(드래그 시작 때와 견줘)
+                PendingSnapshot before = _dragPendingBefore ?? CapturePending();
+                _dragPendingBefore = null;
+
+                if (_editor is null)
+                {
+                    EndManipulation();
+                }
+                else
+                {
+                    _editor.Batch(MotionChangeKind.Keys, () =>
+                    {
+                        EndManipulation();
+                        RecordPendingChange(before);
+                    });
+                }
             }
 
             _drag = Drag.None;

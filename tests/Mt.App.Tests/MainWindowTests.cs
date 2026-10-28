@@ -1040,7 +1040,9 @@ public class MainWindowTests
                 editor.Undo();
                 Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
                 Assert.Null(Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
+                Assert.True(window.Viewport.HasPending); // 키 확정 직전의 키 없는 포즈로
                 editor.Redo();
+                Assert.False(window.Viewport.HasPending);
                 Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
 
                 // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸(연기 축은 휴지가 항등이라 absolute 값 = 넣은 값).
@@ -1056,7 +1058,9 @@ public class MainWindowTests
                 Assert.Equal(before + 1, editor.Revision);
                 editor.Undo();
                 Assert.Null(Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)); // 둘 다 한 번에
+                Assert.True(window.Viewport.HasPending);
                 editor.Redo();
+                Assert.False(window.Viewport.HasPending);
                 body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
                 Assert.Equal(10f, body.X!.Keys.Single().V, 3);
                 Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);

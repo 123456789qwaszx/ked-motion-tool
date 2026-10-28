@@ -1145,13 +1145,7 @@ public sealed class MotionEditor
         HistoryEntry entry = _undo[^1];
         _undo.RemoveAt(_undo.Count - 1);
         _redo.Add(entry with { Snapshot = entry.Snapshot is null ? null : MotionDocumentJson.Write(Document) });
-
-        if (entry.Snapshot is not null)
-        {
-            Restore(entry.Snapshot);
-        }
-
-        entry.SideUndo?.Invoke();
+        Replay(entry.Snapshot, entry.SideUndo);
     }
 
     public void Redo()
@@ -1164,13 +1158,29 @@ public sealed class MotionEditor
         HistoryEntry entry = _redo[^1];
         _redo.RemoveAt(_redo.Count - 1);
         _undo.Add(entry with { Snapshot = entry.Snapshot is null ? null : MotionDocumentJson.Write(Document) });
+        Replay(entry.Snapshot, entry.SideRedo);
+    }
 
-        if (entry.Snapshot is not null)
+    /// <summary>되돌리기·다시하기가 도는 중 — 그 사이 화면이 반응하며 올리는 문서 밖 조작(포즈 버리기 등)은 이력에 안 넣는다.</summary>
+    public bool IsRestoring { get; private set; }
+
+    private void Replay(string? snapshot, Action? side)
+    {
+        IsRestoring = true;
+
+        try
         {
-            Restore(entry.Snapshot);
-        }
+            if (snapshot is not null)
+            {
+                Restore(snapshot);
+            }
 
-        entry.SideRedo?.Invoke();
+            side?.Invoke();
+        }
+        finally
+        {
+            IsRestoring = false;
+        }
     }
 
     /// <summary>파일에서 새로 읽었을 때처럼, 기록을 버리고 통째로 갈아 끼운다.</summary>
@@ -1239,6 +1249,11 @@ public sealed class MotionEditor
     {
         ArgumentNullException.ThrowIfNull(undo);
         ArgumentNullException.ThrowIfNull(redo);
+
+        if (IsRestoring)
+        {
+            return; // 복원이 일으킨 반응이다 — 이력이 아니다
+        }
 
         if (_batchDepth > 0)
         {
