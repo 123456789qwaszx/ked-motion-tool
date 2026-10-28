@@ -19,100 +19,9 @@ public sealed class SceneAsset
     public SceneObject? Find(string id)
         => Objects.FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.Ordinal));
 
-    /// <summary>최상위 오브젝트(부모 없음) — 목록 순.</summary>
-    public IEnumerable<SceneObject> TopLevel() => Objects.Where(o => o.Parent is null);
-
-    /// <summary>바로 밑 자식들 — 목록 순.</summary>
-    public IEnumerable<SceneObject> ChildrenOf(string id)
-        => Objects.Where(o => string.Equals(o.Parent, id, StringComparison.Ordinal));
-
-    /// <summary>자손 전부(깊이 우선, 부모 먼저).</summary>
-    public IEnumerable<SceneObject> DescendantsOf(string id)
-    {
-        foreach (SceneObject child in ChildrenOf(id))
-        {
-            yield return child;
-
-            foreach (SceneObject grandchild in DescendantsOf(child.Id))
-            {
-                yield return grandchild;
-            }
-        }
-    }
-
-    /// <summary>a가 b의 조상(또는 b 자신)인가 — 부모 설정의 순환 검사.</summary>
-    public bool IsAncestorOrSelf(string a, string b)
-    {
-        SceneObject? current = Find(b);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        while (current is not null && seen.Add(current.Id))
-        {
-            if (string.Equals(current.Id, a, StringComparison.Ordinal))
-            {
-                return true;
-            }
-
-            current = current.Parent is null ? null : Find(current.Parent);
-        }
-
-        return false;
-    }
-
-    /// <summary>최상위 조상 — 자식의 stage·layer·깊이는 이것을 따른다.</summary>
-    public SceneObject RootOf(SceneObject o)
-    {
-        SceneObject current = o;
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        while (current.Parent is not null && seen.Add(current.Id) && Find(current.Parent) is { } parent)
-        {
-            current = parent;
-        }
-
-        return current;
-    }
-
-    /// <summary>보이나 — 자신과 조상이 모두 보이면.</summary>
-    public bool IsShown(SceneObject o)
-    {
-        SceneObject? current = o;
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        while (current is not null && seen.Add(current.Id))
-        {
-            if (!current.Visible)
-            {
-                return false;
-            }
-
-            current = current.Parent is null ? null : Find(current.Parent);
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// 그리는 순서 — 최상위는 먼 레이어부터(far → close)·같은 레이어는 목록 순, 자식은 부모 바로 뒤(부모 위에 그려진다).
-    /// 부모가 자식보다 항상 먼저이므로 이 순서로 트리를 세울 수 있다. 부모가 없는 오브젝트(끊긴 참조)는 최상위로 본다.
-    /// </summary>
+    /// <summary>그리는 순서 — 먼 레이어부터(far → close), 같은 레이어는 목록 순. 클릭 선택은 그 역순.</summary>
     public IEnumerable<SceneObject> DrawOrder()
-    {
-        IEnumerable<SceneObject> roots = Objects
-            .Where(o => o.Parent is null || Find(o.Parent) is null)
-            .OrderBy(o => SceneLayers.IndexOf(o.Layer))
-            .ThenBy(o => Objects.IndexOf(o));
-
-        foreach (SceneObject root in roots)
-        {
-            yield return root;
-
-            foreach (SceneObject descendant in DescendantsOf(root.Id))
-            {
-                yield return descendant;
-            }
-        }
-    }
+        => Objects.OrderBy(o => SceneLayers.IndexOf(o.Layer)).ThenBy(o => Objects.IndexOf(o));
 
     /// <summary>캐릭터 리그 하나(s1, stage00/mid)를 세운 기본 씬 — 씬이 없던 문서(예전 판)와 새 문서가 이것으로 시작한다.</summary>
     public static SceneAsset Default(string? portrait = null) => new()
@@ -136,7 +45,7 @@ public sealed class CameraSettings
 /// <see cref="Place"/>(화면 지점 × focus 프리셋 → <c>CharSlot_Track_Focus</c>, 코어 place 폴드)와
 /// 오프셋(<see cref="PositionX"/>/<see cref="PositionY"/> → <c>CharSlot_Track</c>, move) · 회전 → <c>CharSlot_SwayPivot</c> · 배율 → <c>CharSlot_Scale</c>.
 /// 그 노드가 없는 리그는 루트 노드에 들어간다.
-/// 최상위 오브젝트는 무대 뼈대의 <c>Stage{NN}Depth_{Layer}_Content</c>에 서고, 다른 오브젝트의 노드 밑에 붙을 수도 있다(<see cref="Parent"/>·<see cref="ParentNode"/>).
+/// 오브젝트는 무대 뼈대의 <c>Stage{NN}Depth_{Layer}_Content</c>에 선다(오브젝트끼리의 부모·자식은 없다 — 런타임에도 없다).
 /// </summary>
 public sealed class SceneObject
 {
@@ -150,12 +59,6 @@ public sealed class SceneObject
 
     /// <summary>리그 덤프의 rigKind. 지금은 character만 만든다.</summary>
     public string Rig { get; set; } = DefaultRig;
-
-    /// <summary>부모 오브젝트 id. null이면 최상위. 자식은 부모의 stage·layer·깊이를 따른다.</summary>
-    public string? Parent { get; set; }
-
-    /// <summary>부모 리그에서 붙는 노드 id. null이면 부모 루트.</summary>
-    public string? ParentNode { get; set; }
 
     /// <summary>무대(stage00·stage01·stage02) — 런타임 slot 커맨드의 어휘. 뼈대의 <c>Stage{NN}_Root</c>.</summary>
     public string Stage { get; set; } = DefaultStage;
@@ -214,12 +117,6 @@ public static class SceneLayers
     }
 
     public static bool IsKnown(string? layer) => layer is not null && Array.IndexOf((string[])Order, layer) >= 0;
-}
-
-/// <summary>배치 한 벌(오프셋·회전·배율) — 부모를 바꿀 때 월드 자세를 지키는 값을 한 번에 넘긴다.</summary>
-public readonly record struct Placement(float X, float Y, float RotZ, float ScaleX, float ScaleY)
-{
-    public static Placement Of(SceneObject o) => new(o.PositionX, o.PositionY, o.RotationZ, o.ScaleX, o.ScaleY);
 }
 
 /// <summary>배치 값을 트리에 넣는 자리 — 런타임의 move/rotate/scale 폴드와 같은 노드.</summary>

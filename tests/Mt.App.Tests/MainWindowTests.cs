@@ -715,11 +715,11 @@ public class MainWindowTests
                 window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.None);
                 Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedNode); // Q는 노드를 안 옮긴다
 
-                // 컨트롤러 위에서 만들기 = 그 주 노드의 자식. 트리에서는 컨트롤러 밑에 보인다.
+                // 컨트롤러 위에서 만들기 = 그 오브젝트와 같은 무대·층에(오브젝트끼리 부모·자식은 없다). 트리에서는 s1 옆.
                 string s2 = window.CreateObjectAtController("character", "s1", "body");
                 Assert.Equal(s2, window.Viewport.SelectedObjectId);
-                Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedObject!.ParentNode);
-                Assert.Equal("몸  ·  position XY", window.HierarchyPathOf(s2, null)[^2]);
+                Assert.Equal("mid", window.Viewport.SelectedObject!.Layer);
+                Assert.Equal(window.HierarchyPathOf("s1", null)[^2], window.HierarchyPathOf(s2, null)[^2]);
 
                 // 프리셋에서 추가(C5): 선택 오브젝트의 리그로, 표가 노드를 푼다. 목록이 그 모션을 고른다. 문제 없음.
                 window.SelectInHierarchy("s1", null);
@@ -733,12 +733,12 @@ public class MainWindowTests
                 window.Session.Editor.Undo();
                 Assert.Null(window.Session.Editor.Document.Find("nod_2"));
 
-                // "리그 노드 보기"면 덤프 노드 26단이고 자식은 붙은 노드 밑. 끄면 다시 컨트롤러.
+                // "리그 노드 보기"면 덤프 노드 26단. 끄면 다시 컨트롤러.
                 window.ShowRigNodes = true;
                 Assert.Empty(window.HierarchyPathOfController("s1", "body"));
-                Assert.Equal("CharacterPortrait_Track_Move", window.HierarchyPathOf(s2, null)[^2]);
+                Assert.NotEmpty(window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move"));
                 window.ShowRigNodes = false;
-                Assert.Equal("몸  ·  position XY", window.HierarchyPathOf(s2, null)[^2]);
+                Assert.Equal("몸  ·  position XY", window.HierarchyPathOfController("s1", "body")[^1]);
             }
             finally
             {
@@ -808,7 +808,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 하이어아키는_덤프의_부모자식_계층_그대로이고_메뉴로_자식을_만들며_이름바꾸기_복제가_된다()
+    public void 하이어아키는_덤프의_부모자식_계층_그대로이고_메뉴로_만들며_이름바꾸기_복제가_된다()
     {
         HeadlessUi.Run(() =>
         {
@@ -826,12 +826,12 @@ public class MainWindowTests
                 Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "StageViewportLayer", "StageShot_Root", "StagePan_Root  ·  pan 0,0", "StageZoom_Root  ·  zoom 0", "Stage00_Root", "Stage00Mask_Root", "Stage00DepthSystem_Root", "Stage00Depth_Mid_Root", "Stage00Depth_Mid_FramingTransform", "Stage00Depth_Mid_FramingScale", "Stage00Depth_Mid_Content", "s1  ·  character", "CharSlot_Track_Focus", "CharSlot_DepthY", "CharSlot_DepthScale", "CharSlot_Track_Idle", "CharSlot_Track", "CharSlot_Track_X", "CharSlot_Track_Y", "CharSlot_Rotation", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_Track", "CharacterPortrait_Rotation", "CharacterPortrait_Track_Move", "CharacterPortrait_Track_Move_X", "CharacterPortrait_Track_Move_Y" }, path);
                 Assert.DoesNotContain("연기 축", window.HierarchyPathOf("s1", "CharacterPortrait_SwayPivot"));
 
-                // 노드 위에서 "만들기" = 그 노드의 자식. 트리에서는 그 노드 밑에 보인다.
+                // 노드 위에서 "만들기" = 그 오브젝트와 같은 무대·층(오브젝트끼리 부모·자식은 없다). 트리에서는 같은 Content 밑.
                 string prop = window.CreateObjectFromMenu("character", "s1", "CharacterPortrait_Track_Move");
                 Assert.Equal("s2", prop);
                 Assert.Equal(prop, window.Viewport.SelectedObjectId);
                 IReadOnlyList<string> propPath = window.HierarchyPathOf("s2", null);
-                Assert.Equal("CharacterPortrait_Track_Move", propPath[^2]);
+                Assert.Equal("Stage00Depth_Mid_Content", propPath[^2]);
                 Assert.StartsWith("s2  ·  character", propPath[^1], StringComparison.Ordinal);
 
                 // 빈자리에서 만들면 선택 오브젝트의 무대·층의 최상위. 리그 없는 오브젝트는 없다.
@@ -846,14 +846,12 @@ public class MainWindowTests
                 window.SelectInHierarchy("s2", null);
                 window.RenameSelectedFromForm("hand");
                 Assert.Equal("hand", window.Viewport.SelectedObjectId);
-                Assert.Equal("s1", window.Viewport.SelectedObject!.Parent);
 
-                // 복제 — 자손까지, 새 것이 선택된다.
+                // 복제 — 새 것이 선택된다.
                 window.SelectInHierarchy("s1", null);
                 window.DuplicateSelectedFromMenu();
                 Assert.Equal("s2", window.Viewport.SelectedObjectId);
-                Assert.Equal(4, window.HierarchyObjectCount);
-                Assert.Equal("s2", window.Viewport.Scene!.Find("hand_2")!.Parent);
+                Assert.Equal(3, window.HierarchyObjectCount);
             }
             finally
             {
@@ -863,60 +861,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 하이어아키에서_끌어다_놓으면_자식이_되거나_레이어가_바뀐다()
-    {
-        HeadlessUi.Run(() =>
-        {
-            MainWindow window = NewWindow();
-            window.Show();
-
-            try
-            {
-                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.AddObjectFromForm("s2", "character", "front");
-                window.AddObjectFromForm("s3", "character", "close");
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
-                // 자기 자신에게 놓는 것은 아무 일도 아니다(6px 안은 드래그가 아니다).
-                long before = window.Session.Editor.Revision;
-                Point from = window.HierarchyItemCenter("s2", null) ?? throw new InvalidOperationException("s2 항목이 없다");
-                Drag(window, from, from + new Point(0, 2));
-                Assert.Equal(before, window.Session.Editor.Revision);
-
-                // s2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
-                Point to = window.HierarchyItemCenter(null, null, "stage00", "mid") ?? throw new InvalidOperationException("층 항목이 없다");
-                Drag(window, from, to);
-                Assert.True(window.Viewport.Scene!.Find("s2")!.Layer == "mid", $"층이 안 바뀜 — from {from} to {to} · 상태: {window.Session.Status}");
-                Assert.Null(window.Viewport.Scene!.Find("s2")!.Parent);
-
-                // s3를 s1 오브젝트 항목에 놓는다 → 루트 자식(노드 위에 놓으면 그 노드 — 같은 길, 메뉴 테스트가 덮는다).
-                // (이 뒤로는 선택된 s3의 조상 s1이 펼쳐져 트리가 길어진다 — 그래서 마지막에 한다.)
-                from = window.HierarchyItemCenter("s3", null) ?? throw new InvalidOperationException("s3 항목이 없다");
-                to = window.HierarchyItemCenter("s1", null) ?? throw new InvalidOperationException("s1 항목이 없다");
-                Drag(window, from, to);
-                Mt.Authoring.Model.SceneObject s3 = window.Viewport.Scene!.Find("s3")!;
-                Assert.Equal("s1", s3.Parent);
-                Assert.Null(s3.ParentNode);
-                Assert.Equal("mid", s3.Layer);
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-    }
-
-    private static void Drag(Window window, Point from, Point to)
-    {
-        window.MouseDown(from, MouseButton.Left);
-        window.MouseMove(from + new Point(0, 10));
-        window.MouseMove(to);
-        window.MouseUp(to, MouseButton.Left);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-    }
-
-    [Fact]
-    public void 부모_콤보는_월드_위치를_지키고_자리_콤보는_place_폴드를_탄다()
+    public void 자리_콤보는_place_폴드를_탄다()
     {
         HeadlessUi.Run(() =>
         {
@@ -927,27 +872,8 @@ public class MainWindowTests
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
                 window.CommitObjectPlacementFromForm(200f, -40f, 0f, 1f, 1f); // s1
-                window.AddObjectFromForm("s2", "character", "front");
-                window.CommitObjectPlacementFromForm(-150f, 30f, 0f, 1f, 1f);
-                Vec2 RootOfC2() => window.Viewport.CurrentPose()!.TransformPoint("s2/CharSlot_Track", Vec3.Zero).XY; // 배치가 움직이는 노드
-                Vec2 before = RootOfC2();
 
-                // 채널 박스 부모 콤보 → s1의 자식(루트), 월드 위치 그대로.
-                window.SetParentFromForm("s1");
-                Mt.Authoring.Model.SceneObject s2 = window.Viewport.Scene!.Find("s2")!;
-                Assert.Equal("s1", s2.Parent);
-                Assert.Equal(before.X, RootOfC2().X, 1);
-                Assert.Equal(before.Y, RootOfC2().Y, 1);
-
-                // 부모 노드 콤보 → 그 노드 밑으로 옮겨도 월드 위치는 그대로(배치 값은 부모 공간으로 바뀐다).
-                window.SetParentNodeFromForm("CharacterPortrait_Track_Move");
-                s2 = window.Viewport.Scene!.Find("s2")!;
-                Assert.Equal("CharacterPortrait_Track_Move", s2.ParentNode);
-                Assert.NotEqual(-150f, s2.PositionX);
-                Assert.Equal(before.X, RootOfC2().X, 1);
-                Assert.Equal(before.Y, RootOfC2().Y, 1);
-
-                // 자리(place) — 채널 박스 콤보로. Track_Focus가 코어 place 폴드로 풀린다.
+                // 자리(place) — 씬 탭 콤보로. Track_Focus가 코어 place 폴드로 풀린다.
                 window.SelectInHierarchy("s1", null);
                 window.SetPlaceFromForm("right", "face");
                 Mt.Authoring.Model.SceneObject s1 = window.Viewport.Scene!.Find("s1")!;

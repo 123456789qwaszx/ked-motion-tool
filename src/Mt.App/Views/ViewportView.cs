@@ -679,26 +679,12 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    /// <summary>presets/focus.json — 배역별 focus 오프셋이 깊이 폴드에 들어간다.</summary>
+    /// <summary>presets/focus.json — focus 오프셋(base + bust)이 깊이·place 폴드에 들어간다.</summary>
     public void SetFocus(FocusTuningFile? focus)
     {
         _focus = focus;
         RebuildTemplate();
         InvalidateVisual();
-    }
-
-    /// <summary>부모를 바꾸되 월드 자세(위치·회전·배율)를 지키는 배치 값. 리그가 없으면 지금 값.</summary>
-    public Placement PlacementKeepingWorld(string id, string? parent, string? parentNode)
-    {
-        SceneAsset? scene = Scene;
-        SceneObject? o = scene?.Find(id);
-
-        if (_rig is null || scene is null || o is null)
-        {
-            return o is null ? default : Placement.Of(o);
-        }
-
-        return ScenePreview.PlacementKeepingWorld(_rig, scene, id, parent, parentNode, _depth, _focus, _stage);
     }
 
     /// <summary>씬 카메라(보기 전용) 배율 — 코어 규약 zoom 1당 +0.05.</summary>
@@ -786,7 +772,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth, null, _focus, _stage);
+        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth, _focus, _stage);
     }
 
     // ── 시계 ──────────────────────────────────────────────────────────
@@ -1029,7 +1015,7 @@ public sealed class ViewportView : Control
 
         foreach (SceneObject o in scene.DrawOrder())
         {
-            if (!scene.IsShown(o))
+            if (!o.Visible)
             {
                 continue;
             }
@@ -1229,7 +1215,7 @@ public sealed class ViewportView : Control
 
         foreach (SceneObject o in scene.DrawOrder().Reverse())
         {
-            if (!scene.IsShown(o))
+            if (!o.Visible)
             {
                 continue;
             }

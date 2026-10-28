@@ -445,30 +445,25 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 자식_오브젝트는_부모를_따라_움직이고_부모가_숨으면_클릭에_안_잡힌다() => HeadlessUi.Run(() =>
+    public void 숨긴_오브젝트는_클릭에_안_잡힌다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, MotionEditor editor) = Show();
 
         try
         {
-            editor.AddSceneObject(null, "prop", "character", SceneLayers.Mid, parent: "s1", parentNode: "CharacterPortrait_Track_Move");
+            editor.AddSceneObject(null, "s2", "character", SceneLayers.Mid);
             Assert.Throws<InvalidOperationException>(() => editor.AddSceneObject(null, "pivot", "", SceneLayers.Front)); // 빈 오브젝트는 없다
 
-            Quad propBefore = view.ObjectQuad("prop")!.Value;
-            editor.SetObjectPlacement(null, "s1", 150f, 0f, 0f, 1f, 1f);
-            Quad propAfter = view.ObjectQuad("prop")!.Value;
-            Assert.Equal(150f, propAfter.BottomLeft.X - propBefore.BottomLeft.X, 1);
-
-            // 부모를 숨기면 자식도 안 보이고 클릭에도 안 잡힌다.
             view.Manipulator = ManipulatorMode.Select;
-            view.SelectedObjectId = "prop";
-            Quad prop = view.ObjectQuad("prop")!.Value;
-            Vec2 center = (prop.BottomLeft + prop.TopRight) * 0.5f;
-            Point onProp = view.TranslatePoint(view.ToScreen(center), window)!.Value;
+            view.SelectedObjectId = "s2";
+            Quad quad = view.ObjectQuad("s2")!.Value;
+            Vec2 center = (quad.BottomLeft + quad.TopRight) * 0.5f;
+            Point onS2 = view.TranslatePoint(view.ToScreen(center), window)!.Value;
+            editor.SetObjectVisible(null, "s2", false);
             editor.SetObjectVisible(null, "s1", false);
             view.SelectedObjectId = null;
-            window.MouseDown(onProp, MouseButton.Left);
-            window.MouseUp(onProp, MouseButton.Left);
+            window.MouseDown(onS2, MouseButton.Left);
+            window.MouseUp(onS2, MouseButton.Left);
             Assert.Null(view.SelectedObjectId);
         }
         finally
