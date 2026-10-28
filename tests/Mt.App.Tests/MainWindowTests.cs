@@ -615,27 +615,27 @@ public class MainWindowTests
                 window.AddObjectFromForm("c3", "character", "close");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
+                // 자기 자신에게 놓는 것은 아무 일도 아니다(6px 안은 드래그가 아니다).
+                long before = window.Session.Editor.Revision;
+                Point from = window.HierarchyItemCenter("c2", null) ?? throw new InvalidOperationException("c2 항목이 없다");
+                Drag(window, from, from + new Point(0, 2));
+                Assert.Equal(before, window.Session.Editor.Revision);
+
+                // c2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
+                Point to = window.HierarchyItemCenter(null, null, "stage01", "mid") ?? throw new InvalidOperationException("레이어 항목이 없다");
+                Drag(window, from, to);
+                Assert.Equal("mid", window.Viewport.Scene!.Find("c2")!.Layer);
+                Assert.Null(window.Viewport.Scene!.Find("c2")!.Parent);
+
                 // c3를 c1 오브젝트 항목에 놓는다 → 루트 자식(노드 위에 놓으면 그 노드 — 같은 길, 메뉴 테스트가 덮는다).
-                Point from = window.HierarchyItemCenter("c3", null) ?? throw new InvalidOperationException("c3 항목이 없다");
-                Point to = window.HierarchyItemCenter("c1", null) ?? throw new InvalidOperationException("c1 항목이 없다");
+                // (이 뒤로는 선택된 c3의 조상 c1이 펼쳐져 트리가 길어진다 — 그래서 마지막에 한다.)
+                from = window.HierarchyItemCenter("c3", null) ?? throw new InvalidOperationException("c3 항목이 없다");
+                to = window.HierarchyItemCenter("c1", null) ?? throw new InvalidOperationException("c1 항목이 없다");
                 Drag(window, from, to);
                 Mt.Authoring.Model.SceneObject c3 = window.Viewport.Scene!.Find("c3")!;
                 Assert.Equal("c1", c3.Parent);
                 Assert.Null(c3.ParentNode);
                 Assert.Equal("mid", c3.Layer);
-
-                // c2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
-                from = window.HierarchyItemCenter("c2", null) ?? throw new InvalidOperationException("c2 항목이 없다");
-                to = window.HierarchyItemCenter(null, null, "stage01", "mid") ?? throw new InvalidOperationException("레이어 항목이 없다");
-                Drag(window, from, to);
-                Assert.Equal("mid", window.Viewport.Scene!.Find("c2")!.Layer);
-                Assert.Null(window.Viewport.Scene!.Find("c2")!.Parent);
-
-                // 자기 자신에게 놓는 것은 아무 일도 아니다.
-                long before = window.Session.Editor.Revision;
-                from = window.HierarchyItemCenter("c2", null)!.Value;
-                Drag(window, from, from + new Point(0, 2));
-                Assert.Equal(before, window.Session.Editor.Revision);
             }
             finally
             {

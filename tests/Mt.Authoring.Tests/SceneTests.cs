@@ -262,6 +262,7 @@ public class SceneTests
         Assert.Equal("arm_2", scene.Find("c4")!.Parent);
         Assert.Equal("CharSlot_Scale", scene.Find("c4")!.ParentNode);
         editor.Undo();
+        scene = editor.Document.ActiveSceneAsset!; // 되돌리기는 스냅샷 복원 — 참조를 다시 읽는다
         Assert.Equal(3, scene.Objects.Count);
 
         // 떼기 — 최상위로, 레이어를 주면 그 레이어로.
