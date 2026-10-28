@@ -1378,7 +1378,12 @@ public sealed class ViewportView : Control
     /// Auto Key거나 그 시각에 키가 있으면 키로, 아니면 키 없는 포즈(S로 키·Esc로 버림). 값이 같으면 아무것도 안 한다.
     /// </summary>
     public void SetComponent(string node, MotionChannelKind kind, Axis axis, float value)
+        => SetComponents(node, kind, new[] { (axis, value) });
+
+    /// <summary>여러 성분을 한 번에(깊이 컨트롤러의 X·Y 배율처럼). 바뀐 성분만 키·키 없는 포즈가 된다.</summary>
+    public void SetComponents(string node, MotionChannelKind kind, IReadOnlyList<(Axis Axis, float Value)> values)
     {
+        ArgumentNullException.ThrowIfNull(values);
         MotionAsset? motion = Motion;
         RectNodeTree? pose = CurrentPose();
         string key = Prefix + node;
@@ -1389,26 +1394,40 @@ public sealed class ViewportView : Control
         }
 
         RectNodeState state = pose.GetState(key);
+        var changed = new List<Axis>();
 
-        if (Math.Abs(PoseEdit.Component(kind, state, axis) - value) < 1e-6f)
+        foreach ((Axis axis, float value) in values)
+        {
+            if (Math.Abs(PoseEdit.Component(kind, state, axis) - value) < 1e-6f)
+            {
+                continue;
+            }
+
+            state = PoseEdit.WithComponent(kind, state, axis, value);
+            changed.Add(axis);
+        }
+
+        if (changed.Count == 0)
         {
             return;
         }
 
-        _overrides[key] = PoseEdit.WithComponent(kind, state, axis, value);
+        _overrides[key] = state;
         InvalidateVisual();
-        CommitPose(motion, node, kind, new[] { axis });
+        CommitPose(motion, node, kind, changed);
     }
 
     /// <summary>채널 박스의 ● — 성분 하나를 지금 포즈 값으로 지금 키(마야 Key Selected). 없는 채널·성분은 생긴다.</summary>
-    public void KeyComponent(string node, MotionChannelKind kind, Axis axis)
+    public void KeyComponent(string node, MotionChannelKind kind, Axis axis) => KeyComponents(node, kind, new[] { axis });
+
+    public void KeyComponents(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
-        if (MotionRules.ForbiddenNodes.Contains(node))
+        if (MotionRules.ForbiddenNodes.Contains(node) || axes.Count == 0)
         {
             return;
         }
 
-        KeyNow(node, kind, new[] { axis });
+        KeyNow(node, kind, axes);
     }
 
     /// <summary>드래그 종류의 채널 종류와, 실제로 값이 바뀐 성분만(마야 Auto Key의 "바뀐 속성만").</summary>

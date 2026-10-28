@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -7,6 +8,7 @@ using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
 using Mt.Authoring.Serialization;
+using Mt.Authoring.Validation;
 
 namespace Mt.App.Tests;
 
@@ -304,7 +306,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 하이어아키에서_노드를_고르면_채널_박스가_그_노드의_값을_보이고_값을_넣으면_키가_된다()
+    public void 채널_박스는_컨트롤러_자리_깊이_연기이고_값을_넣으면_그_노드에_키가_된다()
     {
         HeadlessUi.Run(() =>
         {
@@ -314,53 +316,66 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("step", "character", "0.6", MotionEnd.Commit);
                 window.AddObjectFromForm("s2", "character", "front");
                 Assert.Equal(2, window.HierarchyObjectCount);
 
-                window.SelectInHierarchy("s1", null);
-                Assert.Equal("s1", window.Viewport.SelectedObjectId);
-
                 window.SelectInHierarchy("s2", "CharacterPortrait_Track_Move_Y");
                 Assert.Equal("s2", window.Viewport.SelectedObjectId);
-                Assert.Equal("CharacterPortrait_Track_Move_Y", window.Viewport.SelectedNode);
                 Assert.Equal("CharacterPortrait_Track_Move_Y", window.ChannelBoxNode);
+                Assert.Equal("ctl:character", window.ChannelBoxLayout);
 
-                // 채널 박스는 유니티 계층 하나의 Translate/Rotate/Scale 전부를 보인다 — 덤프의 시작값.
-                Assert.Equal("0", window.ChannelBoxValue(MotionChannelKind.Position, Axis.X));
-                Assert.Equal("1", window.ChannelBoxValue(MotionChannelKind.Scale, Axis.X));
+                // 컨트롤러 값은 포즈다 — 몸 0, 크기 1, 깊이는 층(front = 16)을 level로 되돌린 값.
+                Assert.Equal("0", window.ControllerValueText("body", Axis.X));
+                Assert.Equal("1", window.ControllerValueText("squash", Axis.X));
+                Assert.Equal(16.0, double.Parse(window.ControllerValueText("depth", Axis.X), CultureInfo.InvariantCulture), 2);
 
-                // Auto Key로 값을 넣으면 그 시각에 키 — 채널·성분은 첫 키에서 생긴다("채널 추가"가 없다).
-                window.SelectInHierarchy("s2", "CharacterPortrait_SwayPivot");
+                // 첫 키가 깊이(absolute 묶음)면 미리보기 mode가 absolute로 — 키 값은 level 20의 배율(2.2) 그대로, X·Y 둘.
                 window.AutoKeyChecked = true;
                 window.Viewport.ScrubTo(0.25);
-                window.SetChannelBoxValue(MotionChannelKind.Euler, Axis.Z, "15");
+                window.SetControllerValue("depth", Axis.X, "20");
+                MotionAsset step = window.Session.Editor.Document.Find("step")!;
+                Assert.Equal(MotionChannelMode.Absolute, step.PreviewMode);
+                ChannelAsset depth = step.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!;
+                Assert.Equal(2.2, depth.X!.Keys.Single().V, 3);
+                Assert.Equal(2.2, depth.Y!.Keys.Single().V, 3);
+                Assert.Equal("20", window.ControllerValueText("depth", Axis.X));
+
+                // 숙임 15 → CharacterPortrait_SwayPivot euler Z 키(absolute 미리보기라 값 그대로).
+                window.SetControllerValue("bow", Axis.Z, "15");
+                step = window.Session.Editor.Document.Find("step")!;
+                Assert.Equal(15.0, step.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!.Z!.Keys.Single().V, 3);
+                Assert.Equal("15", window.ControllerValueText("bow", Axis.Z));
+                Assert.DoesNotContain(window.ProblemsShown, p => !p.Blocking); // absolute 미리보기 — 경고 없음
+
+                // relative로 돌리면 자리·깊이 컨트롤러 경고(막지 않음) → 두 모션으로 나누기: 깊이는 step_place로, 숙임은 남는다.
+                window.Session.Editor.SetPreviewMode("step", MotionChannelMode.Relative);
+                MotionProblem warning = Assert.Single(window.ProblemsShown.Where(p => p.MotionName == "step" && !p.Blocking));
+                Assert.False(warning.Blocking);
+                Assert.True(window.ApplyFix("step", Mt.Authoring.Validation.MotionFix.SplitByGroup));
+                MotionAsset place = window.Session.Editor.Document.Find("step_place")!;
+                Assert.Equal(MotionChannelMode.Absolute, place.PreviewMode);
+                Assert.NotNull(place.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                Assert.NotNull(window.Session.Editor.Document.Find("step")!.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler));
+                Assert.DoesNotContain(window.ProblemsShown, p => !p.Blocking);
+
+                // 옛 모션(nod는 Track_Move_Y)은 "몸 Y"로 보이고, 그 성분에 값을 넣으면 있는 채널(별칭 노드)에 키가 간다.
+                window.Session.ImportMotions(TestDocuments.FixturePath("motions.nod-bow.json"));
+                window.SelectMotion("nod");
+                window.SelectInHierarchy("s2", null);
+                window.Viewport.ScrubTo(0.3);
+                Assert.Equal("-18", window.ControllerValueText("body", Axis.Y));
+                window.SetControllerValue("body", Axis.Y, "-20");
                 MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
-                ChannelAsset rotate = nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!;
-                Assert.Equal(MotionChannelMode.Relative, nod.PreviewMode);
-                Assert.Equal(15.0, rotate.Z!.Keys.Single(k => Math.Abs(k.T - 0.25f) < 1e-4).V, 3);
-                Assert.Equal("15", window.ChannelBoxValue(MotionChannelKind.Euler, Axis.Z));
+                Assert.Null(nod.FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position));
+                Assert.Equal(-20.0, nod.FindChannel("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position)!.Y!.Keys.Single(k => Math.Abs(k.T - 0.3f) < 1e-4).V, 3);
 
-                // Auto Key가 꺼져 있으면 키 없는 포즈(+= 는 지금 값에 상대) — S가 키를 놓는다.
-                window.AutoKeyChecked = false;
-                window.Viewport.ScrubTo(0.5);
-                window.SetChannelBoxValue(MotionChannelKind.Scale, Axis.X, "+=0.5");
-                Assert.True(window.Viewport.HasPending);
-                Assert.Equal("1.5", window.ChannelBoxValue(MotionChannelKind.Scale, Axis.X));
-                Assert.Null(nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Scale));
-
-                window.Viewport.SetKey();
-                Assert.False(window.Viewport.HasPending);
-                nod = window.Session.Editor.Document.Find("nod")!;
-                ChannelAsset scale = nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Scale)!;
-                Assert.Equal(1.5, scale.X!.Keys.Single().V, 3); // relative 배율 = 포즈 ÷ 시작(1)
-                Assert.Null(scale.Y);
-
-                // ● 는 지금 값으로 지금 시각에 키(마야 Key Selected).
+                // ● 는 지금 값으로 지금 시각에 키 — 채널이 없는 성분은 주 노드에 생긴다.
                 window.Viewport.ScrubTo(0.1);
-                window.KeyChannelBoxComponent(MotionChannelKind.Position, Axis.X);
+                window.KeyControllerFromBox("shake", Axis.X);
                 nod = window.Session.Editor.Document.Find("nod")!;
-                Assert.Equal(0.0, nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Position)!.X!.Keys.Single().V, 3);
+                Assert.Equal(0.0, nod.FindChannel("CharacterPortrait_Shake", MotionChannelKind.Position)!.X!.Keys.Single().V, 3);
             }
             finally
             {

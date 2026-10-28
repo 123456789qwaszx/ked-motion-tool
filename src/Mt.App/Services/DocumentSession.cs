@@ -89,7 +89,7 @@ public sealed class DocumentSession
 
     public IReadOnlyDictionary<string, ICollection<string>>? RigNodeIds => Rig?.NodeIds;
 
-    public IReadOnlyList<MotionProblem> Problems => MotionValidator.Validate(Editor.Document, RigNodeIds);
+    public IReadOnlyList<MotionProblem> Problems => MotionValidator.Validate(Editor.Document, RigNodeIds, Controllers);
 
     public void SetStatus(string status)
     {

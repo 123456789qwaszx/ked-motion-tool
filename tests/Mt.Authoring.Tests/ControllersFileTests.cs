@@ -2,7 +2,9 @@ using System.Text.Json;
 using Ked.Presentation.Core;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
+using Mt.Authoring.Editing;
 using Mt.Authoring.Rig;
+using Mt.Authoring.Validation;
 
 namespace Mt.Authoring.Tests;
 
@@ -95,5 +97,50 @@ public class ControllersFileTests
               "controllers": [ { "id": "a", "group": "acting", "node": "NoSuchNode", "kind": "position", "axes": ["x"] } ] } ] }
             """).Rig("character")!;
         Assert.Single(rig.Validate(BuiltinTuning.RigSchemas.NodeIds["character"]));
+    }
+
+    [Fact]
+    public void 자리_깊이_컨트롤러가_든_relative_모션은_경고이고_두_모션으로_나누면_사라진다()
+    {
+        ControllersFile controllers = BuiltinTuning.Controllers;
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddMotion("step", "character", 0.5f, MotionEnd.Commit);
+        editor.AddChannel("step", "CharSlot_Track", MotionChannelKind.Position);
+        editor.SetKeys("step", "CharSlot_Track", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, -200f), Fixtures.Key(0.5f, 400f) });
+        editor.AddChannel("step", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position);
+        editor.SetKeys("step", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.5f, -18f) });
+
+        // 컨트롤러 표 없이는 경고가 없다. 표를 주면 relative 미리보기 + 자리 컨트롤러 = 경고(막지 않는다).
+        Assert.Empty(MotionValidator.Validate(editor.Document));
+        MotionProblem warning = Assert.Single(MotionValidator.Validate(editor.Document, null, controllers));
+        Assert.False(warning.Blocking);
+        Assert.Contains("자리 · 자리", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(new[] { MotionFix.PreviewModeToAbsolute, MotionFix.SplitByGroup }, MotionFixes.Suggest(warning));
+
+        // absolute로 돌리면 경고가 사라진다.
+        Assert.True(MotionFixes.Apply(editor, "step", MotionFix.PreviewModeToAbsolute, controllers));
+        Assert.Empty(MotionValidator.Validate(editor.Document, null, controllers));
+        editor.Undo();
+
+        // 두 모션으로 나누기 — 자리는 step_place(absolute), 연기는 step(relative)에 남는다. 되돌리기 하나.
+        long revision = editor.Revision;
+        Assert.True(MotionFixes.Apply(editor, "step", MotionFix.SplitByGroup, controllers));
+        Assert.Equal(revision + 1, editor.Revision);
+        MotionAsset place = editor.Document.Find("step_place")!;
+        Assert.Equal(MotionChannelMode.Absolute, place.PreviewMode);
+        Assert.Equal(0.5f, place.Duration);
+        Assert.Single(place.Channels);
+        Assert.Equal("CharSlot_Track", place.Channels[0].Node);
+        Assert.Single(editor.Document.Find("step")!.Channels);
+        Assert.Empty(MotionValidator.Validate(editor.Document, null, controllers));
+        Assert.Equal(new[] { "step", "step_place" }, editor.Document.Motions.Select(m => m.Name));
+
+        editor.Undo();
+        Assert.Null(editor.Document.Find("step_place"));
+        Assert.Equal(2, editor.Document.Find("step")!.Channels.Count);
+
+        // 전부 자리거나 전부 연기면 나눌 것이 없다.
+        editor.RemoveChannel("step", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position);
+        Assert.False(MotionFixes.Apply(editor, "step", MotionFix.SplitByGroup, controllers));
     }
 }

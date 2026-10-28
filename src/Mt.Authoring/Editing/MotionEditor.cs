@@ -688,6 +688,49 @@ public sealed class MotionEditor
         return channel;
     }
 
+    /// <summary>
+    /// 채널 일부를 새 모션으로 떼어 낸다(한 번의 되돌리기) — 자리·깊이 컨트롤러(absolute)와 연기(relative)가 한 모션에 섞였을 때
+    /// 두 클립·두 커맨드로 나누는 길(motions/2: mode는 커맨드 인자 하나). 새 모션은 길이·끝·리그가 같고 미리보기 mode만 준 것.
+    /// 옮길 채널이 없거나 전부면 아무것도 안 하고 null.
+    /// </summary>
+    public MotionAsset? SplitMotion(string name, string newName, Func<ChannelAsset, bool> moveToNew, MotionChannelMode newPreviewMode)
+    {
+        ArgumentNullException.ThrowIfNull(moveToNew);
+        MotionAsset motion = Require(name);
+
+        if (!MotionNames.IsValid(newName))
+        {
+            throw new InvalidOperationException(MotionNames.RuleMessage(newName));
+        }
+
+        if (Document.Find(newName) is not null)
+        {
+            throw new InvalidOperationException($"모션 '{newName}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
+        }
+
+        List<ChannelAsset> moving = motion.Channels.Where(moveToNew).ToList();
+
+        if (moving.Count == 0 || moving.Count == motion.Channels.Count)
+        {
+            return null;
+        }
+
+        var created = new MotionAsset { Name = newName, Rig = motion.Rig, Duration = motion.Duration, End = motion.End, PreviewMode = newPreviewMode, Notes = motion.Notes };
+
+        Mutate(MotionChangeKind.Structure, () =>
+        {
+            foreach (ChannelAsset channel in moving)
+            {
+                motion.Channels.Remove(channel);
+                created.Channels.Add(channel);
+            }
+
+            Document.Motions.Insert(Document.Motions.IndexOf(motion) + 1, created);
+        });
+
+        return created;
+    }
+
     public void RemoveChannel(string name, string node, MotionChannelKind kind)
     {
         MotionAsset motion = Require(name);

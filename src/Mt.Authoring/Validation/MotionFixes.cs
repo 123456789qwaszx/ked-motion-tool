@@ -2,6 +2,7 @@ using Ked.Presentation.Core;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
+using Mt.Authoring.Rig;
 
 namespace Mt.Authoring.Validation;
 
@@ -28,6 +29,12 @@ public enum MotionFix
 
     /// <summary>길이 자리에 키를 하나 넣는다(값은 곡선 위 — 마지막 키 값). 길이 밖의 키는 사라진다.</summary>
     KeyAtDuration,
+
+    /// <summary>미리보기 mode를 absolute로(자리·깊이 컨트롤러가 든 모션).</summary>
+    PreviewModeToAbsolute,
+
+    /// <summary>자리·깊이 컨트롤러 채널을 <c>&lt;이름&gt;_place</c> 모션으로 떼어 낸다(두 클립·두 커맨드).</summary>
+    SplitByGroup,
 }
 
 public static class MotionFixes
@@ -41,6 +48,8 @@ public static class MotionFixes
         MotionFix.EndToCommit => "끝을 commit으로",
         MotionFix.NameToValid => "이름 고치기 (소문자·숫자·_)",
         MotionFix.KeyAtDuration => "길이 자리에 키 넣기",
+        MotionFix.PreviewModeToAbsolute => "미리보기를 absolute로",
+        MotionFix.SplitByGroup => "두 모션으로 나누기 (자리·깊이 → _place)",
         _ => fix.ToString(),
     };
 
@@ -70,17 +79,42 @@ public static class MotionFixes
             return new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit };
         }
 
+        if (m.Contains(MotionValidator.AbsoluteControllerWarning, StringComparison.Ordinal))
+        {
+            return new[] { MotionFix.PreviewModeToAbsolute, MotionFix.SplitByGroup };
+        }
+
         return Array.Empty<MotionFix>();
     }
 
-    /// <summary>고친다. 할 것이 없으면 false(편집기 조작도 없다).</summary>
-    public static bool Apply(MotionEditor editor, string motionName, MotionFix fix)
+    /// <summary>고친다. 할 것이 없으면 false(편집기 조작도 없다). <paramref name="controllers"/>는 두 모션으로 나누기가 쓴다.</summary>
+    public static bool Apply(MotionEditor editor, string motionName, MotionFix fix, ControllersFile? controllers = null)
     {
         ArgumentNullException.ThrowIfNull(editor);
         MotionAsset motion = editor.Document.Find(motionName) ?? throw new KeyNotFoundException($"모션 '{motionName}'이 없다.");
 
         switch (fix)
         {
+            case MotionFix.PreviewModeToAbsolute:
+                if (motion.PreviewMode == MotionChannelMode.Absolute)
+                {
+                    return false;
+                }
+
+                editor.SetPreviewMode(motionName, MotionChannelMode.Absolute);
+                return true;
+
+            case MotionFix.SplitByGroup:
+            {
+                if (controllers?.Rig(motion.Rig) is not { } table)
+                {
+                    return false;
+                }
+
+                string newName = MotionNames.Unique(editor.Document, motion.Name + "_place");
+                return editor.SplitMotion(motionName, newName, c => MotionValidator.IsAbsoluteController(c, table), MotionChannelMode.Absolute) is not null;
+            }
+
             case MotionFix.NameToValid:
             {
                 string fixedName = MotionNames.Unique(editor.Document, MotionNames.Sanitize(motion.Name), except: motion.Name);
