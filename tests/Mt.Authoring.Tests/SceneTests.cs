@@ -132,7 +132,7 @@ public class SceneTests
 
         Assert.Equal(midScale, tree.GetState("c1/CharSlot_DepthScale").LocalScale.X, 4);
         Assert.Equal(farScale, tree.GetState("c2/CharSlot_DepthScale").LocalScale.X, 4);
-        Assert.NotEqual(tree.GetState("c1/CharSlot_DepthY").AnchoredPosition.Y, tree.GetState("c2/CharSlot_DepthY").AnchoredPosition.Y);
+        // DepthY는 focus 보존이 정한다 — 초점(VisualOffset)이 배율 중심과 겹치면 레이어가 달라도 0일 수 있다. 값은 아래에서 코어와 대조한다.
 
         // 깊이 축에도 focus 보존이 들어가므로 날 커브 값과는 다를 수 있다 — 같은 코어 함수로 다시 접은 값과 같다.
         var state = new StageState(new RectSpace(RigFile.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half));
