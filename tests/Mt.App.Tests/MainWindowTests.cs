@@ -503,7 +503,8 @@ public class MainWindowTests
                 Assert.Equal(tableOrder, window.OutlinerOrder);
                 Assert.All(window.Graph.Curves, c => Assert.False(c.Visible));
                 window.SelectControllerInHierarchy("s1", "body");
-                Assert.All(window.Graph.Curves, c => Assert.True(c.Visible));
+                Assert.True(window.Graph.Curves.Single(c => c.Curve == y).Visible); // 몸 Y(별칭 Track_Move_Y)
+                Assert.False(window.Graph.Curves.Single(c => c.Curve == x).Visible); // Track_Move_Y의 X는 몸의 성분이 아니다(별칭은 Y만)
                 window.SelectControllerInHierarchy("s1", "bow");
 
                 // 검색은 컨트롤러 이름·id·노드로 거른다.
