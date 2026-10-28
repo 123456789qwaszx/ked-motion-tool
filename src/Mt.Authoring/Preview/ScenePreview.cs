@@ -173,16 +173,16 @@ public static class ScenePreview
     }
 
     /// <summary>
-    /// 부모를 바꿀 때 월드 위치를 지키는 배치 값(유니티 "Set Parent" 기본). 지금 트리에서 오브젝트 루트의 월드 점을 재고,
-    /// 새 부모 밑에 같은 배치로 세운 트리에서 그 점이 어디로 가는지 본 뒤, 차이를 배치 노드의 부모 공간으로 되돌려 더한다.
-    /// 회전·배율은 지키지 않는다(위치만). 리그가 없어 못 재면 지금 값 그대로.
+    /// 부모를 바꿀 때 월드 자세(위치·회전·배율)를 지키는 배치 값(유니티 "Set Parent" 기본). 지금 트리에서 배치 노드들의 월드 점·각·배율을 재고,
+    /// 새 부모 밑에 같은 배치로 세운 트리에서 그것이 어디로 가는지 본 뒤, 차이를 각 배치 노드의 부모 공간으로 되돌려 더한다.
+    /// 위치는 CharSlot_Track(없으면 루트), 회전은 CharSlot_SwayPivot, 배율은 CharSlot_Scale의 부모 공간이다. 리그가 없어 못 재면 지금 값 그대로.
     /// </summary>
-    public static (float X, float Y) PlacementKeepingWorld(RigSchemaFile rig, SceneAsset scene, string id, string? newParent, string? newParentNode, DepthTuningFile? depth = null, FocusTuningFile? focus = null, RigSchemaRigDto? stage = null)
+    public static Placement PlacementKeepingWorld(RigSchemaFile rig, SceneAsset scene, string id, string? newParent, string? newParentNode, DepthTuningFile? depth = null, FocusTuningFile? focus = null, RigSchemaRigDto? stage = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(scene);
         SceneObject o = scene.Find(id) ?? throw new KeyNotFoundException($"오브젝트 '{id}'가 없다.");
-        (float X, float Y) current = (o.PositionX, o.PositionY);
+        Placement current = Placement.Of(o);
         string root = RootKeyOf(o);
 
         RectNodeTree before = Build(rig, scene, null, null, depth, null, focus, stage);
@@ -194,7 +194,11 @@ public static class ScenePreview
 
         // 지키는 점 = 배치 위치가 움직이는 노드(CharSlot_Track, 없으면 루트)의 원점. 리그 루트는 배치로 움직이지 않는다.
         string positionKey = before.Contains(o.KeyOf(PlacementNodes.Position)) ? o.KeyOf(PlacementNodes.Position) : root;
+        string rotationKey = before.Contains(o.KeyOf(PlacementNodes.Rotation)) ? o.KeyOf(PlacementNodes.Rotation) : root;
+        string scaleKey = before.Contains(o.KeyOf(PlacementNodes.Scale)) ? o.KeyOf(PlacementNodes.Scale) : root;
         Vec3 world = before.TransformPoint(positionKey, Vec3.Zero);
+        float parentAngleBefore = WorldAngleOfParent(before, rotationKey);
+        (float sxBefore, float syBefore) = WorldScaleOfParent(before, scaleKey);
 
         // 같은 씬을 새 부모로 흉내 낸다 — 문서는 건드리지 않는다.
         var trial = new SceneAsset { Name = scene.Name, Camera = scene.Camera };
@@ -226,7 +230,45 @@ public static class ScenePreview
         Vec2 delta = parentKey is null
             ? (world - nowWorld).XY
             : (after.InverseTransformPoint(parentKey, world) - after.InverseTransformPoint(parentKey, nowWorld)).XY;
-        return (current.X + delta.X, current.Y + delta.Y);
+
+        // 회전: 월드 각 = 부모 각 + 로컬 각 → 부모 각이 바뀐 만큼 로컬 각을 되돌린다. 배율: 월드 배율 = 부모 배율 × 로컬 배율.
+        float parentAngleAfter = WorldAngleOfParent(after, rotationKey);
+        (float sxAfter, float syAfter) = WorldScaleOfParent(after, scaleKey);
+        float rotZ = current.RotZ + parentAngleBefore - parentAngleAfter;
+        float scaleX = sxAfter > 1e-6f ? current.ScaleX * sxBefore / sxAfter : current.ScaleX;
+        float scaleY = syAfter > 1e-6f ? current.ScaleY * syBefore / syAfter : current.ScaleY;
+        return new Placement(current.X + delta.X, current.Y + delta.Y, rotZ, scaleX, scaleY);
+    }
+
+    /// <summary>노드의 부모 공간이 월드에서 기울어진 각(도). 루트 직속이면 0.</summary>
+    private static float WorldAngleOfParent(RectNodeTree tree, string key)
+    {
+        string? parent = tree.GetParentKey(key);
+
+        if (parent is null)
+        {
+            return 0f;
+        }
+
+        Vec3 origin = tree.TransformPoint(parent, Vec3.Zero);
+        Vec3 tip = tree.TransformPoint(parent, new Vec3(1f, 0f, 0f));
+        return MathF.Atan2(tip.Y - origin.Y, tip.X - origin.X) * 180f / MathF.PI;
+    }
+
+    /// <summary>노드의 부모 공간이 월드에서 늘어난 배율(x·y). 루트 직속이면 1.</summary>
+    private static (float X, float Y) WorldScaleOfParent(RectNodeTree tree, string key)
+    {
+        string? parent = tree.GetParentKey(key);
+
+        if (parent is null)
+        {
+            return (1f, 1f);
+        }
+
+        Vec3 origin = tree.TransformPoint(parent, Vec3.Zero);
+        Vec3 x = tree.TransformPoint(parent, new Vec3(1f, 0f, 0f)) - origin;
+        Vec3 y = tree.TransformPoint(parent, new Vec3(0f, 1f, 0f)) - origin;
+        return (MathF.Sqrt(x.X * x.X + x.Y * x.Y), MathF.Sqrt(y.X * y.X + y.Y * y.Y));
     }
 
     /// <summary>모션을 오브젝트 하나에 얹은 시각 t의 포즈. 채널의 노드가 그 리그에 없으면 그 채널은 건너뛴다.</summary>

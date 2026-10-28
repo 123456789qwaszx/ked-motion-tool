@@ -264,10 +264,10 @@ public sealed class MotionEditor
 
     /// <summary>
     /// 부모 설정(유니티에서 끌어다 놓기). parent가 null이면 최상위로(그때 layer를 주면 그 레이어로).
-    /// 자기 자신·자손 밑에는 못 간다. position을 주면 배치 위치도 같이 바꾼다(월드 위치 보존 — 값은 <c>ScenePreview.PlacementKeepingWorld</c>가 센다).
+    /// 자기 자신·자손 밑에는 못 간다. placement를 주면 배치(오프셋·회전·배율)도 같이 바꾼다(월드 자세 보존 — 값은 <c>ScenePreview.PlacementKeepingWorld</c>가 센다).
     /// 되돌리기 한 번.
     /// </summary>
-    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null, (float X, float Y)? position = null, string? stage = null)
+    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null, Placement? placement = null, string? stage = null)
     {
         SceneAsset scene = RequireScene(sceneName);
         SceneObject o = RequireObject(scene, id);
@@ -288,9 +288,9 @@ public sealed class MotionEditor
             throw new InvalidOperationException($"무대는 {string.Join("·", StageNodes.Stages)} 중 하나다 ('{newStage}')");
         }
 
-        (float X, float Y) at = position ?? (o.PositionX, o.PositionY);
+        Placement at = placement ?? Placement.Of(o);
 
-        if (o.Parent == parentObject?.Id && o.ParentNode == node && o.Layer == newLayer && o.Stage == newStage && o.PositionX == at.X && o.PositionY == at.Y)
+        if (o.Parent == parentObject?.Id && o.ParentNode == node && o.Layer == newLayer && o.Stage == newStage && Placement.Of(o) == at)
         {
             return;
         }
@@ -304,6 +304,9 @@ public sealed class MotionEditor
             o.Stage = newStage;
             o.PositionX = at.X;
             o.PositionY = at.Y;
+            o.RotationZ = at.RotZ;
+            o.ScaleX = at.ScaleX;
+            o.ScaleY = at.ScaleY;
 
             foreach (SceneObject d in subtree)
             {

@@ -1066,12 +1066,9 @@ public partial class MainWindow : Window
         _hierarchy.AddHandler(PointerReleasedEvent, OnHierarchyPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         _hierarchy.KeyDown += OnHierarchyKeyDown;
         LeftPanel.Children.Add(_hierarchy);
-        var plus = SmallButton("+", (_, _) =>
-        {
-            _menuTarget = _hierarchy.SelectedItem is TreeViewItem { Tag: { } tag } ? tag : null;
-            _hierarchyMenu.Open(_hierarchy);
-        });
-        ToolTip.SetTip(plus, "만들기 메뉴 — 하이어아키 우클릭과 같다. 오브젝트/노드를 고른 채면 그 밑에 자식으로");
+        var plus = SmallButton("+ 캐릭터 리그", (_, _) => Guard("캐릭터 리그 만들기", () =>
+            CreateObject(SceneObject.DefaultRig, _hierarchy.SelectedItem is TreeViewItem { Tag: { } tag } ? tag : null)));
+        ToolTip.SetTip(plus, "바로 캐릭터 리그를 만든다 — 고른 층(Content)·Stage면 거기에, 오브젝트/노드를 고른 채면 그 자식으로, 아무것도 안 골랐으면 선택 오브젝트의 무대·층(없으면 Stage00 Mid)에. 우클릭 메뉴와 같다 (Ctrl+Shift+N)");
         LeftPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -1559,7 +1556,7 @@ public partial class MainWindow : Window
                 ? "오브젝트 없음 — 왼쪽 하이어아키에서 층(Content)을 우클릭해 만든다"
                 : $"{selected.Id} · {selected.Rig} · {StageNodes.ContentOf(selected.Stage, selected.Layer)}"
                   + (selected.Parent is null ? "" : $" · {selected.Parent}/{selected.ParentNode ?? "루트"}의 자식")
-                  + (_viewport.CanWear(selected) ? "" : " · 지금 모션은 이 리그에 안 맞는다");
+                  + (_viewport.Motion is null || _viewport.CanWear(selected) ? "" : " · 지금 모션은 이 리그에 안 맞는다");
             _objId.Text = selected?.Id ?? "";
             _objStage.SelectedIndex = selected is null ? -1 : StageNodes.Stages.ToList().IndexOf(selected.Stage);
 
@@ -2027,7 +2024,7 @@ public partial class MainWindow : Window
 
             if (o.Parent is not null)
             {
-                Item("부모에서 떼기 (최상위로, 월드 위치 유지)", () => _session.Editor.SetObjectParent(null, o.Id, null, null, null, _viewport.PlacementKeepingWorld(o.Id, null, null)));
+                Item("부모에서 떼기 (최상위로, 월드 자세 유지)", () => _session.Editor.SetObjectParent(null, o.Id, null, null, null, _viewport.PlacementKeepingWorld(o.Id, null, null)));
             }
 
             _hierarchyMenu.Items.Add(new Separator());

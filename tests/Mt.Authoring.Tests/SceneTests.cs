@@ -289,21 +289,61 @@ public class SceneTests
         SceneAsset scene = editor.Document.ActiveSceneAsset!;
 
         Vec2 before = ScenePreview.Build(RigFile, scene).TransformPoint("s2/CharSlot_Track", Vec3.Zero).XY;
-        (float x, float y) = ScenePreview.PlacementKeepingWorld(RigFile, scene, "s2", "s1", "CharacterPortrait_Track_Move");
-        Assert.NotEqual(-100f, x); // 부모 공간으로 옮겨졌다
+        Placement kept = ScenePreview.PlacementKeepingWorld(RigFile, scene, "s2", "s1", "CharacterPortrait_Track_Move");
+        Assert.NotEqual(-100f, kept.X); // 부모 공간으로 옮겨졌다
 
-        editor.SetObjectParent(null, "s2", "s1", "CharacterPortrait_Track_Move", null, (x, y));
+        editor.SetObjectParent(null, "s2", "s1", "CharacterPortrait_Track_Move", null, kept);
         Vec2 after = ScenePreview.Build(RigFile, scene).TransformPoint("s2/CharSlot_Track", Vec3.Zero).XY;
         Assert.Equal(before.X, after.X, 1);
         Assert.Equal(before.Y, after.Y, 1);
 
         // 떼어도 같은 자리.
-        (float bx, float by) = ScenePreview.PlacementKeepingWorld(RigFile, scene, "s2", null, null);
-        editor.SetObjectParent(null, "s2", null, null, SceneLayers.Mid, (bx, by));
+        Placement loose = ScenePreview.PlacementKeepingWorld(RigFile, scene, "s2", null, null);
+        editor.SetObjectParent(null, "s2", null, null, SceneLayers.Mid, loose);
         Vec2 back = ScenePreview.Build(RigFile, scene).TransformPoint("s2/CharSlot_Track", Vec3.Zero).XY;
         Assert.Equal(before.X, back.X, 1);
         Assert.Equal(before.Y, back.Y, 1);
         Assert.Equal(-100f, scene.Find("s2")!.PositionX, 1);
+    }
+
+    [Fact]
+    public void 부모가_돌고_커져_있어도_자식의_월드_각과_크기를_지킨다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.SetObjectPlacement(null, "s1", 0f, 0f, 30f, 1.5f, 2f); // 부모: 30°, ×1.5/×2
+        editor.AddSceneObject(null, "s2", "character", SceneLayers.Front);
+        editor.SetObjectPlacement(null, "s2", 100f, 50f, 10f, 1f, 1f);
+        SceneAsset scene = editor.Document.ActiveSceneAsset!;
+
+        // 각·크기는 배율 노드 공간의 x 벡터로, 위치는 배치가 움직이는 노드(Track) 원점으로 잰다(스트레치 rect의 pivot 오프셋은 부모 배율을 타므로).
+        static (float Angle, float Width, Vec2 Origin) Pose(RectNodeTree tree)
+        {
+            Vec3 o = tree.TransformPoint("s2/CharSlot_Scale", Vec3.Zero);
+            Vec3 x = tree.TransformPoint("s2/CharSlot_Scale", new Vec3(100f, 0f, 0f)) - o;
+            return (MathF.Atan2(x.Y, x.X) * 180f / MathF.PI, MathF.Sqrt(x.X * x.X + x.Y * x.Y), tree.TransformPoint("s2/CharSlot_Track", Vec3.Zero).XY);
+        }
+
+        (float angle, float width, Vec2 origin) = Pose(ScenePreview.Build(RigFile, scene));
+        Assert.Equal(10f, angle, 2);
+
+        Placement kept = ScenePreview.PlacementKeepingWorld(RigFile, scene, "s2", "s1", "CharacterPortrait_Track_Move");
+        Assert.Equal(-20f, kept.RotZ, 2); // 부모 30° 밑에서 월드 10°를 지키려면 로컬 −20°
+        Assert.Equal(1f / 1.5f, kept.ScaleX, 3);
+        Assert.Equal(0.5f, kept.ScaleY, 3);
+        editor.SetObjectParent(null, "s2", "s1", "CharacterPortrait_Track_Move", null, kept);
+
+        (float angle2, float width2, Vec2 origin2) = Pose(ScenePreview.Build(RigFile, scene));
+        Assert.Equal(angle, angle2, 2);
+        Assert.Equal(width, width2, 1);
+        Assert.Equal(origin.X, origin2.X, 1);
+        Assert.Equal(origin.Y, origin2.Y, 1);
+
+        // 되돌리기 한 번이면 전부 원래대로.
+        editor.Undo();
+        SceneObject s2 = editor.Document.ActiveSceneAsset!.Find("s2")!;
+        Assert.Null(s2.Parent);
+        Assert.Equal(10f, s2.RotationZ);
+        Assert.Equal(1f, s2.ScaleX);
     }
 
     [Fact]

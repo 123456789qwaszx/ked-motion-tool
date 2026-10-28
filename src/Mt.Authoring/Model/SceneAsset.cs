@@ -219,6 +219,12 @@ public static class SceneLayers
     public static bool IsKnown(string? layer) => layer is not null && Array.IndexOf((string[])Order, layer) >= 0;
 }
 
+/// <summary>배치 한 벌(오프셋·회전·배율) — 부모를 바꿀 때 월드 자세를 지키는 값을 한 번에 넘긴다.</summary>
+public readonly record struct Placement(float X, float Y, float RotZ, float ScaleX, float ScaleY)
+{
+    public static Placement Of(SceneObject o) => new(o.PositionX, o.PositionY, o.RotationZ, o.ScaleX, o.ScaleY);
+}
+
 /// <summary>배치 값을 트리에 넣는 자리 — 런타임의 move/rotate/scale 폴드와 같은 노드.</summary>
 public static class PlacementNodes
 {

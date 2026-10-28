@@ -650,15 +650,15 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    /// <summary>부모를 바꾸되 월드 위치를 지키는 배치 값. 리그가 없으면 지금 값.</summary>
-    public (float X, float Y) PlacementKeepingWorld(string id, string? parent, string? parentNode)
+    /// <summary>부모를 바꾸되 월드 자세(위치·회전·배율)를 지키는 배치 값. 리그가 없으면 지금 값.</summary>
+    public Placement PlacementKeepingWorld(string id, string? parent, string? parentNode)
     {
         SceneAsset? scene = Scene;
         SceneObject? o = scene?.Find(id);
 
         if (_rig is null || scene is null || o is null)
         {
-            return (o?.PositionX ?? 0f, o?.PositionY ?? 0f);
+            return o is null ? default : Placement.Of(o);
         }
 
         return ScenePreview.PlacementKeepingWorld(_rig, scene, id, parent, parentNode, _depth, _focus, _stage);
