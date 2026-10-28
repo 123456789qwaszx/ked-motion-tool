@@ -23,7 +23,7 @@
 6. 그래프 탭에서 키를 끌어 본다 — 놓는 순간 뷰포트가 따라오고, Ctrl+Z로 돌아온다. 도프 시트 탭에서 블록을 끌면 시간이 옮겨진다.
 7. **다른 이름으로…** → `*.motion-authoring.json`으로 저장(저작 원본). **motions.json 내보내기…** → 런타임이 읽는 산출물. 아래 문제 칸이 비어 있을 때만 나간다.
 
-**처음부터 만들기**: 왼쪽 **모션 추가**(이름 `motion`·선택 오브젝트의 리그·길이 1초·끝 `restore`로 생긴다 — 오른쪽 인스펙터에서 이름 `wave`, 길이 `0.5`로 바꾼다). 노드 `CharacterPortrait_Track_Move_X` · `position` · `relative` → **채널 추가**. 채널 행의 **x** 토글을 켜면 현재 시각에 중립값 키 하나로 성분이 생긴다. 보기의 현재 시각을 `0.25`로 두고 **키 끼우기(I)**, 인스펙터 값에 `30` Enter. 현재 시각 `0.5`에서 다시 **I**, 값 `0`. 전체 선택 후 **flat(2)**. 문제 칸이 비면 내보낸다.
+**처음부터 만들기**: 왼쪽 **모션 추가**(이름 `motion`·선택 오브젝트의 리그·길이 1초·끝 `restore`로 생긴다 — 오른쪽 인스펙터에서 이름 `wave`, 길이 `0.5`로 바꾼다). 하이어아키에서 `s1 › … › CharacterPortrait_Track_Move_X` 노드를 클릭하면 오른쪽 **채널 박스**에 그 노드의 Translate/Rotate/Scale이 보인다. **Auto Key**를 켜고 현재 시각을 `0.25`로 두고 Translate X에 `30` Enter — 채널·성분·키가 한 번에 생긴다. 현재 시각 `0.5`에서 `0` Enter. 전체 선택 후 **flat(2)**. 문제 칸이 비면 내보낸다.
 
 ## 구조
 
@@ -44,7 +44,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 
 | 조작 | 뜻 |
 |---|---|
-| 아웃라이너 행 클릭 · Shift/Ctrl+클릭 · 검색 칸 | 그 커브만 보이기 · 더하기/빼기 · 노드·종류로 거르기. 없는 성분(흐림)은 클릭하면 현재 시각의 중립값 키 하나로 생긴다. 채널 행의 🔓/🔒 · 🔊/🔇 · rel/abs · × |
+| 아웃라이너 행 클릭 · Shift/Ctrl+클릭 · 검색 칸 | 그 커브만 보이기 · 더하기/빼기 · 노드·종류로 거르기. 없는 성분(흐림)은 클릭하면 현재 시각의 중립값 키 하나로 생긴다. 채널 행의 🔓/🔒 · 🔊/🔇 · × |
 | 클릭 · Shift+클릭 · 빈 자리 드래그 · Ctrl+드래그 | 키 선택 · 추가 선택 · 박스 선택 · 라소 |
 | **커브 선 클릭** · Shift+클릭 · **박스 드래그가 커브를 지나면** | 커브 선택(흰색 굵게) · 더하기/빼기 · 정확히 안 눌러도 상자가 지나는 커브가 선택된다. 빈 자리 클릭은 푼다 |
 | 커브를 고른 채 **MMB 클릭** | 그 커브 위, 그 시각(스냅)에 키(값은 곡선 위) — 마야 Insert Key |
@@ -114,14 +114,14 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 
 - **덤프 없이 시작한다.** 런타임 `ExportedTuning/`(리그 덤프 · 기준 해상도 · 깊이 커브 · focus 표)의 사본이 내장되어 있어(`Mt.Authoring/Defaults`, 원본 커밋은 `BuiltinTuning.Source`) 새 문서를 열면 바로 캐릭터 리그가 선다. 상태 줄에 "내장 리그(…)"로 보인다. "리그 덤프…"로 파일을 실으면 그것이 우선하고, 문서가 기억한 덤프 파일이 없으면 내장본으로 열며 알린다.
 - **무대 뼈대**: 유니티 `PresentataionUIRoot.prefab`에서 뽑은 85노드(`StageViewportLayer › StageShot_Root › StagePan_Root › StageZoom_Root › Stage00~02_Root › Mask › DepthSystem › Depth_{Far…Close} › FramingTransform › FramingScale › Content`, 전부 항등)를 코어 `AddRigTo`로 먼저 세우고(`stage/…` 키), 오브젝트는 그 무대·층의 `Stage{NN}Depth_{Layer}_Content` 밑에 선다 — 런타임 `GetDepthContent(stage, layer)`와 같은 자리. 뼈대는 데이터(`Defaults/stage-skeleton.json`, `tools/prefab-to-stage-rig.py`로 다시 뽑는다)이고 오브젝트가 아니다.
-- 왼쪽 **씬 — 오브젝트** 하이어아키(유니티 하이어아키와 같은 모양): `Scene › Stage00 › 층(Content) › 오브젝트 › 리그 노드 › 자식 오브젝트`. 뼈대 전체(`StageViewportLayer › StageShot_Root › StagePan_Root › StageZoom_Root › Stage00_Root › Mask › DepthSystem › Depth_Mid_Root › FramingTransform › FramingScale › Content`)가 그대로 보이되, 오브젝트가 선 가지만 기본 펼침이고 나머지는 접혀 있다(유니티처럼 필요할 때 펼친다). 리그 노드는 덤프 `rig-schemas.json`의 `parent` **그대로 중첩**된다. 오브젝트 항목이 곧 리그 루트(`__root`)다. 연기 축은 파랑, 배치 축은 회색, 키잉 금지 노드는 기울임이다. 오브젝트는 기본 접힘(우클릭 "노드 전부 펼치기/접기"). **노드를 클릭**하면 그 노드가 매니퓰레이터 노드·채널 추가 대상이 되고(키 따라가기는 꺼진다), **더블클릭**하면 그 노드에 채널이 생긴다. 기본 씬은 `s1 · character`(Stage00 Mid) 하나다.
+- 왼쪽 **씬 — 오브젝트** 하이어아키(유니티 하이어아키와 같은 모양): `Scene › Stage00 › 층(Content) › 오브젝트 › 리그 노드 › 자식 오브젝트`. 뼈대 전체(`StageViewportLayer › StageShot_Root › StagePan_Root › StageZoom_Root › Stage00_Root › Mask › DepthSystem › Depth_Mid_Root › FramingTransform › FramingScale › Content`)가 그대로 보이되, 오브젝트가 선 가지만 기본 펼침이고 나머지는 접혀 있다(유니티처럼 필요할 때 펼친다). 리그 노드는 덤프 `rig-schemas.json`의 `parent` **그대로 중첩**된다. 오브젝트 항목이 곧 리그 루트(`__root`)다. 연기 축은 파랑, 배치 축은 회색, 키잉 금지 노드는 기울임이다. 오브젝트는 기본 접힘(우클릭 "노드 전부 펼치기/접기"). **노드를 클릭**하면 그 노드가 채널 박스·매니퓰레이터의 노드가 된다(키 따라가기는 꺼진다). "채널 추가"는 없다 — 채널 박스에 값을 넣거나 매니퓰레이터로 끌면 첫 키에서 채널·성분이 생긴다. 기본 씬은 `s1 · character`(Stage00 Mid) 하나다.
 - **만들 수 있는 것은 캐릭터 리그뿐이다.** 헤더의 **`+ 캐릭터 리그`** 버튼이 바로 만든다 — 층(Content)·Stage 항목을 고른 채면 거기에, 오브젝트/노드를 고른 채면 그 자식으로, 아무것도 안 골랐으면 선택 오브젝트의 무대·층(없으면 Stage00 Mid)에. 우클릭 → "캐릭터 리그 만들기"(Ctrl+Shift+N)도 같다. 오브젝트나 노드 위에서 만들면 그 자리의 자식. id는 자동(`s1`·`s2`… — Yarn 슬롯 키 꼴)이고 채널 박스에서 바꾼다. 그 밖의 메뉴: 이름 바꾸기(F2) · 복제(Ctrl+D, 자손까지) · 삭제(Del, 자손까지) · 숨기기/보이기 · 레이어 › · 부모에서 떼기 · 노드 전부 펼치기/접기.
 - **오브젝트 계층**: 오브젝트는 다른 오브젝트의 노드 밑에 붙는다(저작본 `parent`·`parentNode`). 트리는 코어 `AddRigTo(attachParentKey)`로 그 노드 밑에 세우므로 **부모가 움직이면 자식이 따라온다**. 자식은 부모의 stage·layer·깊이·자리를 따르고, 부모를 숨기면 자손도 숨는다. **끌어다 놓기**: 다른 오브젝트/노드에 놓으면 자식, 층(Content)에 놓으면 그 무대·층의 최상위.
 - 오른쪽 **오브젝트(채널 박스)**: id · 부모 · 부모 노드 · **자리(place) × focus** · 오프셋 X/Y(move) · Rot Z · Scale X/Y · Stage · Layer · 보이기 · 배역. 런타임과 같은 두 겹이다: **자리**는 코어 place 폴드(`PlaceFocusStageReduction`)가 focus 프리셋(bust 기본) 점이 화면 지점(center/left/right/top/bottom/tl/tr/bl/br)에 오도록 `CharSlot_Track_Focus`를 푼 값이고, **오프셋**은 `CharSlot_Track`(move)·`CharSlot_SwayPivot`(rotate)·`CharSlot_Scale`(scale)에 그대로 들어간다(그 노드가 없는 리그는 루트에). 순서는 런타임과 같이 깊이(size) → place라 내장 깊이·focus 표로 세우면 실제 게임 프리팹의 `DepthY −580.56 · DepthScale 1.708`(Stage00 Mid)이 그대로 나온다. 모션 키가 아니다.
 - **월드 축·격자**: 루트 공간(가운데 원점·y 위·px). 빨강 x·초록 y 축, 가는 선 1u(기준 폭/48 = 40px), 굵은 선 5u, 무대 프레임. 항상 보인다.
 - **모션의 주인은 rigKind**다. 고른 오브젝트의 리그가 모션의 리그와 같거나 채널의 노드를 전부 가지면(공통 스키마) 그 오브젝트에 입혀 보인다. 아니면 "이 리그에 안 맞는다"로 표시된다.
 - **깊이**: 덤프 옆 `presets/depth.json`(ExportedTuning)이 있으면 레이어(far·back·mid·front·close)가 깊이(DepthY·DepthScale)가 된다. 런타임 size 폴드와 같은 코어 함수(`SetDepthStageReduction`, focus 보존 bust)를 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 없으면 레이어는 그리는 순서만 정한다.
-- 채널 종류는 화면에서 `position · scale · rotate`로 부른다(파일 규약은 `euler` 그대로). 채널 mode는 `relative`/`absolute`를 고른다(처음엔 모션의 기본 mode).
+- 채널 종류는 화면에서 `position · scale · rotate`로 부른다(파일 규약은 `euler` 그대로). mode(`relative`/`absolute`)는 **모션 하나에 하나**(인스펙터 "mode") — 모든 채널에 같이 적힌다(`motions/1`은 채널마다 적으므로). 채널마다 다른 mode는 UI에서 고를 수 없다(파일에 그렇게 적혀 있으면 아웃라이너 툴팁에 보인다).
 - 씬은 하나만 쓴다(저작본 `scenes[]`와 편집기 명령은 여럿을 담을 수 있지만 UI는 활성 씬 하나만 보인다 — 모션 추출용이라 전환 UI는 뺐다).
 - **배역**: 채널 박스의 배역 콤보 — 덤프 옆 `presets/focus.json`(또는 `focus-tuning.json`)의 entries 키. 깊이 폴드의 focus 보존이 그 배역의 오프셋(base + defaultOffset + bust)을 쓴다 — 런타임 cast와 같은 뜻. 표가 없으면 base 오프셋 없이(0).
 - **부모 바꾸기는 월드 자세를 지킨다**(유니티 Set Parent 기본): 드래그·부모 콤보·"부모에서 떼기" 모두 오프셋 X/Y·Rot Z·Scale X/Y를 새 부모 공간으로 환산해 보이는 자리·각·크기가 그대로다(위치는 `CharSlot_Track`, 회전은 `CharSlot_SwayPivot`, 배율은 `CharSlot_Scale`의 부모 공간 기준). 드래그 중 놓을 자리는 헤더 앞 `⇥`로 보인다.
@@ -131,7 +131,8 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 
 ## 뷰포트
 
-- **매니퓰레이터**: 오른쪽 "뷰포트 조작"에서 노드를 고르고 **W** 이동 · **E** 회전 · **R** 배율 · **Q** 선택. 기즈모의 축 끝은 한 축만, 가운데는 자유. 놓는 순간 **Auto Key**면 키가 들어가고(바뀐 성분만), 아니면 "키 없는 포즈"로 남아 **S**로 키를 놓거나 **Esc**/시각 이동으로 버린다. 그 시각에 이미 키가 있으면 바로 덮어쓴다. 채널·성분이 없으면 모션 기본 mode로 만든다.
+- **채널 박스**(마야): 오른쪽에 하이어아키에서 고른 리그 노드의 **Translate X/Y · Rotate X/Y/Z · Scale X/Y** — 리그 노드는 유니티 계층 하나라 이 값 전부를 가진다. 칸의 값은 지금 시각의 포즈(키 없는 포즈 포함)다. 값을 넣으면(`+=3`·`-=1`·`*=2`·`/=2`는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: **Auto Key**거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 칸 색: 빨강 = 이 시각에 키, 연한 빨강 = 어딘가에 키, 주황 = 키 없는 포즈. 이름 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기), **●** = 그 성분을 지금 값으로 지금 키(마야 Key Selected). 채널·성분은 첫 키에서 생긴다.
+- **매니퓰레이터**: 하이어아키에서 노드를 고르고 **W** 이동 · **E** 회전 · **R** 배율 · **Q** 선택. 기즈모의 축 끝은 한 축만, 가운데는 자유. 놓는 순간 **Auto Key**면 키가 들어가고(바뀐 성분만), 아니면 "키 없는 포즈"로 남아 **S**로 키를 놓거나 **Esc**/시각 이동으로 버린다. 그 시각에 이미 키가 있으면 바로 덮어쓴다. 채널·성분이 없으면 모션의 mode로 만든다.
 - 리그 덤프(`rig-schemas.json`)로 세운 트리 위에 초상 PNG 한 장. 사이징은 런타임 `HeightFitPreserveAspect`와 같다. 깊이 mid, 카메라 없음(v1).
 - 포즈 = 코어 `MotionMath.Compose`. 길이를 지나면 restore는 시작 상태, commit은 마지막 키 — 재생도 그 규칙을 보여 준다.
 - **Alt+`** 재생/일시정지 · **`** 첫 프레임 · **Home/End** 처음/끝 · **←/→** 한 프레임(24fps). 타임 슬라이더·그래프의 현재 시각과 하나다.

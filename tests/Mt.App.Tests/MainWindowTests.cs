@@ -305,7 +305,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 하이어아키에서_노드를_고르면_매니퓰레이터_노드와_채널_추가_대상이_되고_더블클릭은_채널을_더한다()
+    public void 하이어아키에서_노드를_고르면_채널_박스가_그_노드의_값을_보이고_값을_넣으면_키가_된다()
     {
         HeadlessUi.Run(() =>
         {
@@ -325,11 +325,43 @@ public class MainWindowTests
                 window.SelectInHierarchy("s2", "CharacterPortrait_Track_Move_Y");
                 Assert.Equal("s2", window.Viewport.SelectedObjectId);
                 Assert.Equal("CharacterPortrait_Track_Move_Y", window.Viewport.SelectedNode);
-                Assert.Equal("CharacterPortrait_Track_Move_Y", window.NewChannelNode);
+                Assert.Equal("CharacterPortrait_Track_Move_Y", window.ChannelBoxNode);
 
-                window.AddChannelFromHierarchy("s2", "CharacterPortrait_SwayPivot");
+                // 채널 박스는 유니티 계층 하나의 Translate/Rotate/Scale 전부를 보인다 — 덤프의 시작값.
+                Assert.Equal("0", window.ChannelBoxValue(MotionChannelKind.Position, Axis.X));
+                Assert.Equal("1", window.ChannelBoxValue(MotionChannelKind.Scale, Axis.X));
+
+                // Auto Key로 값을 넣으면 그 시각에 키 — 채널·성분은 첫 키에서 생긴다("채널 추가"가 없다).
+                window.SelectInHierarchy("s2", "CharacterPortrait_SwayPivot");
+                window.AutoKeyChecked = true;
+                window.Viewport.ScrubTo(0.25);
+                window.SetChannelBoxValue(MotionChannelKind.Euler, Axis.Z, "15");
                 MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
-                Assert.NotNull(nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Position));
+                ChannelAsset rotate = nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!;
+                Assert.Equal(MotionChannelMode.Relative, rotate.Mode);
+                Assert.Equal(15.0, rotate.Z!.Keys.Single(k => Math.Abs(k.T - 0.25f) < 1e-4).V, 3);
+                Assert.Equal("15", window.ChannelBoxValue(MotionChannelKind.Euler, Axis.Z));
+
+                // Auto Key가 꺼져 있으면 키 없는 포즈(+= 는 지금 값에 상대) — S가 키를 놓는다.
+                window.AutoKeyChecked = false;
+                window.Viewport.ScrubTo(0.5);
+                window.SetChannelBoxValue(MotionChannelKind.Scale, Axis.X, "+=0.5");
+                Assert.True(window.Viewport.HasPending);
+                Assert.Equal("1.5", window.ChannelBoxValue(MotionChannelKind.Scale, Axis.X));
+                Assert.Null(nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Scale));
+
+                window.Viewport.SetKey();
+                Assert.False(window.Viewport.HasPending);
+                nod = window.Session.Editor.Document.Find("nod")!;
+                ChannelAsset scale = nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Scale)!;
+                Assert.Equal(1.5, scale.X!.Keys.Single().V, 3); // relative 배율 = 포즈 ÷ 시작(1)
+                Assert.Null(scale.Y);
+
+                // ● 는 지금 값으로 지금 시각에 키(마야 Key Selected).
+                window.Viewport.ScrubTo(0.1);
+                window.KeyChannelBoxComponent(MotionChannelKind.Position, Axis.X);
+                nod = window.Session.Editor.Document.Find("nod")!;
+                Assert.Equal(0.0, nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Position)!.X!.Keys.Single().V, 3);
             }
             finally
             {

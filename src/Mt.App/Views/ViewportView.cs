@@ -1326,6 +1326,12 @@ public sealed class ViewportView : Control
             return;
         }
 
+        CommitPose(motion, node, kind, axes);
+    }
+
+    /// <summary>바뀐 포즈의 처리: Auto Key거나 그 시각에 이미 키가 있으면 키로, 아니면 키 없는 포즈로 남긴다.</summary>
+    private void CommitPose(MotionAsset motion, string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
+    {
         ChannelAsset? channel = motion.FindChannel(node, kind);
         float time = (float)SnapTime(_clock.Time);
         bool keyExists = channel is not null && axes.Any(a => channel.Get(a)?.Keys.Any(k => Math.Abs(k.T - time) <= MotionRules.Tolerance) == true);
@@ -1345,6 +1351,64 @@ public sealed class ViewportView : Control
         pendingAxes.UnionWith(axes);
         PendingChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
+    }
+
+    // ── 채널 박스(마야) ───────────────────────────────────────────────
+
+    /// <summary>선택 오브젝트의 노드 성분의 지금 포즈 값(키 없는 포즈 포함). 노드·리그가 없으면 null.</summary>
+    public float? ComponentValue(string node, MotionChannelKind kind, Axis axis)
+    {
+        RectNodeTree? pose = CurrentPose();
+        string key = Prefix + node;
+
+        if (pose is null || !pose.Contains(key))
+        {
+            return null;
+        }
+
+        return PoseEdit.Component(kind, pose.GetState(key), axis);
+    }
+
+    /// <summary>이 성분이 키 없는 포즈로 남아 있는가(채널 박스가 주황으로 보인다).</summary>
+    public bool IsPending(string node, MotionChannelKind kind, Axis axis)
+        => _pending.TryGetValue((node, kind), out HashSet<Axis>? axes) && axes.Contains(axis);
+
+    /// <summary>
+    /// 채널 박스 입력 — 노드 성분 하나를 이 값으로. 매니퓰레이터를 놓은 것과 같다:
+    /// Auto Key거나 그 시각에 키가 있으면 키로, 아니면 키 없는 포즈(S로 키·Esc로 버림). 값이 같으면 아무것도 안 한다.
+    /// </summary>
+    public void SetComponent(string node, MotionChannelKind kind, Axis axis, float value)
+    {
+        MotionAsset? motion = Motion;
+        RectNodeTree? pose = CurrentPose();
+        string key = Prefix + node;
+
+        if (motion is null || pose is null || !pose.Contains(key) || MotionRules.ForbiddenNodes.Contains(node))
+        {
+            return;
+        }
+
+        RectNodeState state = pose.GetState(key);
+
+        if (Math.Abs(PoseEdit.Component(kind, state, axis) - value) < 1e-6f)
+        {
+            return;
+        }
+
+        _overrides[key] = PoseEdit.WithComponent(kind, state, axis, value);
+        InvalidateVisual();
+        CommitPose(motion, node, kind, new[] { axis });
+    }
+
+    /// <summary>채널 박스의 ● — 성분 하나를 지금 포즈 값으로 지금 키(마야 Key Selected). 없는 채널·성분은 생긴다.</summary>
+    public void KeyComponent(string node, MotionChannelKind kind, Axis axis)
+    {
+        if (MotionRules.ForbiddenNodes.Contains(node))
+        {
+            return;
+        }
+
+        KeyNow(node, kind, new[] { axis });
     }
 
     /// <summary>드래그 종류의 채널 종류와, 실제로 값이 바뀐 성분만(마야 Auto Key의 "바뀐 속성만").</summary>

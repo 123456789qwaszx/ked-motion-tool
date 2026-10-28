@@ -33,7 +33,6 @@ public partial class MainWindow : Window
 {
     private static readonly string[] EndTokens = { "restore", "commit" };
     private static readonly string[] ModeTokens = { "relative", "absolute" };
-    private static readonly string[] KindTokens = ChannelKindLabel.All;
 
     private readonly DocumentSession _session = new();
     private readonly GraphEditorView _graph = new();
@@ -73,8 +72,22 @@ public partial class MainWindow : Window
     private readonly TextBlock _stageInfo = new() { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
     private bool _syncingTime;
 
-    // 뷰포트 조작
-    private readonly ComboBox _nodeCombo = new() { FontSize = 11, MinWidth = 200 };
+    // 채널 박스(마야) — 선택 노드의 Translate/Rotate/Scale. 칸에 값을 넣으면 매니퓰레이터를 놓은 것과 같다.
+    private readonly TextBlock _channelBoxTitle = new() { FontSize = 11, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Avalonia.Thickness(0, 2) };
+    private readonly Dictionary<(MotionChannelKind Kind, Axis Axis), (Border Row, TextBox Box)> _channelBoxRows = new();
+    private static readonly (MotionChannelKind Kind, Axis Axis, string Label)[] ChannelBoxComponents =
+    {
+        (MotionChannelKind.Position, Axis.X, "Translate X"),
+        (MotionChannelKind.Position, Axis.Y, "Translate Y"),
+        (MotionChannelKind.Euler, Axis.X, "Rotate X"),
+        (MotionChannelKind.Euler, Axis.Y, "Rotate Y"),
+        (MotionChannelKind.Euler, Axis.Z, "Rotate Z"),
+        (MotionChannelKind.Scale, Axis.X, "Scale X"),
+        (MotionChannelKind.Scale, Axis.Y, "Scale Y"),
+    };
+    private static readonly IBrush ChannelBoxKeyedHere = new SolidColorBrush(Color.FromArgb(150, 0xC8, 0x3C, 0x3C)); // 이 시각에 키(마야 빨강)
+    private static readonly IBrush ChannelBoxKeyed = new SolidColorBrush(Color.FromArgb(110, 0xB4, 0x5A, 0x5A)); // 어딘가에 키(마야 연한 빨강)
+    private static readonly IBrush ChannelBoxPending = new SolidColorBrush(Color.FromArgb(120, 0xD0, 0x8A, 0x28)); // 키 없는 포즈
     private readonly CheckBox _followSelection = new() { Content = "선택 키의 노드 따라가기", IsChecked = true, FontSize = 11 };
     private readonly CheckBox _autoKey = new() { Content = "Auto Key", FontSize = 11 };
     private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
@@ -145,10 +158,6 @@ public partial class MainWindow : Window
 
     /// <summary>시간 글자 단위(설정) — 마야처럼 프레임이 기본.</summary>
     private TimeDisplay Display => _settings.TimeDisplay;
-    private readonly ComboBox _newChannelNode = new() { FontSize = 11, MinWidth = 180 };
-    private readonly ComboBox _newChannelKind = new() { ItemsSource = KindTokens, SelectedIndex = 0, FontSize = 11 };
-    private readonly ComboBox _newChannelMode = new() { ItemsSource = ModeTokens, SelectedIndex = 0, FontSize = 11 };
-    private string? _channelModeInitializedFor;
 
     // 오른쪽 — 모션
     private readonly TextBox _motionName = new() { FontSize = 11 };
@@ -228,11 +237,15 @@ public partial class MainWindow : Window
             RefreshChannels();
             RefreshSelectedNode();
         };
-        _viewport.TimeChanged += (_, _) => SyncTime(() =>
+        _viewport.TimeChanged += (_, _) =>
         {
-            _graph.CurrentTime = _viewport.Time;
-            _dope.CurrentTime = _viewport.Time;
-        });
+            SyncTime(() =>
+            {
+                _graph.CurrentTime = _viewport.Time;
+                _dope.CurrentTime = _viewport.Time;
+            });
+            RefreshChannelBox();
+        };
         _viewport.PlayStateChanged += (_, _) => _playButton.Content = _viewport.IsPlaying ? "❚❚" : "▶";
 
         OnDocumentReplaced();
@@ -566,14 +579,24 @@ public partial class MainWindow : Window
         AddMotion(name, rig, seconds, end);
     }
 
-    /// <summary>테스트 손잡이 — 채널 추가 폼. mode를 안 주면 모션의 기본 mode.</summary>
+    /// <summary>테스트 손잡이 — 채널을 바로 더한다(UI에는 "채널 추가"가 없다: 채널 박스·매니퓰레이터가 첫 키에서 만든다). mode를 안 주면 모션의 mode.</summary>
     internal void AddChannelFromForm(string node, MotionChannelKind kind, MotionChannelMode? mode = null)
     {
-        _newChannelNode.SelectedItem = node;
-        _newChannelKind.SelectedIndex = (int)kind;
-        _newChannelMode.SelectedIndex = (mode ?? _graph.Motion?.DefaultMode ?? MotionChannelMode.Relative) == MotionChannelMode.Absolute ? 1 : 0;
-        AddChannel();
+        MotionAsset motion = _graph.Motion ?? throw new InvalidOperationException("먼저 모션을 고른다.");
+        _session.Editor.AddChannel(motion.Name, node, kind, mode);
     }
+
+    /// <summary>테스트 손잡이 — 채널 박스 칸에 값을 넣고 Enter.</summary>
+    internal void SetChannelBoxValue(MotionChannelKind kind, Axis axis, string text) => CommitChannelBox(kind, axis, text);
+
+    /// <summary>테스트 손잡이 — 채널 박스 칸의 글자.</summary>
+    internal string ChannelBoxValue(MotionChannelKind kind, Axis axis) => _channelBoxRows[(kind, axis)].Box.Text ?? "";
+
+    /// <summary>테스트 손잡이 — 채널 박스 ●(이 성분을 지금 키).</summary>
+    internal void KeyChannelBoxComponent(MotionChannelKind kind, Axis axis) => KeyChannelBox(kind, axis);
+
+    /// <summary>채널 박스가 보여 주는 노드.</summary>
+    internal string? ChannelBoxNode => _viewport.SelectedNode;
 
     /// <summary>채널 행의 성분 토글과 같은 길 — 없는 성분을 현재 시각의 중립값 키 하나로 만든다.</summary>
     internal void EnsureComponent(string node, MotionChannelKind kind, Axis axis)
@@ -900,21 +923,71 @@ public partial class MainWindow : Window
         _pendingText.IsVisible = _viewport.HasPending;
     }
 
-    private void RefreshNodeChoices()
+    /// <summary>채널 박스 — 선택 노드의 성분 값과 키 상태(이 시각에 키 = 빨강, 어딘가에 키 = 연한 빨강, 키 없는 포즈 = 주황).</summary>
+    private void RefreshChannelBox()
     {
         _refreshDepth++;
 
         try
         {
-            List<string> nodes = _viewport.NodeChoices.ToList();
-            string? current = _viewport.SelectedNode;
-            _nodeCombo.ItemsSource = nodes;
-            _nodeCombo.SelectedIndex = current is null ? -1 : nodes.IndexOf(current);
-            _nodeCombo.IsEnabled = nodes.Count > 0;
+            string? node = _viewport.SelectedNode;
+            SceneObject? o = _viewport.SelectedObject;
+            MotionAsset? motion = _graph.Motion;
+            bool has = node is not null && o is not null && _viewport.HasRig;
+            _channelBoxTitle.Text = !has
+                ? "(하이어아키에서 리그 노드를 고른다)"
+                : motion is null ? $"{o!.Id} · {node} — 모션을 고르면 키를 놓을 수 있다" : $"{o!.Id} · {node}";
+            float time = (float)(_viewport.SnapEnabled ? TimeSnap.Snap(_viewport.Time, _viewport.SnapStep) : _viewport.Time);
+
+            foreach (((MotionChannelKind kind, Axis axis), (Border row, TextBox box)) in _channelBoxRows)
+            {
+                float? value = has ? _viewport.ComponentValue(node!, kind, axis) : null;
+                box.IsEnabled = value is not null && motion is not null;
+                string text = value is null ? "" : F(value.Value);
+
+                if (!box.IsFocused && box.Text != text)
+                {
+                    box.Text = text;
+                }
+
+                ComponentCurve? curve = has && motion is not null ? motion.FindChannel(node!, kind)?.Get(axis) : null;
+                bool keyedHere = curve?.Keys.Any(k => Math.Abs(k.T - time) <= MotionRules.Tolerance) == true;
+                bool pending = has && _viewport.IsPending(node!, kind, axis);
+                row.Background = pending ? ChannelBoxPending : keyedHere ? ChannelBoxKeyedHere : curve is not null ? ChannelBoxKeyed : Brushes.Transparent;
+            }
         }
         finally
         {
             _refreshDepth--;
+        }
+    }
+
+    /// <summary>채널 박스 칸 입력: 숫자는 절대값, <c>+=</c>·<c>-=</c>·<c>*=</c>·<c>/=</c>는 지금 값에 상대. Auto Key·키 있는 시각이면 키, 아니면 키 없는 포즈.</summary>
+    private void CommitChannelBox(MotionChannelKind kind, Axis axis, string text)
+    {
+        if (_refreshing || _viewport.SelectedNode is not { } node || _graph.Motion is null || !RelativeInput.TryParse(text, out Func<float, float> apply))
+        {
+            RefreshChannelBox();
+            return;
+        }
+
+        float? current = _viewport.ComponentValue(node, kind, axis);
+
+        if (current is null)
+        {
+            return;
+        }
+
+        float value = apply(current.Value);
+        Guard("채널 박스", () => _viewport.SetComponent(node, kind, axis, value));
+        RefreshChannelBox();
+    }
+
+    private void KeyChannelBox(MotionChannelKind kind, Axis axis)
+    {
+        if (_viewport.SelectedNode is { } node && _graph.Motion is not null)
+        {
+            Guard("키 놓기", () => _viewport.KeyComponent(node, kind, axis));
         }
     }
 
@@ -984,7 +1057,7 @@ public partial class MainWindow : Window
         }
 
         _viewport.InvalidateVisual();
-        RefreshNodeChoices();
+        RefreshChannelBox();
     }
 
     private void RefreshAssets()
@@ -1014,12 +1087,11 @@ public partial class MainWindow : Window
             }
         }
 
-        RefreshNodeChoices();
+        RefreshChannelBox();
         RefreshObjects();
         _stageInfo.Text = $"무대 {_session.StageSize.X:0}×{_session.StageSize.Y:0}"
                           + (_session.IsBuiltinRig ? $" · 내장 리그({BuiltinTuning.Source})" : "")
                           + $" · 오브젝트 {_viewport.SceneObjects.Count} · 초상 {portraits}";
-        RefreshNewForms();
         RefreshProblems();
     }
 
@@ -1092,7 +1164,7 @@ public partial class MainWindow : Window
                 SmallButton("초상 PNG…", OnPickPortraitClick),
             },
         });
-        ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 리그 노드(덤프의 부모–자식 그대로) › 자식 오브젝트. 클릭 = 선택, 노드 클릭 = 매니퓰레이터 노드·채널 추가 대상, 더블클릭 = 채널 추가. 우클릭 = 만들기/복제/삭제/레이어/부모 메뉴(오브젝트나 노드 위에서 만들면 그 자식). 끌어서 다른 오브젝트·노드에 놓으면 자식으로, 레이어에 놓으면 그 레이어로. Del · Ctrl+D · Ctrl+Shift+N · F2");
+        ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 리그 노드(덤프의 부모–자식 그대로) › 자식 오브젝트. 클릭 = 선택, 노드 클릭 = 채널 박스·매니퓰레이터의 노드(값을 넣거나 끌면 그 노드에 키가 생긴다). 우클릭 = 만들기/복제/삭제/레이어/부모 메뉴(오브젝트나 노드 위에서 만들면 그 자식). 끌어서 다른 오브젝트·노드에 놓으면 자식으로, 레이어에 놓으면 그 레이어로. Del · Ctrl+D · Ctrl+Shift+N · F2");
 
         LeftPanel.Children.Add(Header("모션"));
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
@@ -1106,19 +1178,6 @@ public partial class MainWindow : Window
             Spacing = 4,
             Children = { addMotionButton, SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)) },
         });
-
-        LeftPanel.Children.Add(Header("채널 추가"));
-        var addChannel = new StackPanel { Spacing = 4 };
-        addChannel.Children.Add(_newChannelNode);
-        addChannel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children = { _newChannelKind, _newChannelMode, SmallButton("채널 추가", (_, _) => Guard("채널 추가", AddChannel)) },
-        });
-        ToolTip.SetTip(_newChannelKind, "채널 종류 — position · scale · rotate(파일에는 euler로 적힌다)");
-        ToolTip.SetTip(_newChannelMode, "relative = 중립값에 더함 · absolute = 값 그대로. 처음엔 모션의 기본 mode");
-        LeftPanel.Children.Add(addChannel);
     }
 
     private void BuildRight()
@@ -1264,7 +1323,8 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(Labeled("이름", _motionName));
         RightPanel.Children.Add(Labeled("길이(초)", _motionDuration));
         RightPanel.Children.Add(Labeled("끝", _motionEnd));
-        RightPanel.Children.Add(Labeled("기본 mode", _motionDefaultMode));
+        RightPanel.Children.Add(Labeled("mode", _motionDefaultMode));
+        ToolTip.SetTip(_motionDefaultMode, "relative = 키 값을 덤프의 시작값에 더함(배율은 곱함) · absolute = 키 값 그대로. 모션 하나에 하나 — 모든 채널에 같이 적히고(motions/1은 채널마다 적는다) 키 값은 바뀌지 않는다");
         RightPanel.Children.Add(_motionNotes);
 
         OnCommit(_motionName, text => WithMotion(m =>
@@ -1287,7 +1347,7 @@ public partial class MainWindow : Window
         {
             if (_motionDefaultMode.SelectedIndex >= 0 && (MotionChannelMode)_motionDefaultMode.SelectedIndex != m.DefaultMode)
             {
-                _session.Editor.SetDefaultMode(m.Name, (MotionChannelMode)_motionDefaultMode.SelectedIndex);
+                _session.Editor.SetMode(m.Name, (MotionChannelMode)_motionDefaultMode.SelectedIndex);
             }
         });
         OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
@@ -1361,16 +1421,36 @@ public partial class MainWindow : Window
             }
         };
 
-        RightPanel.Children.Add(Header("뷰포트 조작"));
-        RightPanel.Children.Add(Labeled("노드", _nodeCombo));
-        _nodeCombo.SelectionChanged += (_, _) =>
+        RightPanel.Children.Add(Header("채널 박스"));
+        RightPanel.Children.Add(_channelBoxTitle);
+        ToolTip.SetTip(_channelBoxTitle, "하이어아키에서 고른 리그 노드 — 유니티 계층 하나라 Translate·Rotate·Scale 전부를 가진다. 칸에 값을 넣으면(+=·-=·*=·/= 는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: Auto Key거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 글자 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기) · ● = 이 성분을 지금 키");
+
+        foreach ((MotionChannelKind kind, Axis axis, string label) in ChannelBoxComponents)
         {
-            if (!_refreshing && _nodeCombo.SelectedItem is string node)
+            var box = new TextBox { FontSize = 11, MinWidth = 90, Padding = new Avalonia.Thickness(4, 1), IsEnabled = false };
+            var title = new TextBlock { Text = label, FontSize = 11, Width = 76, VerticalAlignment = VerticalAlignment.Center, Cursor = new Cursor(StandardCursorType.Hand) };
+            title.PointerPressed += (_, e) =>
             {
-                _viewport.SelectedNode = node;
-                _viewport.InvalidateVisual();
-            }
-        };
+                if (_viewport.SelectedNode is { } node && _graph.Motion?.FindChannel(node, kind)?.Get(axis) is not null)
+                {
+                    ShowCurves(new[] { new CurveRef(node, kind, axis) }, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                    e.Handled = true;
+                }
+            };
+            Button keyButton = SmallButton("●", (_, _) => KeyChannelBox(kind, axis));
+            ToolTip.SetTip(keyButton, "이 성분을 지금 값으로 지금 시각에 키(마야 Key Selected)");
+            var inner = new DockPanel();
+            DockPanel.SetDock(title, Dock.Left);
+            DockPanel.SetDock(keyButton, Dock.Right);
+            inner.Children.Add(title);
+            inner.Children.Add(keyButton);
+            inner.Children.Add(box);
+            var row = new Border { Padding = new Avalonia.Thickness(2, 1), Child = inner };
+            OnCommit(box, text => CommitChannelBox(kind, axis, text));
+            _channelBoxRows[(kind, axis)] = (row, box);
+            RightPanel.Children.Add(row);
+        }
+
         RightPanel.Children.Add(_followSelection);
         var modes = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         string[] modeLabels = { "선택 (Q)", "이동 (W)", "회전 (E)", "배율 (R)" };
@@ -1409,7 +1489,12 @@ public partial class MainWindow : Window
             Children = { _autoKey, SmallButton("키 놓기 (S)", (_, _) => _viewport.SetKey()), SmallButton("버리기 (Esc)", (_, _) => _viewport.DiscardPending()) },
         });
         RightPanel.Children.Add(_pendingText);
-        _viewport.PendingChanged += (_, _) => RefreshPending();
+        _viewport.PendingChanged += (_, _) =>
+        {
+            RefreshPending();
+            RefreshChannelBox();
+        };
+        _viewport.PoseKeyed += (_, _) => RefreshChannelBox();
         RefreshManipulatorButtons();
         RefreshToolButtons();
 
@@ -1504,8 +1589,8 @@ public partial class MainWindow : Window
         RefreshMotionInspector();
         RefreshKeyInspector();
         RefreshProblems();
-        RefreshNewForms();
         RefreshObjects();
+        RefreshChannelBox();
     }
 
     /// <summary>오브젝트 목록·채널 박스·노드 목록을 선택 오브젝트에 맞춘다.</summary>
@@ -1596,8 +1681,7 @@ public partial class MainWindow : Window
             _refreshDepth--;
         }
 
-        RefreshNodeChoices();
-        RefreshNewForms();
+        RefreshChannelBox();
     }
 
     // ── 하이어아키 ─────────────────────────────────────────────────────
@@ -2102,19 +2186,14 @@ public partial class MainWindow : Window
         SelectNodeInHierarchy(node);
     }
 
-    /// <summary>노드 항목: 그 오브젝트를 고르고, 매니퓰레이터 노드와 채널 추가 대상을 그 노드로. 키 따라가기는 끈다(사용자가 직접 골랐다).</summary>
+    /// <summary>노드 항목: 그 오브젝트를 고르고, 채널 박스·매니퓰레이터의 노드를 그 노드로. 키 따라가기는 끈다(사용자가 직접 골랐다).</summary>
     private void SelectNodeInHierarchy(HierarchyNode node)
     {
         _viewport.SelectedObjectId = node.ObjectId;
         _followSelection.IsChecked = false;
         _viewport.SelectedNode = node.NodeId;
         _viewport.InvalidateVisual();
-        RefreshNodeChoices();
-
-        if (_newChannelNode.ItemsSource is IEnumerable<string> choices && choices.Contains(node.NodeId!))
-        {
-            _newChannelNode.SelectedItem = node.NodeId;
-        }
+        RefreshChannelBox();
     }
 
     /// <summary>테스트 손잡이 — 하이어아키에서 노드(또는 오브젝트)를 고른 것과 같다.</summary>
@@ -2132,16 +2211,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>테스트 손잡이 — 노드 더블클릭(그 노드에 채널 추가).</summary>
-    internal void AddChannelFromHierarchy(string objectId, string nodeId)
-    {
-        SelectNodeInHierarchy(new HierarchyNode(objectId, nodeId));
-        AddChannel();
-    }
-
     internal int HierarchyObjectCount => _viewport.SceneObjects.Count;
-
-    internal string? NewChannelNode => _newChannelNode.SelectedItem as string;
 
     private void CommitCamera()
     {
@@ -2315,7 +2385,6 @@ public partial class MainWindow : Window
         RefreshMotionInspector();
         RefreshKeyInspector();
         RefreshProblems();
-        RefreshNewForms();
         StatusText.Text = _session.Status;
     }
 
@@ -2368,7 +2437,6 @@ public partial class MainWindow : Window
         BindMotion(SelectedMotion);
         RefreshMotionInspector();
         RefreshKeyInspector();
-        RefreshNewForms();
     }
 
     /// <summary>
@@ -2423,11 +2491,7 @@ public partial class MainWindow : Window
                 }
             });
             ToolTip.SetTip(muteButton, anyMuted ? "뮤트 풀기" : "뮤트 — 뷰포트 재생에서 이 채널을 뺀다(저장되지 않는다)");
-            Button modeButton = SmallButton(channel.Mode == MotionChannelMode.Relative ? "rel" : "abs", (_, _) => Guard("채널 mode", () =>
-                _session.Editor.SetChannelMode(current.Name, node, kind, channel.Mode == MotionChannelMode.Relative ? MotionChannelMode.Absolute : MotionChannelMode.Relative)));
-            ToolTip.SetTip(modeButton, "클릭: relative ↔ absolute");
-
-            foreach (Button b in new[] { remove, muteButton, lockButton, modeButton })
+            foreach (Button b in new[] { remove, muteButton, lockButton })
             {
                 DockPanel.SetDock(b, Dock.Right);
                 header.Children.Add(b);
@@ -2487,7 +2551,7 @@ public partial class MainWindow : Window
 
         if (current.Channels.Count == 0)
         {
-            _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 왼쪽 '채널 추가'에서 노드를 골라 추가)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
+            _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 하이어아키에서 노드를 고르고 채널 박스에 값을 넣거나 매니퓰레이터로 끌면 생긴다)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
         }
     }
 
@@ -2644,39 +2708,6 @@ public partial class MainWindow : Window
 
     internal int ProblemRowsShown => ProblemsPanel.Children.Count;
 
-    private void RefreshNewForms()
-    {
-        _refreshDepth++;
-
-        try
-        {
-            string? nodeSelected = _newChannelNode.SelectedItem as string;
-            MotionAsset? motion = _graph.Motion;
-            List<string> nodes = new();
-
-            // 채널 mode 콤보는 모션을 고를 때 그 모션의 기본 mode로 시작한다. 그 뒤로는 사용자가 고른 값을 지킨다.
-            if (motion?.Name != _channelModeInitializedFor)
-            {
-                _channelModeInitializedFor = motion?.Name;
-                _newChannelMode.SelectedIndex = motion?.DefaultMode == MotionChannelMode.Absolute ? 1 : 0;
-            }
-
-            if (motion is not null && _session.Rig is not null && _session.Rig.NodeIds.TryGetValue(motion.Rig, out ICollection<string>? ids))
-            {
-                nodes = ids.Where(id => !MotionRules.ForbiddenNodes.Contains(id) && id != "__root").OrderBy(id => id, StringComparer.Ordinal).ToList();
-            }
-
-            _newChannelNode.ItemsSource = nodes;
-            _newChannelNode.SelectedIndex = nodes.Count == 0 ? -1 : Math.Max(0, nodeSelected is null ? 0 : nodes.IndexOf(nodeSelected));
-            _newChannelNode.IsEnabled = nodes.Count > 0;
-            ToolTip.SetTip(_newChannelNode, nodes.Count == 0 ? "리그 덤프를 먼저 싣고 모션을 고른다" : "채널을 둘 노드");
-        }
-        finally
-        {
-            _refreshDepth--;
-        }
-    }
-
     // ── 명령 ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -2704,15 +2735,6 @@ public partial class MainWindow : Window
         {
             _session.Editor.RemoveMotion(name);
         }
-    }
-
-    private void AddChannel()
-    {
-        MotionAsset motion = _graph.Motion ?? throw new InvalidOperationException("먼저 모션을 고른다.");
-        string node = _newChannelNode.SelectedItem as string ?? throw new InvalidOperationException("노드를 고른다 — 리그 덤프가 필요하다.");
-        var kind = (MotionChannelKind)Math.Max(0, _newChannelKind.SelectedIndex);
-        MotionChannelMode mode = _newChannelMode.SelectedIndex == 1 ? MotionChannelMode.Absolute : MotionChannelMode.Relative;
-        _session.Editor.AddChannel(motion.Name, node, kind, mode);
     }
 
     /// <summary>
@@ -2884,7 +2906,7 @@ public partial class MainWindow : Window
             if (path is not null)
             {
                 _session.LoadRig(path);
-                RefreshNewForms();
+                RefreshChannelBox();
                 RefreshProblems();
             }
         }

@@ -153,4 +153,30 @@ public class MotionEditorTests
         Assert.Null(editor.Document.Find("a"));
         Assert.NotNull(editor.Document.Find("nod"));
     }
+
+    [Fact]
+    public void SetMode는_모션의_기본_mode와_모든_채널의_mode를_한_번에_바꾸고_되돌리기_하나다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddMotion("nod", "character", 1f);
+        editor.AddChannel("nod", "A", MotionChannelKind.Position);
+        editor.AddChannel("nod", "B", MotionChannelKind.Scale, MotionChannelMode.Absolute);
+        MotionAsset nod = editor.Document.Find("nod")!;
+        Assert.Equal(MotionChannelMode.Relative, nod.DefaultMode);
+        long revision = editor.Revision;
+
+        editor.SetMode("nod", MotionChannelMode.Absolute);
+        nod = editor.Document.Find("nod")!;
+        Assert.Equal(MotionChannelMode.Absolute, nod.DefaultMode);
+        Assert.All(nod.Channels, c => Assert.Equal(MotionChannelMode.Absolute, c.Mode));
+        Assert.Equal(revision + 1, editor.Revision);
+
+        editor.SetMode("nod", MotionChannelMode.Absolute); // 같으면 아무것도 안 한다
+        Assert.Equal(revision + 1, editor.Revision);
+
+        editor.Undo();
+        nod = editor.Document.Find("nod")!;
+        Assert.Equal(MotionChannelMode.Relative, nod.DefaultMode);
+        Assert.Equal(MotionChannelMode.Absolute, nod.FindChannel("B", MotionChannelKind.Scale)!.Mode); // 되돌리면 채널의 옛 mode 그대로
+    }
 }

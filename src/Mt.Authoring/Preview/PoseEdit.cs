@@ -105,6 +105,30 @@ public static class PoseEdit
         };
     }
 
+    /// <summary>노드 상태의 성분 하나를 바꾼 상태(채널 박스 입력). <see cref="Component"/>의 반대.</summary>
+    public static RectNodeState WithComponent(MotionChannelKind kind, in RectNodeState state, Axis axis, float value)
+    {
+        switch (kind)
+        {
+            case MotionChannelKind.Position:
+                return state.WithAnchoredPosition(axis == Axis.X ? new Vec2(value, state.AnchoredPosition.Y) : new Vec2(state.AnchoredPosition.X, value));
+            case MotionChannelKind.Scale:
+            {
+                Vec3 s = state.LocalScale;
+                return state.WithLocalScale(axis switch { Axis.X => new Vec3(value, s.Y, s.Z), Axis.Y => new Vec3(s.X, value, s.Z), _ => new Vec3(s.X, s.Y, value) });
+            }
+
+            case MotionChannelKind.Euler:
+            {
+                Vec3 e = state.LocalEulerAngles;
+                return state.WithLocalEuler(axis switch { Axis.X => new Vec3(value, e.Y, e.Z), Axis.Y => new Vec3(e.X, value, e.Z), _ => new Vec3(e.X, e.Y, value) });
+            }
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind), kind, "모르는 채널 종류");
+        }
+    }
+
     private static float Distance(Vec2 a, Vec2 b)
         => (float)Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 }

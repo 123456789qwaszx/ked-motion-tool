@@ -658,6 +658,27 @@ public sealed class MotionEditor
         Mutate(MotionChangeKind.Metadata, () => motion.DefaultMode = mode);
     }
 
+    /// <summary>모션의 mode를 하나로 — 기본 mode와 모든 채널의 mode를 한 번에 바꾼다(한 번의 되돌리기). 키 값은 그대로다.</summary>
+    public void SetMode(string name, MotionChannelMode mode)
+    {
+        MotionAsset motion = Require(name);
+
+        if (motion.DefaultMode == mode && motion.Channels.All(c => c.Mode == mode))
+        {
+            return;
+        }
+
+        Mutate(MotionChangeKind.Metadata, () =>
+        {
+            motion.DefaultMode = mode;
+
+            foreach (ChannelAsset channel in motion.Channels)
+            {
+                channel.Mode = mode;
+            }
+        });
+    }
+
     public void SetNotes(string name, string? notes)
     {
         MotionAsset motion = Require(name);
