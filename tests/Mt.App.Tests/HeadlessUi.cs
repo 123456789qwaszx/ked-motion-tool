@@ -28,9 +28,13 @@ internal static class HeadlessUi
 
     public static bool OnUiThread => _inside;
 
+    /// <summary>한 테스트가 UI 스레드를 이보다 오래 잡으면 멈춘 것으로 보고 실패시킨다 — 러너가 통째로 죽는 대신 어느 테스트인지 남긴다.</summary>
+    public static readonly TimeSpan Watchdog = TimeSpan.FromSeconds(90);
+
     /// <summary>UI 스레드에서 본문을 돌리고 끝날 때까지 기다린다.</summary>
-    public static void Run(Action body) =>
-        SessionHandle.Value.Dispatch(
+    public static void Run(Action body, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
+    {
+        Task task = SessionHandle.Value.Dispatch(
             () =>
             {
                 _inside = true;
@@ -44,7 +48,15 @@ internal static class HeadlessUi
                     _inside = false;
                 }
             },
-            CancellationToken.None).GetAwaiter().GetResult();
+            CancellationToken.None);
+
+        if (Task.WaitAny(task, Task.Delay(Watchdog)) != 0)
+        {
+            throw new TimeoutException($"헤드리스 UI 테스트 '{caller}'가 {Watchdog.TotalSeconds}초 안에 끝나지 않았다 — UI 스레드가 멈췄다.");
+        }
+
+        task.GetAwaiter().GetResult();
+    }
 }
 
 /// <summary>
