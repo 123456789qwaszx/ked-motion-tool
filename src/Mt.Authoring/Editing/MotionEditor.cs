@@ -20,9 +20,6 @@ public sealed class MotionEditor
 {
     private const int MaxHistory = 200;
 
-    private readonly List<string> _undo = new();
-    private readonly List<string> _redo = new();
-
     public MotionEditor(MotionDocument document)
     {
         Document = document ?? throw new ArgumentNullException(nameof(document));
@@ -1126,7 +1123,17 @@ public sealed class MotionEditor
         return imported;
     }
 
-    // ── 되돌리기 ──────────────────────────────────────────────────────
+    // ── 되돌리기 ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 이력 한 칸 = 조작 하나. <see cref="Snapshot"/>은 되돌리기 스택에서는 조작 전, 다시하기 스택에서는 조작 후의 문서다(없으면 문서는 안 바뀐 칸).
+    /// <see cref="SideUndo"/>·<see cref="SideRedo"/>는 문서 밖 상태(뷰포트의 키 없는 포즈)를 되돌리고 다시 하는 손이다(<see cref="RecordExternal"/>).
+    /// 둘 다 있으면 문서를 먼저 복원하고 손을 부른다. 문서가 안 바뀐 칸은 <see cref="Revision"/>을 올리지 않는다.
+    /// </summary>
+    private sealed record HistoryEntry(string? Snapshot, Action? SideUndo, Action? SideRedo);
+
+    private readonly List<HistoryEntry> _undo = new();
+    private readonly List<HistoryEntry> _redo = new();
 
     public void Undo()
     {
@@ -1135,9 +1142,16 @@ public sealed class MotionEditor
             return;
         }
 
-        _redo.Add(MotionDocumentJson.Write(Document));
-        Restore(_undo[^1]);
+        HistoryEntry entry = _undo[^1];
         _undo.RemoveAt(_undo.Count - 1);
+        _redo.Add(entry with { Snapshot = entry.Snapshot is null ? null : MotionDocumentJson.Write(Document) });
+
+        if (entry.Snapshot is not null)
+        {
+            Restore(entry.Snapshot);
+        }
+
+        entry.SideUndo?.Invoke();
     }
 
     public void Redo()
@@ -1147,9 +1161,16 @@ public sealed class MotionEditor
             return;
         }
 
-        _undo.Add(MotionDocumentJson.Write(Document));
-        Restore(_redo[^1]);
+        HistoryEntry entry = _redo[^1];
         _redo.RemoveAt(_redo.Count - 1);
+        _undo.Add(entry with { Snapshot = entry.Snapshot is null ? null : MotionDocumentJson.Write(Document) });
+
+        if (entry.Snapshot is not null)
+        {
+            Restore(entry.Snapshot);
+        }
+
+        entry.SideRedo?.Invoke();
     }
 
     /// <summary>파일에서 새로 읽었을 때처럼, 기록을 버리고 통째로 갈아 끼운다.</summary>
@@ -1168,11 +1189,12 @@ public sealed class MotionEditor
     }
 
     private int _batchDepth;
-    private bool _batchChanged;
+    private List<(Action Undo, Action Redo)>? _batchSides;
 
     /// <summary>
     /// 여러 명령을 되돌리기 한 번으로 묶는다(프리셋 추가처럼 모션·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
-    /// 기록에 남기지 않는다. 중첩은 바깥 묶음에 든다.
+    /// 기록에 남기지 않는다. 아무것도 안 바뀌었으면(같은 값만 넣었으면) 기록도 다시하기 삭제도 없다. 중첩은 바깥 묶음에 든다.
+    /// 묶음 안에서 <see cref="RecordExternal"/>로 올린 손은 같은 칸에 붙는다.
     /// </summary>
     public void Batch(MotionChangeKind kind, Action change)
     {
@@ -1184,9 +1206,9 @@ public sealed class MotionEditor
             return;
         }
 
-        string snapshot = MotionDocumentJson.Write(Document);
+        string before = MotionDocumentJson.Write(Document);
         _batchDepth++;
-        _batchChanged = false;
+        _batchSides = null;
 
         try
         {
@@ -1194,7 +1216,8 @@ public sealed class MotionEditor
         }
         catch
         {
-            Document = MotionDocumentJson.Read(snapshot);
+            Document = MotionDocumentJson.Read(before);
+            _batchSides = null;
             throw;
         }
         finally
@@ -1202,42 +1225,100 @@ public sealed class MotionEditor
             _batchDepth--;
         }
 
-        if (!_batchChanged)
+        List<(Action Undo, Action Redo)>? sides = _batchSides;
+        _batchSides = null;
+        Commit(kind, before, ComposeUndo(sides), ComposeRedo(sides));
+    }
+
+    /// <summary>
+    /// 문서 밖 상태의 조작(뷰포트의 키 없는 포즈)을 이력에 올린다 — 되돌리기·다시하기가 문서 조작과 같은 줄에서 실제 순서대로 돈다.
+    /// 묶음 안이면 그 묶음의 칸에 붙고, 밖이면 손만 있는 칸이 된다(Revision은 안 오른다). 새 조작이므로 다시하기는 지운다.
+    /// 저장 파일·산출물에는 아무것도 안 들어간다.
+    /// </summary>
+    public void RecordExternal(Action undo, Action redo)
+    {
+        ArgumentNullException.ThrowIfNull(undo);
+        ArgumentNullException.ThrowIfNull(redo);
+
+        if (_batchDepth > 0)
         {
-            return; // 아무 명령도 안 지났다(키 없는 포즈만) — 기록에 남기지 않는다
+            (_batchSides ??= new List<(Action Undo, Action Redo)>()).Add((undo, redo));
+            return;
         }
 
-        _undo.Add(snapshot);
-
-        if (_undo.Count > MaxHistory)
-        {
-            _undo.RemoveAt(0);
-        }
-
+        Push(new HistoryEntry(null, undo, redo));
         _redo.Clear();
-        Raise(kind);
     }
 
     private void Mutate(MotionChangeKind kind, Action change)
     {
         if (_batchDepth > 0)
         {
-            _batchChanged = true;
             change(); // 묶음이 기록·알림을 맡는다
             return;
         }
 
-        _undo.Add(MotionDocumentJson.Write(Document));
+        string before = MotionDocumentJson.Write(Document);
+
+        try
+        {
+            change();
+        }
+        catch
+        {
+            Document = MotionDocumentJson.Read(before); // 반쯤 바뀐 문서·기록을 남기지 않는다
+            throw;
+        }
+
+        Commit(kind, before, null, null);
+    }
+
+    /// <summary>조작이 끝난 자리 — 문서가 실제로 바뀌었거나 손이 있을 때만 기록하고 다시하기를 지운다. 같은 값만 넣은 조작은 흔적이 없다.</summary>
+    private void Commit(MotionChangeKind kind, string before, Action? sideUndo, Action? sideRedo)
+    {
+        bool documentChanged = MotionDocumentJson.Write(Document) != before;
+
+        if (!documentChanged && sideUndo is null && sideRedo is null)
+        {
+            return;
+        }
+
+        Push(new HistoryEntry(documentChanged ? before : null, sideUndo, sideRedo));
+        _redo.Clear();
+
+        if (documentChanged)
+        {
+            Raise(kind);
+        }
+    }
+
+    private void Push(HistoryEntry entry)
+    {
+        _undo.Add(entry);
 
         if (_undo.Count > MaxHistory)
         {
             _undo.RemoveAt(0);
         }
-
-        _redo.Clear();
-        change();
-        Raise(kind);
     }
+
+    private static Action? ComposeUndo(List<(Action Undo, Action Redo)>? sides)
+        => sides is null || sides.Count == 0 ? null : () =>
+        {
+            for (int i = sides.Count - 1; i >= 0; i--)
+            {
+                sides[i].Undo();
+            }
+        };
+
+    private static Action? ComposeRedo(List<(Action Undo, Action Redo)>? sides)
+        => sides is null || sides.Count == 0 ? null : () =>
+        {
+            foreach ((Action _, Action redo) in sides)
+            {
+                redo();
+            }
+        };
 
     private void Raise(MotionChangeKind kind)
     {
