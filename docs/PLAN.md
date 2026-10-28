@@ -177,7 +177,7 @@ M2가 **가장 어렵고 가장 중요하다.** 여기서 "마야 같다"가 결
 |---|---|---|
 | **카메라·깊이·shot** | 모션에 카메라 채널(zoom·pan)과 의도 채널(focus 프리셋·ScreenPoint) | 소유권 규칙 — `ShotIntentState`를 매 프레임 전부 쓰는 응답 시스템과 두 쓰는 사람이 생긴다. `PLAN_stage-seam.md` §5 2단계. 툴에는 깊이 층·카메라 뷰가 필요하다 |
 | **다중 스프라이트 리그** | 머리·몸·팔이 따로 — 새 `rigKind` | 무대 런타임의 빌더·초상·리듀서 폴드. 규약·툴은 노드가 늘 뿐 |
-| ~~**mode를 커맨드가 정함**~~ — **했다(2026-10-28, motions/2)** | 모션은 값만 갖고 `motion slot 이름 [relative\|absolute]`가 정한다. relative = 지금 값 + 키(첫 키가 0이 아니어도 된다) | 무대 `motion/motions-2` @ `05d0c8f`(코어 `MotionChannel.Mode` 제거 · `MotionModeToken` · 중립값 규칙 제거 · restore는 재생이 시작값을 되씀), 재생 반입본 `motion/motions-2` @ `6d72458`, 이 툴은 코어 재반입 + `motions/2` + 미리보기 mode |
+| ~~**mode를 커맨드가 정함**~~ — **했다(2026-10-28, motions/2)** | 모션은 값만 갖고 `motion slot 이름 [relative\|absolute]`가 정한다. relative = 지금 값 + 키(첫 키가 0이 아니어도 된다) | 무대 `motion/motions-2` @ `40d19d7`(코어 `MotionChannel.Mode` 제거 · `MotionModeToken` · 중립값 규칙 제거 · restore는 재생이 시작값을 되씀), 재생 반입본 `motion/motions-2` @ `6d72458`, 이 툴은 코어 재반입 + `motions/2` + 미리보기 mode |
 | **연출 클립** | 컷인·배경 연출·감정 이모지·복합 화면전환 — 여러 리그·효과·시간차 | 모션 규약 밖이다(모션은 리그 노드의 변환뿐). 별 규약(`scene-clip/1`?)과 별 커맨드. 툴의 타임라인은 재사용된다 |
 
 v1 설계가 이것들을 막지 않는지 M1에서 한 번 더 본다 — 채널이 "노드 × 속성"이라는 것, 시간이 초라는 것, 리그가 데이터라는 것 셋이 열쇠다.

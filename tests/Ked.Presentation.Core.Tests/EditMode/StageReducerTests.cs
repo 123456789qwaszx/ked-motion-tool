@@ -840,9 +840,9 @@ namespace Ked.Presentation.Core.Tests
             Assert.That(state.Nodes.GetState("c1/CharSlot_Track_X").AnchoredPosition.X, Is.EqualTo(-40f + 160f).Within(Eps));
             Assert.That(state.Nodes.GetState("c1/CharacterPortrait_SwayPivot").LocalEulerAngles.Z, Is.EqualTo(15f).Within(Eps));
 
-            // 같은 tilt를 relative로 — 40 + 15 = 55. 모르는 mode 낱말은 Unhandled.
+            // 같은 tilt를 relative로 — 지금 15 + 마지막 키 15 = 30. 모르는 mode 낱말은 Unhandled.
             StageState relative = StageReducer.Apply(state, Cmd("motion", "c1", "tilt", "relative"), tuning);
-            Assert.That(relative.Nodes.GetState("c1/CharacterPortrait_SwayPivot").LocalEulerAngles.Z, Is.EqualTo(55f).Within(Eps));
+            Assert.That(relative.Nodes.GetState("c1/CharacterPortrait_SwayPivot").LocalEulerAngles.Z, Is.EqualTo(30f).Within(Eps));
 
             StageState bad = StageReducer.Apply(state, Cmd("motion", "c1", "tilt", "offset"), tuning);
             Assert.That(bad.Unhandled.Count, Is.EqualTo(1));
