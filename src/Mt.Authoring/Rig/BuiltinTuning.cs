@@ -21,6 +21,7 @@ public static class BuiltinTuning
     private static readonly Lazy<DepthTuningFile> DepthLazy = new(() => DepthTuningFile.Parse(Text("ExportedTuning/presets/depth.json")));
     private static readonly Lazy<FocusTuningFile> FocusLazy = new(() => FocusTuningFile.Parse(Text("ExportedTuning/presets/focus-tuning.json")));
     private static readonly Lazy<Vec2> BaseResolutionLazy = new(() => BaseResolutionFile.Parse(Text("ExportedTuning/base-resolution.json")));
+    private static readonly Lazy<ControllersFile> ControllersLazy = new(() => ControllersFile.Parse(Text("controllers.json")));
 
     /// <summary>리그 덤프(character · background · screenEffect).</summary>
     public static RigSchemaFile RigSchemas => RigSchemasLazy.Value;
@@ -33,6 +34,9 @@ public static class BuiltinTuning
     public static FocusTuningFile Focus => FocusLazy.Value;
 
     public static Vec2 BaseResolution => BaseResolutionLazy.Value;
+
+    /// <summary>컨트롤러 표(자리·깊이·연기) — 이 툴의 것(<c>docs/PLAN-controller.md</c>). 덤프 옆 <c>presets/controllers.json</c>이 있으면 그것이 이긴다.</summary>
+    public static ControllersFile Controllers => ControllersLazy.Value;
 
     /// <summary>뼈대 리그 DTO — <c>RigSchemaLoader.AddRigTo</c>에 바로 넣는다.</summary>
     public static RigSchemaRigDto StageRig

@@ -1,0 +1,30 @@
+{
+  "schema": "controllers/1",
+  "source": "ked-motion-tool docs/PLAN-controller.md (2026-10-28) — rig-axis-order.md의 자리 뜻을 손잡이로",
+  "rigs": [
+    {
+      "rigKind": "character",
+      "groups": [
+        { "id": "placement", "label": "자리", "mode": "absolute", "note": "슬롯이 무대 어디에 있나 — place가 잡은 자리 기준. 배치 커맨드(move_by·rotate_by·scale_by)와 같은 노드라 뒤의 것이 앞의 것을 완주시킨다" },
+        { "id": "depth",     "label": "깊이", "mode": "absolute", "note": "얼마나 멀리 있나 — level 하나를 DepthScale로 굽는다(발 고정). DepthY는 건드리지 않는다" },
+        { "id": "acting",    "label": "연기", "mode": "relative", "note": "그 자리에서 무엇을 하나 — 슬롯 아래 로컬. 휴지 자세가 항등이라 absolute로 읽어도 같다" }
+      ],
+      "controllers": [
+        { "id": "place",    "group": "placement", "label": "자리",       "node": "CharSlot_Track",                 "kind": "position", "axes": ["x", "y"], "unit": "px" },
+        { "id": "slotLean", "group": "placement", "label": "슬롯 기울기", "node": "CharSlot_SwayPivot",             "kind": "euler",    "axes": ["z"],      "unit": "deg" },
+        { "id": "stance",   "group": "placement", "label": "자세 배율",   "node": "CharSlot_Scale",                 "kind": "scale",    "axes": ["x", "y"], "unit": "x",   "note": "연기 진폭까지 커진다" },
+
+        { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",            "kind": "scale",    "axes": ["x", "y"], "unit": "level", "bake": "depthLevel", "note": "level 0(far)…20(close)을 depth.json 커브로 배율에 굽는다" },
+
+        { "id": "body",     "group": "acting",    "label": "몸",         "node": "CharacterPortrait_Track_Move",   "kind": "position", "axes": ["x", "y"], "unit": "px",  "manipulator": true,
+          "aliases": [ { "node": "CharacterPortrait_Track_Move_X", "axis": "x" }, { "node": "CharacterPortrait_Track_Move_Y", "axis": "y" } ] },
+        { "id": "lean",     "group": "acting",    "label": "기울기",     "node": "CharacterPortrait_Rotation",     "kind": "euler",    "axes": ["z"],      "unit": "deg", "note": "몸 전체 기울기 — 연기 이동이 따라간다" },
+        { "id": "bow",      "group": "acting",    "label": "숙임",       "node": "CharacterPortrait_SwayPivot",    "kind": "euler",    "axes": ["z"],      "unit": "deg", "manipulator": true, "note": "발을 축으로" },
+        { "id": "shake",    "group": "acting",    "label": "떨림",       "node": "CharacterPortrait_Shake",        "kind": "position", "axes": ["x", "y"], "unit": "px" },
+        { "id": "squash",   "group": "acting",    "label": "크기",       "node": "CharacterPortrait_ActingScale",  "kind": "scale",    "axes": ["x", "y"], "unit": "x",   "manipulator": true, "note": "스프라이트만 — 이동량 불변",
+          "aliases": [ { "node": "CharacterPortrait_ActingScale_Y", "axis": "y" } ] },
+        { "id": "facing",   "group": "acting",    "label": "방향",       "node": "CharacterPortrait_ActingScale_X","kind": "scale",    "axes": ["x"],      "unit": "sign", "note": "1 = 그대로 · -1 = 뒤집기(mirror와 같은 자리)" }
+      ]
+    }
+  ]
+}

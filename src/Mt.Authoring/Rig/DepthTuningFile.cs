@@ -67,6 +67,50 @@ public sealed class DepthTuningFile
         return null;
     }
 
+    /// <summary>level(0 far … 20 close)의 끝 — 깊이 컨트롤러 슬라이더의 범위.</summary>
+    public const float MinLevel = DepthLevelLabels.Far;
+
+    public const float MaxLevel = DepthLevelLabels.Close;
+
+    /// <summary>level → DepthScale(커브, 런타임과 같은 하한). 커브가 없으면 false.</summary>
+    public bool TryScaleOf(float level, out float depthScale) => Level.TryResolve(level, out _, out depthScale);
+
+    /// <summary>
+    /// DepthScale → level — 깊이 컨트롤러가 포즈의 배율을 슬라이더 값으로 되돌릴 때. 커브가 단조라는 가정으로
+    /// [MinLevel, MaxLevel]을 이분한다. 범위 밖 배율은 끝으로 잘린다.
+    /// </summary>
+    public bool TryLevelOf(float depthScale, out float level)
+    {
+        level = DepthLevelLabels.Mid;
+
+        if (!TryScaleOf(MinLevel, out float low) || !TryScaleOf(MaxLevel, out float high))
+        {
+            return false;
+        }
+
+        bool increasing = high >= low;
+        float lo = MinLevel;
+        float hi = MaxLevel;
+
+        for (int i = 0; i < 48; i++)
+        {
+            float mid = (lo + hi) * 0.5f;
+            TryScaleOf(mid, out float at);
+
+            if ((at < depthScale) == increasing)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        level = (lo + hi) * 0.5f;
+        return true;
+    }
+
     /// <summary>레이어 라벨 → (DepthY, DepthScale). 모르는 라벨이거나 커브가 없으면 false.</summary>
     public bool TryResolveLayer(string? layer, out float depthY, out float depthScale)
     {
