@@ -624,7 +624,7 @@ public class MainWindowTests
 
                 // 오브젝트 › 묶음(라벨 · mode) › 컨트롤러(라벨 · 종류 성분). 노드 항목은 없다.
                 IReadOnlyList<string> body = window.HierarchyPathOfController("s1", "body");
-                Assert.Equal(new[] { "s1  ·  character", "연기  ·  relative", "몸  ·  move XY" }, body.TakeLast(3));
+                Assert.Equal(new[] { "s1  ·  character", "연기  ·  relative", "몸  ·  position XY" }, body.TakeLast(3));
                 Assert.Equal("자리  ·  absolute", window.HierarchyPathOfController("s1", "place")[^2]);
                 Assert.Equal("깊이  ·  absolute", window.HierarchyPathOfController("s1", "depth")[^2]);
                 Assert.Equal("숙임  ·  rotate Z", window.HierarchyPathOfController("s1", "bow")[^1]);
@@ -641,18 +641,33 @@ public class MainWindowTests
                 Assert.Equal(ManipulatorMode.Select, window.Manipulator);
                 Assert.Equal("CharacterPortrait_ActingScale", window.Viewport.SelectedNode);
 
+                // W/E/R(C4): 고른 컨트롤러가 그 종류를 받으면 그 노드 그대로(자리 X·Y), 아니면 표의 기본 손잡이(몸·숙임·크기)로.
+                window.SelectControllerInHierarchy("s1", "place");
+                Assert.Equal("CharSlot_Track", window.Viewport.SelectedNode);
+                window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.None);
+                Assert.Equal("CharSlot_Track", window.Viewport.SelectedNode);
+                window.KeyPressQwerty(PhysicalKey.E, RawInputModifiers.None);
+                Assert.Equal(ManipulatorMode.Rotate, window.Manipulator);
+                Assert.Equal("CharacterPortrait_SwayPivot", window.Viewport.SelectedNode);
+                window.KeyPressQwerty(PhysicalKey.R, RawInputModifiers.None);
+                Assert.Equal("CharacterPortrait_ActingScale", window.Viewport.SelectedNode);
+                window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.None);
+                Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedNode);
+                window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.None);
+                Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedNode); // Q는 노드를 안 옮긴다
+
                 // 컨트롤러 위에서 만들기 = 그 주 노드의 자식. 트리에서는 컨트롤러 밑에 보인다.
                 string s2 = window.CreateObjectAtController("character", "s1", "body");
                 Assert.Equal(s2, window.Viewport.SelectedObjectId);
                 Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedObject!.ParentNode);
-                Assert.Equal("몸  ·  move XY", window.HierarchyPathOf(s2, null)[^2]);
+                Assert.Equal("몸  ·  position XY", window.HierarchyPathOf(s2, null)[^2]);
 
                 // "리그 노드 보기"면 덤프 노드 26단이고 자식은 붙은 노드 밑. 끄면 다시 컨트롤러.
                 window.ShowRigNodes = true;
                 Assert.Empty(window.HierarchyPathOfController("s1", "body"));
                 Assert.Equal("CharacterPortrait_Track_Move", window.HierarchyPathOf(s2, null)[^2]);
                 window.ShowRigNodes = false;
-                Assert.Equal("몸  ·  move XY", window.HierarchyPathOf(s2, null)[^2]);
+                Assert.Equal("몸  ·  position XY", window.HierarchyPathOf(s2, null)[^2]);
             }
             finally
             {

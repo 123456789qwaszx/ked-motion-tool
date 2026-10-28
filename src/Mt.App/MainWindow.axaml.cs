@@ -355,8 +355,38 @@ public partial class MainWindow : Window
     private void SetManipulator(ManipulatorMode mode)
     {
         _viewport.Manipulator = mode;
+        RetargetManipulator(mode);
         _viewport.InvalidateVisual();
         RefreshManipulatorButtons();
+    }
+
+    /// <summary>
+    /// W/E/R = 표의 기본 손잡이(몸·숙임·크기 — <c>manipulator</c> 표시). 지금 노드의 컨트롤러가 그 종류를 받으면(자리 X·Y를 고른 채 W)
+    /// 그 노드 그대로, 다른 종류면 기본 손잡이의 노드로 옮긴다. 표에 없는 노드(리그 노드 보기의 리거)와 Q는 건드리지 않는다.
+    /// </summary>
+    private void RetargetManipulator(ManipulatorMode mode)
+    {
+        if (mode == ManipulatorMode.Select || _session.ControllersOf(_viewport.SelectedObject?.Rig) is not { } table)
+        {
+            return;
+        }
+
+        MotionChannelKind kind = mode switch
+        {
+            ManipulatorMode.Rotate => MotionChannelKind.Euler,
+            ManipulatorMode.Scale => MotionChannelKind.Scale,
+            _ => MotionChannelKind.Position,
+        };
+        Controller? current = _viewport.SelectedNode is { } node ? table.OfNode(node) : null;
+
+        if ((current is null && _viewport.SelectedNode is not null) || current?.Kind == kind || table.DefaultFor(kind) is not { } fallback)
+        {
+            return;
+        }
+
+        _followSelection.IsChecked = false;
+        _viewport.SelectedNode = ControllerNodeFor(_graph.Motion, fallback);
+        RefreshChannelBox();
     }
 
     /// <summary>테스트 손잡이.</summary>
@@ -1804,9 +1834,7 @@ public partial class MainWindow : Window
             var mode = (ManipulatorMode)i;
             Button button = SmallButton(modeLabels[i], (_, _) =>
             {
-                _viewport.Manipulator = mode;
-                _viewport.InvalidateVisual();
-                RefreshManipulatorButtons();
+                SetManipulator(mode);
             });
             _manipulatorButtons[i] = button;
             modes.Children.Add(button);
