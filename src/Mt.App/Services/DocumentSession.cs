@@ -32,6 +32,9 @@ public sealed class DocumentSession
     /// <summary>덤프 옆 presets/depth.json. 없으면 레이어는 그리는 순서만 정한다.</summary>
     public DepthTuningFile? Depth { get; private set; }
 
+    /// <summary>덤프 옆 presets/focus.json — 배역별 focus 오프셋. 없으면 base 오프셋 없이(0).</summary>
+    public FocusTuningFile? Focus { get; private set; }
+
     public string Status { get; private set; } = "";
 
     /// <summary>미리보기 초상 PNG의 절대 경로. 문서에는 문서 기준 상대 경로로 적힌다.</summary>
@@ -145,6 +148,21 @@ public sealed class DocumentSession
             }
         }
 
+        string? focusPath = FocusTuningFile.TryFindBeside(path);
+        Focus = null;
+
+        if (focusPath is not null)
+        {
+            try
+            {
+                Focus = FocusTuningFile.Load(focusPath);
+            }
+            catch (Exception exception)
+            {
+                SetStatus($"focus.json을 읽지 못했다: {exception.Message} — 배역 오프셋 없이.");
+            }
+        }
+
         string? baseResolution = BaseResolutionFile.TryFindBeside(path);
 
         if (baseResolution is not null)
@@ -156,7 +174,8 @@ public sealed class DocumentSession
         AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus($"리그 덤프: {string.Join(", ", rig.RigKinds)} ({Path.GetFileName(path)})"
                   + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}")
-                  + (Depth is null ? " · depth.json 없음(깊이 없이)" : " · 깊이 커브"));
+                  + (Depth is null ? " · depth.json 없음(깊이 없이)" : " · 깊이 커브")
+                  + (Focus is null ? "" : " · focus 표"));
     }
 
     /// <summary>오브젝트의 미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
@@ -212,6 +231,7 @@ public sealed class DocumentSession
         Rig = null;
         RigPath = null;
         Depth = null;
+        Focus = null;
         StageSize = BaseResolutionFile.Default;
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
     }

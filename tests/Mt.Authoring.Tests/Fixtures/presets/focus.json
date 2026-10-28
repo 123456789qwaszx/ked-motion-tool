@@ -1,0 +1,16 @@
+{
+  "MonoBehaviour": {
+    "baseOffsets": {
+      "feet": { "x": 0.0, "y": 480.0 },
+      "body": { "x": 0.0, "y": 680.0 },
+      "bust": { "x": 0.0, "y": 820.0 },
+      "face": { "x": 0.0, "y": 950.0 },
+      "faceAura": { "x": 0.0, "y": 950.0 },
+      "handLeft": { "x": -80.0, "y": 0.0 },
+      "handRight": { "x": 80.0, "y": 0.0 }
+    },
+    "entries": [
+      { "key": "bandi", "defaultOffset": { "x": 0.0, "y": -20.0 }, "offsets": { "bust": { "x": 0.0, "y": 10.0 } } }
+    ]
+  }
+}

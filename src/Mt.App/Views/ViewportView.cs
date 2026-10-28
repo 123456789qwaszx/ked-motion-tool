@@ -58,6 +58,7 @@ public sealed class ViewportView : Control
     private string? _motionName;
     private RigSchemaFile? _rig;
     private DepthTuningFile? _depth;
+    private FocusTuningFile? _focus;
     // 씬 전체의 시작 상태(오브젝트마다 슬롯 접두사). 모션은 선택 오브젝트에만 얹는다.
     private RectNodeTree? _template;
     private readonly Dictionary<string, Bitmap?> _portraits = new();
@@ -635,6 +636,28 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
+    /// <summary>presets/focus.json — 배역별 focus 오프셋이 깊이 폴드에 들어간다.</summary>
+    public void SetFocus(FocusTuningFile? focus)
+    {
+        _focus = focus;
+        RebuildTemplate();
+        InvalidateVisual();
+    }
+
+    /// <summary>부모를 바꾸되 월드 위치를 지키는 배치 값. 리그가 없으면 지금 값.</summary>
+    public (float X, float Y) PlacementKeepingWorld(string id, string? parent, string? parentNode)
+    {
+        SceneAsset? scene = Scene;
+        SceneObject? o = scene?.Find(id);
+
+        if (_rig is null || scene is null || o is null)
+        {
+            return (o?.PositionX ?? 0f, o?.PositionY ?? 0f);
+        }
+
+        return ScenePreview.PlacementKeepingWorld(_rig, scene, id, parent, parentNode, _depth, _focus);
+    }
+
     /// <summary>씬 카메라(보기 전용) 배율 — 코어 규약 zoom 1당 +0.05.</summary>
     public float CameraScale => ShotIntentMath.EvaluateCameraScale(Scene?.Camera.Zoom ?? 0f);
 
@@ -720,7 +743,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth);
+        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth, null, _focus);
     }
 
     // ── 시계 ──────────────────────────────────────────────────────────

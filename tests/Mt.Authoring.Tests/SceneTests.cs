@@ -283,4 +283,88 @@ public class SceneTests
         Assert.Equal("bg_2", MotionEditor.NextObjectId("bg", Array.Empty<string>()));
         Assert.Equal("11_2", MotionEditor.NextObjectId("11", Array.Empty<string>())); // 전부 숫자면 줄기가 없다
     }
+
+    [Fact]
+    public void 부모를_바꿀_때_월드_위치를_지키는_배치_값을_센다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.SetObjectPlacement(null, "c1", 200f, -40f, 0f, 1f, 1f);
+        editor.AddSceneObject(null, "c2", "character", SceneLayers.Front);
+        editor.SetObjectPlacement(null, "c2", -100f, 60f, 0f, 1f, 1f);
+        SceneAsset scene = editor.Document.ActiveSceneAsset!;
+
+        Vec2 before = ScenePreview.Build(RigFile, scene).TransformPoint("c2/__root", Vec3.Zero).XY;
+        (float x, float y) = ScenePreview.PlacementKeepingWorld(RigFile, scene, "c2", "c1", "CharacterPortrait_Track_Move");
+        Assert.NotEqual(-100f, x); // 부모 공간으로 옮겨졌다
+
+        editor.SetObjectParent(null, "c2", "c1", "CharacterPortrait_Track_Move", null, (x, y));
+        Vec2 after = ScenePreview.Build(RigFile, scene).TransformPoint("c2/__root", Vec3.Zero).XY;
+        Assert.Equal(before.X, after.X, 1);
+        Assert.Equal(before.Y, after.Y, 1);
+
+        // 떼어도 같은 자리.
+        (float bx, float by) = ScenePreview.PlacementKeepingWorld(RigFile, scene, "c2", null, null);
+        editor.SetObjectParent(null, "c2", null, null, SceneLayers.Mid, (bx, by));
+        Vec2 back = ScenePreview.Build(RigFile, scene).TransformPoint("c2/__root", Vec3.Zero).XY;
+        Assert.Equal(before.X, back.X, 1);
+        Assert.Equal(before.Y, back.Y, 1);
+        Assert.Equal(-100f, scene.Find("c2")!.PositionX, 1);
+    }
+
+    [Fact]
+    public void 배역이_있으면_focus_표의_오프셋이_깊이에_들어간다()
+    {
+        string focusPath = FocusTuningFile.TryFindBeside(Fixtures.PathOf("rig-schemas.json")) ?? throw new InvalidOperationException("presets/focus.json이 없다");
+        var focus = FocusTuningFile.Load(focusPath);
+        Assert.Equal(new[] { "bandi" }, focus.CharacterKeys);
+        var depth = DepthTuningFile.Load(DepthTuningFile.TryFindBeside(Fixtures.PathOf("rig-schemas.json"))!);
+
+        var editor = new MotionEditor(new MotionDocument());
+        editor.SetObjectCharacter(null, "c1", "bandi");
+        editor.SetObjectCharacter(null, "c1", " bandi "); // 같은 값(정리됨)은 조작이 아니다
+        SceneAsset scene = editor.Document.ActiveSceneAsset!;
+        Assert.Equal("bandi", scene.Find("c1")!.Character);
+
+        float plain = ScenePreview.Build(RigFile, scene, null, null, depth).GetState("c1/CharSlot_DepthY").AnchoredPosition.Y;
+        float withFocus = ScenePreview.Build(RigFile, scene, null, null, depth, null, focus).GetState("c1/CharSlot_DepthY").AnchoredPosition.Y;
+        Assert.NotEqual(plain, withFocus); // focus 점(bust 820 + 배역 오프셋)이 배율 중심과 떨어져 있으면 보존이 DepthY를 움직인다
+
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Contains("\"character\": \"bandi\"", json, StringComparison.Ordinal);
+        Assert.Equal("bandi", editor.DuplicateSceneObject(null, "c1").Character);
+    }
+
+    [Fact]
+    public void 씬은_여럿일_수_있고_활성_씬이_문서에_남는다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        Assert.Throws<InvalidOperationException>(() => editor.RemoveScene("scene")); // 마지막 씬
+        Assert.Throws<InvalidOperationException>(() => editor.AddScene("Scene B")); // 규칙 밖
+
+        editor.AddScene("scene_b");
+        Assert.Equal("scene_b", editor.Document.ActiveScene);
+        Assert.Equal("c1", Assert.Single(editor.Document.ActiveSceneAsset!.Objects).Id);
+        editor.AddSceneObject(null, "c2", "character", SceneLayers.Front);
+
+        editor.DuplicateScene("scene_b", "scene_c");
+        Assert.Equal("scene_c", editor.Document.ActiveScene);
+        Assert.Equal(2, editor.Document.ActiveSceneAsset!.Objects.Count);
+        Assert.Equal(new[] { "scene", "scene_b", "scene_c" }, editor.Document.Scenes.Select(x => x.Name));
+
+        editor.SetActiveScene("scene");
+        Assert.Single(editor.Document.ActiveSceneAsset!.Objects);
+        editor.RenameScene("scene", "main");
+        Assert.Equal("main", editor.Document.ActiveScene);
+        Assert.Throws<InvalidOperationException>(() => editor.RenameScene("scene_b", "main"));
+
+        editor.RemoveScene("main"); // 활성 씬을 지우면 이웃이 활성
+        Assert.Equal("scene_b", editor.Document.ActiveScene);
+        editor.Undo();
+        Assert.Equal("main", editor.Document.ActiveScene);
+
+        string json = MotionDocumentJson.Write(editor.Document);
+        MotionDocument read = MotionDocumentJson.Read(json);
+        Assert.Equal("main", read.ActiveScene);
+        Assert.Equal(3, read.Scenes.Count);
+    }
 }

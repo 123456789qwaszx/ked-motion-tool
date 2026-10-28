@@ -102,6 +102,12 @@ public partial class MainWindow : Window
     private string? _dragObjectId;
     private Avalonia.Point _dragStart;
     private bool _dragging;
+    private TreeViewItem? _dropItem;
+    private object? _dropHeader;
+    private readonly ComboBox _sceneCombo = new() { FontSize = 11, MinWidth = 110 };
+    private readonly TextBox _sceneName = new() { FontSize = 11, Width = 90 };
+    private readonly ComboBox _objCharacter = new() { FontSize = 11, MinWidth = 90 };
+    private const string NoCharacterToken = "(배역 없음)";
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
     private static readonly IBrush PlacementNodeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
     private static readonly IBrush ForbiddenNodeBrush = new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70));
@@ -947,6 +953,7 @@ public partial class MainWindow : Window
     {
         _viewport.SetRig(_session.Rig);
         _viewport.SetDepth(_session.Depth);
+        _viewport.SetFocus(_session.Focus);
         _viewport.StageSize = _session.StageSize;
         _viewport.ClearPortraits();
         int portraits = 0;
@@ -1017,6 +1024,26 @@ public partial class MainWindow : Window
     private void BuildLeft()
     {
         LeftPanel.Children.Add(Header("씬 — 오브젝트"));
+        _sceneCombo.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _sceneCombo.SelectedItem is string name && _viewport.Scene?.Name != name)
+            {
+                Guard("씬 전환", () =>
+                {
+                    _session.Editor.SetActiveScene(name);
+                    RefreshAssets(); // 새 씬의 초상을 싣는다
+                });
+            }
+        };
+        OnCommit(_sceneName, _ => RenameActiveScene());
+        ToolTip.SetTip(_sceneCombo, "보여 줄 씬 — 문서의 scenes[] 중 하나. 우클릭 메뉴(Scene 항목)로 새 씬·복제·삭제");
+        ToolTip.SetTip(_sceneName, "씬 이름 바꾸기 — [a-z0-9_]+");
+        LeftPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { Small("씬"), _sceneCombo, Small("이름"), _sceneName },
+        });
         _hierarchy.SelectionChanged += (_, _) => OnHierarchySelected();
         _hierarchy.DoubleTapped += (_, _) =>
         {
@@ -1112,7 +1139,7 @@ public partial class MainWindow : Window
 
                 if (parent != o.Parent)
                 {
-                    Guard("부모", () => _session.Editor.SetObjectParent(null, o.Id, parent));
+                    Guard("부모", () => _session.Editor.SetObjectParent(null, o.Id, parent, null, null, _viewport.PlacementKeepingWorld(o.Id, parent, null)));
                 }
             }
         };
@@ -1124,7 +1151,7 @@ public partial class MainWindow : Window
 
                 if (node != o.ParentNode)
                 {
-                    Guard("부모 노드", () => _session.Editor.SetObjectParent(null, o.Id, parent, node));
+                    Guard("부모 노드", () => _session.Editor.SetObjectParent(null, o.Id, parent, node, null, _viewport.PlacementKeepingWorld(o.Id, parent, node)));
                 }
             }
         };
@@ -1140,6 +1167,25 @@ public partial class MainWindow : Window
             Spacing = 4,
             Children = { Small("Scale X"), _objSx, Small("Y"), _objSy, Small("Layer"), _objLayer, _objVisible },
         });
+        RightPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { Small("배역"), _objCharacter },
+        });
+        ToolTip.SetTip(_objCharacter, "배역(characterKey) — presets/focus.json의 entries 키. 깊이 폴드의 focus 오프셋이 배역을 따른다(런타임 cast와 같은 뜻)");
+        _objCharacter.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _viewport.SelectedObject is { } o && _objCharacter.SelectedItem is string chosen)
+            {
+                string? character = chosen == NoCharacterToken ? null : chosen;
+
+                if (character != o.Character)
+                {
+                    Guard("배역", () => _session.Editor.SetObjectCharacter(null, o.Id, character));
+                }
+            }
+        };
 
         foreach (TextBox box in new[] { _objX, _objY, _objRot, _objSx, _objSy })
         {
@@ -1436,7 +1482,23 @@ public partial class MainWindow : Window
             SceneAsset? scene = _viewport.Scene;
             bool has = selected is not null;
 
-            foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objVisible, _objId, _objParent, _objParentNode })
+            List<string> sceneNames = _session.Editor.Document.Scenes.Select(x => x.Name).ToList();
+            _sceneCombo.ItemsSource = sceneNames;
+            _sceneCombo.SelectedIndex = scene is null ? -1 : sceneNames.IndexOf(scene.Name);
+            _sceneName.Text = scene?.Name ?? "";
+
+            var characters = new List<string> { NoCharacterToken };
+            characters.AddRange(_session.Focus?.CharacterKeys ?? Enumerable.Empty<string>());
+
+            if (selected?.Character is { } own && !characters.Contains(own))
+            {
+                characters.Add(own);
+            }
+
+            _objCharacter.ItemsSource = characters;
+            _objCharacter.SelectedIndex = selected?.Character is { } ch ? characters.IndexOf(ch) : 0;
+
+            foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objVisible, _objId, _objParent, _objParentNode, _objCharacter })
             {
                 c.IsEnabled = has;
             }
@@ -1688,8 +1750,14 @@ public partial class MainWindow : Window
 
     private void OnHierarchyPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_dragObjectId is null || _dragging)
+        if (_dragObjectId is null)
         {
+            return;
+        }
+
+        if (_dragging)
+        {
+            ShowDropTarget(DeepestItemAt(e.GetPosition(_hierarchy)));
             return;
         }
 
@@ -1702,10 +1770,38 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>드래그 중 놓을 자리 표시 — 그 항목의 헤더 앞에 ⇥. 자기 자신·camera 줄은 자리가 아니다.</summary>
+    private void ShowDropTarget(TreeViewItem? item)
+    {
+        if (item is not null && (item.Tag is null || item.Tag is HierarchyNode n && n.ObjectId == _dragObjectId))
+        {
+            item = null;
+        }
+
+        if (ReferenceEquals(item, _dropItem))
+        {
+            return;
+        }
+
+        if (_dropItem is not null)
+        {
+            _dropItem.Header = _dropHeader;
+        }
+
+        _dropItem = item;
+        _dropHeader = item?.Header;
+
+        if (item is not null)
+        {
+            item.Header = "⇥ " + item.Header;
+        }
+    }
+
     private void OnHierarchyPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         string? dragged = _dragObjectId;
         bool dragging = _dragging;
+        ShowDropTarget(null);
         _dragObjectId = null;
         _dragging = false;
         _hierarchy.Cursor = Cursor.Default;
@@ -1762,10 +1858,10 @@ public partial class MainWindow : Window
         switch (target)
         {
             case HierarchyNode node when node.ObjectId != objectId:
-                _session.Editor.SetObjectParent(null, objectId, node.ObjectId, node.NodeId);
+                _session.Editor.SetObjectParent(null, objectId, node.ObjectId, node.NodeId, null, _viewport.PlacementKeepingWorld(objectId, node.ObjectId, node.NodeId));
                 break;
             case HierarchyFolder folder:
-                _session.Editor.SetObjectParent(null, objectId, null, null, folder.Layer);
+                _session.Editor.SetObjectParent(null, objectId, null, null, folder.Layer, _viewport.PlacementKeepingWorld(objectId, null, null));
                 break;
         }
     }
@@ -1838,9 +1934,26 @@ public partial class MainWindow : Window
 
             if (o.Parent is not null)
             {
-                Item("부모에서 떼기 (최상위로)", () => _session.Editor.SetObjectParent(null, o.Id, null));
+                Item("부모에서 떼기 (최상위로, 월드 위치 유지)", () => _session.Editor.SetObjectParent(null, o.Id, null, null, null, _viewport.PlacementKeepingWorld(o.Id, null, null)));
             }
 
+            _hierarchyMenu.Items.Add(new Separator());
+        }
+
+        if (target is HierarchyFolder { Stage: null, Layer: null } && _viewport.Scene is { } active)
+        {
+            Item("새 씬", () => AddScene(null));
+            Item("씬 복제", () => Guard("씬 복제", () =>
+            {
+                string name = MotionEditor.NextObjectId(active.Name, _session.Editor.Document.Scenes.Select(x => x.Name).ToList());
+                _session.Editor.DuplicateScene(active.Name, name);
+                RefreshAssets();
+            }));
+            Item("씬 삭제", () => Guard("씬 삭제", () =>
+            {
+                _session.Editor.RemoveScene(active.Name);
+                RefreshAssets();
+            }), enabled: _session.Editor.Document.Scenes.Count > 1);
             _hierarchyMenu.Items.Add(new Separator());
         }
 
@@ -2006,6 +2119,57 @@ public partial class MainWindow : Window
             RefreshAssets();
         }
     }
+
+    /// <summary>새 씬 — 이름이 없으면 지금 씬 이름의 숫자를 올린 것(scene → scene_2). 활성 씬이 된다.</summary>
+    private void AddScene(string? name)
+    {
+        List<string> names = _session.Editor.Document.Scenes.Select(x => x.Name).ToList();
+        name ??= MotionEditor.NextObjectId(_viewport.Scene?.Name ?? SceneAsset.DefaultName, names);
+        _session.Editor.AddScene(name);
+        RefreshAssets();
+    }
+
+    private void RenameActiveScene()
+    {
+        if (_refreshing || _viewport.Scene is not { } scene)
+        {
+            return;
+        }
+
+        string newName = (_sceneName.Text ?? "").Trim();
+
+        if (newName.Length == 0 || newName == scene.Name)
+        {
+            _sceneName.Text = scene.Name;
+            return;
+        }
+
+        Guard("씬 이름 바꾸기", () =>
+        {
+            _session.Editor.RenameScene(scene.Name, newName);
+            RefreshAssets();
+        });
+    }
+
+    /// <summary>테스트 손잡이 — 씬 메뉴·전환·이름.</summary>
+    internal void AddSceneFromMenu(string? name = null) => AddScene(name);
+
+    internal void SwitchSceneFromCombo(string name) => _sceneCombo.SelectedItem = name;
+
+    internal void RenameSceneFromForm(string newName)
+    {
+        _sceneName.Text = newName;
+        RenameActiveScene();
+    }
+
+    internal IReadOnlyList<string> SceneNames => _session.Editor.Document.Scenes.Select(x => x.Name).ToList();
+
+    /// <summary>테스트 손잡이 — 채널 박스의 부모 콤보(월드 위치 유지)와 배역 콤보.</summary>
+    internal void SetParentFromForm(string? parent) => _objParent.SelectedItem = parent ?? NoParentToken;
+
+    internal void SetParentNodeFromForm(string? node) => _objParentNode.SelectedItem = node ?? RootNodeToken;
+
+    internal void SetCharacterFromForm(string? character) => _objCharacter.SelectedItem = character ?? NoCharacterToken;
 
     private void RenameSelectedObject()
     {

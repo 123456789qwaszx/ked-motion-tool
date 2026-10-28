@@ -202,6 +202,7 @@ public sealed class MotionEditor
                 ScaleY = original.ScaleY,
                 Portrait = original.Portrait,
                 Visible = original.Visible,
+                Character = original.Character,
                 Parent = original.Parent is { } p && idMap.TryGetValue(p, out string? mapped) ? mapped : original.Parent,
                 ParentNode = original.ParentNode,
             });
@@ -251,9 +252,10 @@ public sealed class MotionEditor
 
     /// <summary>
     /// 부모 설정(유니티에서 끌어다 놓기). parent가 null이면 최상위로(그때 layer를 주면 그 레이어로).
-    /// 자기 자신·자손 밑에는 못 간다. 배치 값은 그대로다(월드 위치 보존 아님).
+    /// 자기 자신·자손 밑에는 못 간다. position을 주면 배치 위치도 같이 바꾼다(월드 위치 보존 — 값은 <c>ScenePreview.PlacementKeepingWorld</c>가 센다).
+    /// 되돌리기 한 번.
     /// </summary>
-    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null)
+    public void SetObjectParent(string? sceneName, string id, string? parent, string? parentNode = null, string? layer = null, (float X, float Y)? position = null)
     {
         SceneAsset scene = RequireScene(sceneName);
         SceneObject o = RequireObject(scene, id);
@@ -269,7 +271,9 @@ public sealed class MotionEditor
         string newStage = parentObject?.Stage ?? o.Stage;
         RequireLayer(newLayer);
 
-        if (o.Parent == parentObject?.Id && o.ParentNode == node && o.Layer == newLayer && o.Stage == newStage)
+        (float X, float Y) at = position ?? (o.PositionX, o.PositionY);
+
+        if (o.Parent == parentObject?.Id && o.ParentNode == node && o.Layer == newLayer && o.Stage == newStage && o.PositionX == at.X && o.PositionY == at.Y)
         {
             return;
         }
@@ -281,6 +285,8 @@ public sealed class MotionEditor
             o.ParentNode = node;
             o.Layer = newLayer;
             o.Stage = newStage;
+            o.PositionX = at.X;
+            o.PositionY = at.Y;
 
             foreach (SceneObject d in subtree)
             {
@@ -359,6 +365,135 @@ public sealed class MotionEditor
             camera.PanX = panX;
             camera.PanY = panY;
         });
+    }
+
+    /// <summary>배역(characterKey) — focus 오프셋 표의 키. null이면 base 오프셋만.</summary>
+    public void SetObjectCharacter(string? sceneName, string id, string? character)
+    {
+        SceneAsset scene = RequireScene(sceneName);
+        SceneObject o = RequireObject(scene, id);
+        string? value = string.IsNullOrWhiteSpace(character) ? null : character.Trim();
+
+        if (o.Character != value)
+        {
+            Mutate(MotionChangeKind.Scene, () => o.Character = value);
+        }
+    }
+
+    // ── 씬 목록 ───────────────────────────────────────────────────────
+
+    private static void RequireSceneName(string name)
+    {
+        if (!MotionNames.IsValid(name))
+        {
+            throw new InvalidOperationException($"씬 이름은 영문 소문자·숫자·_ 만 쓸 수 있다 ('{name}')");
+        }
+    }
+
+    /// <summary>새 씬 — 캐릭터 하나짜리 기본 씬(<see cref="SceneAsset.Default"/>)으로 시작하고 활성 씬이 된다.</summary>
+    public SceneAsset AddScene(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        Document.EnsureDefaultScene();
+        RequireSceneName(name);
+
+        if (Document.FindScene(name) is not null)
+        {
+            throw new InvalidOperationException($"씬 '{name}'이 이미 있다.");
+        }
+
+        SceneAsset scene = SceneAsset.Default();
+        scene.Name = name;
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            Document.Scenes.Add(scene);
+            Document.ActiveScene = name;
+        });
+        return scene;
+    }
+
+    /// <summary>씬 복제 — 오브젝트·카메라 전부, 새 이름으로. 활성 씬이 된다.</summary>
+    public SceneAsset DuplicateScene(string name, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(newName);
+        SceneAsset source = RequireScene(name);
+        RequireSceneName(newName);
+
+        if (Document.FindScene(newName) is not null)
+        {
+            throw new InvalidOperationException($"씬 '{newName}'이 이미 있다.");
+        }
+
+        SceneAsset copy = MotionDocumentJson.Read(MotionDocumentJson.Write(Document)).FindScene(source.Name)!;
+        copy.Name = newName;
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            Document.Scenes.Insert(Document.Scenes.IndexOf(source) + 1, copy);
+            Document.ActiveScene = newName;
+        });
+        return copy;
+    }
+
+    /// <summary>씬 삭제 — 마지막 씬은 못 지운다. 활성 씬을 지우면 이웃이 활성이 된다.</summary>
+    public void RemoveScene(string name)
+    {
+        SceneAsset scene = RequireScene(name);
+
+        if (Document.Scenes.Count <= 1)
+        {
+            throw new InvalidOperationException("마지막 씬은 지울 수 없다.");
+        }
+
+        int index = Document.Scenes.IndexOf(scene);
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            Document.Scenes.Remove(scene);
+
+            if (Document.ActiveScene == scene.Name)
+            {
+                Document.ActiveScene = Document.Scenes[Math.Min(index, Document.Scenes.Count - 1)].Name;
+            }
+        });
+    }
+
+    public void RenameScene(string name, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(newName);
+        SceneAsset scene = RequireScene(name);
+
+        if (scene.Name == newName)
+        {
+            return;
+        }
+
+        RequireSceneName(newName);
+
+        if (Document.FindScene(newName) is not null)
+        {
+            throw new InvalidOperationException($"씬 '{newName}'이 이미 있다.");
+        }
+
+        bool active = Document.ActiveScene == scene.Name;
+        Mutate(MotionChangeKind.Scene, () =>
+        {
+            scene.Name = newName;
+
+            if (active)
+            {
+                Document.ActiveScene = newName;
+            }
+        });
+    }
+
+    /// <summary>보여 줄 씬 바꾸기 — 문서에 남는다(되돌리기 한 번).</summary>
+    public void SetActiveScene(string name)
+    {
+        SceneAsset scene = RequireScene(name);
+
+        if (Document.ActiveScene != scene.Name)
+        {
+            Mutate(MotionChangeKind.Scene, () => Document.ActiveScene = scene.Name);
+        }
     }
 
     /// <summary>미리보기 초상(문서 기준 상대 경로). null이면 자리표시.</summary>

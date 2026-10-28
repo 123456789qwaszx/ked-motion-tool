@@ -652,4 +652,58 @@ public class MainWindowTests
         window.MouseUp(to, MouseButton.Left);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
+
+    [Fact]
+    public void 씬을_더하고_전환하고_이름을_바꾸며_부모_콤보는_월드_위치를_지킨다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
+                window.CommitObjectPlacementFromForm(200f, -40f, 0f, 1f, 1f); // c1
+                window.AddObjectFromForm("c2", "character", "front");
+                window.CommitObjectPlacementFromForm(-150f, 30f, 0f, 1f, 1f);
+                Vec2 RootOfC2() => window.Viewport.CurrentPose()!.TransformPoint("c2/__root", Vec3.Zero).XY;
+                Vec2 before = RootOfC2();
+
+                // 채널 박스 부모 콤보 → c1의 자식(루트), 월드 위치 그대로.
+                window.SetParentFromForm("c1");
+                Mt.Authoring.Model.SceneObject c2 = window.Viewport.Scene!.Find("c2")!;
+                Assert.Equal("c1", c2.Parent);
+                Assert.Equal(before.X, RootOfC2().X, 1);
+                Assert.Equal(before.Y, RootOfC2().Y, 1);
+
+                // 부모 노드 콤보 → 그 노드 밑으로 옮겨도 월드 위치는 그대로(배치 값은 부모 공간으로 바뀐다).
+                window.SetParentNodeFromForm("CharacterPortrait_Track_Move");
+                c2 = window.Viewport.Scene!.Find("c2")!;
+                Assert.Equal("CharacterPortrait_Track_Move", c2.ParentNode);
+                Assert.NotEqual(-150f, c2.PositionX);
+                Assert.Equal(before.X, RootOfC2().X, 1);
+                Assert.Equal(before.Y, RootOfC2().Y, 1);
+
+                // 새 씬 — 활성이 되고 기본 c1 하나. 전환하면 하이어아키가 그 씬.
+                window.AddSceneFromMenu();
+                Assert.Equal(new[] { "scene", "scene_2" }, window.SceneNames);
+                Assert.Equal("scene_2", window.Viewport.Scene!.Name);
+                Assert.Equal(1, window.HierarchyObjectCount);
+
+                window.SwitchSceneFromCombo("scene");
+                Assert.Equal("scene", window.Viewport.Scene!.Name);
+                Assert.Equal(2, window.HierarchyObjectCount);
+
+                window.RenameSceneFromForm("main");
+                Assert.Equal("main", window.Viewport.Scene!.Name);
+                Assert.Equal(new[] { "main", "scene_2" }, window.SceneNames);
+                Assert.Equal("Scene  main", window.HierarchyPathOf("c1", null)[0]);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

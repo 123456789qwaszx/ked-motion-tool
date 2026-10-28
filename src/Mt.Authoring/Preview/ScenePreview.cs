@@ -19,7 +19,8 @@ public static class ScenePreview
 
     /// <param name="depth">presets/depth.json. 있으면 레이어 라벨을 깊이(DepthY·DepthScale)로 — 런타임 size 폴드와 같은 함수(focus 보존 bust, 캐릭터별 오프셋 없이).</param>
     /// <param name="fallenBack">부모 노드가 그 리그에 없어 부모 루트에 붙인 오브젝트들(알림용).</param>
-    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null, List<SceneObject>? fallenBack = null)
+    /// <param name="focus">presets/focus.json. 있으면 배역(<see cref="SceneObject.Character"/>)별 focus 오프셋이 깊이 폴드에 들어간다.</param>
+    public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null, List<SceneObject>? fallenBack = null, FocusTuningFile? focus = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(scene);
@@ -71,7 +72,7 @@ public static class ScenePreview
             // 깊이는 최상위에만 — 자식은 부모 사슬을 따라 같이 깊어진다.
             if (o.Parent is null)
             {
-                ApplyDepth(state, o, depth);
+                ApplyDepth(state, o, depth, focus);
             }
         }
 
@@ -125,7 +126,7 @@ public static class ScenePreview
     /// 레이어 → 깊이(DepthY 위치·DepthScale 배율). 런타임 size 폴드와 **같은 함수**(<see cref="SetDepthStageReduction"/>, focus 보존 bust)를
     /// 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 커브가 없거나 리그에 깊이 축이 없으면 건너뛴다(false).
     /// </summary>
-    public static bool ApplyDepth(StageState state, SceneObject o, DepthTuningFile? depth)
+    public static bool ApplyDepth(StageState state, SceneObject o, DepthTuningFile? depth, FocusTuningFile? focus = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(o);
@@ -135,7 +136,7 @@ public static class ScenePreview
             return false;
         }
 
-        if (!SetDepthStageReduction.TryReduce(state, o.Id, "", o.Layer, "bust", depth.Level, null, out StageNodeClaim depthY, out StageNodeClaim depthScale, out _))
+        if (!SetDepthStageReduction.TryReduce(state, o.Id, o.Character ?? "", o.Layer, "bust", depth.Level, focus?.Body, out StageNodeClaim depthY, out StageNodeClaim depthScale, out _))
         {
             return false;
         }
@@ -143,6 +144,61 @@ public static class ScenePreview
         state.Apply(depthY);
         state.Apply(depthScale);
         return true;
+    }
+
+    /// <summary>
+    /// 부모를 바꿀 때 월드 위치를 지키는 배치 값(유니티 "Set Parent" 기본). 지금 트리에서 오브젝트 루트의 월드 점을 재고,
+    /// 새 부모 밑에 같은 배치로 세운 트리에서 그 점이 어디로 가는지 본 뒤, 차이를 배치 노드의 부모 공간으로 되돌려 더한다.
+    /// 회전·배율은 지키지 않는다(위치만). 리그가 없어 못 재면 지금 값 그대로.
+    /// </summary>
+    public static (float X, float Y) PlacementKeepingWorld(RigSchemaFile rig, SceneAsset scene, string id, string? newParent, string? newParentNode, DepthTuningFile? depth = null, FocusTuningFile? focus = null)
+    {
+        ArgumentNullException.ThrowIfNull(rig);
+        ArgumentNullException.ThrowIfNull(scene);
+        SceneObject o = scene.Find(id) ?? throw new KeyNotFoundException($"오브젝트 '{id}'가 없다.");
+        (float X, float Y) current = (o.PositionX, o.PositionY);
+        string root = RootKeyOf(o);
+
+        RectNodeTree before = Build(rig, scene, null, null, depth, null, focus);
+
+        if (!before.Contains(root))
+        {
+            return current;
+        }
+
+        Vec3 world = before.TransformPoint(root, Vec3.Zero);
+
+        // 같은 씬을 새 부모로 흉내 낸다 — 문서는 건드리지 않는다.
+        var trial = new SceneAsset { Name = scene.Name, Camera = scene.Camera };
+        SceneObject? parent = newParent is null ? null : scene.Find(newParent);
+
+        foreach (SceneObject original in scene.Objects)
+        {
+            trial.Objects.Add(original.Id == id
+                ? new SceneObject
+                {
+                    Id = original.Id, Rig = original.Rig, Stage = parent?.Stage ?? original.Stage, Layer = parent?.Layer ?? original.Layer,
+                    PositionX = original.PositionX, PositionY = original.PositionY, RotationZ = original.RotationZ, ScaleX = original.ScaleX, ScaleY = original.ScaleY,
+                    Visible = original.Visible, Character = original.Character, Parent = parent?.Id, ParentNode = parent is null ? null : newParentNode,
+                }
+                : original);
+        }
+
+        RectNodeTree after = Build(rig, trial, null, null, depth, null, focus);
+
+        if (!after.Contains(root))
+        {
+            return current;
+        }
+
+        // 배치 값이 사는 공간 = 배치 위치 노드의 부모 로컬. 월드 차이를 그 공간으로 가져온다.
+        string positionKey = after.Contains(o.KeyOf(PlacementNodes.Position)) ? o.KeyOf(PlacementNodes.Position) : root;
+        string? parentKey = after.GetParentKey(positionKey);
+        Vec3 nowWorld = after.TransformPoint(root, Vec3.Zero);
+        Vec2 delta = parentKey is null
+            ? (world - nowWorld).XY
+            : (after.InverseTransformPoint(parentKey, world) - after.InverseTransformPoint(parentKey, nowWorld)).XY;
+        return (current.X + delta.X, current.Y + delta.Y);
     }
 
     /// <summary>모션을 오브젝트 하나에 얹은 시각 t의 포즈. 채널의 노드가 그 리그에 없으면 그 채널은 건너뛴다.</summary>
