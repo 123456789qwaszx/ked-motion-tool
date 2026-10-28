@@ -149,7 +149,7 @@ public class DopeSheetRowsTests
         Assert.Equal(DopeRowLevel.Node, rows[0].Level);
         Assert.Equal("CharacterPortrait_SwayPivot", rows[0].Label);
         Assert.Equal(DopeRowLevel.Channel, rows[1].Level);
-        Assert.Equal("euler · abs", rows[1].Label);
+        Assert.Equal("rotate · abs", rows[1].Label); // 화면 이름은 rotate, 파일 규약은 euler
         Assert.Equal(new[] { "x", "y", "z" }, rows.Skip(2).Select(r => r.Label));
         Assert.All(rows.Skip(2), r => Assert.NotNull(r.Curve));
 

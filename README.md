@@ -23,7 +23,7 @@
 6. 그래프 탭에서 키를 끌어 본다 — 놓는 순간 뷰포트가 따라오고, Ctrl+Z로 돌아온다. 도프 시트 탭에서 블록을 끌면 시간이 옮겨진다.
 7. **다른 이름으로…** → `*.motion-authoring.json`으로 저장(저작 원본). **motions.json 내보내기…** → 런타임이 읽는 산출물. 아래 문제 칸이 비어 있을 때만 나간다.
 
-**처음부터 만들기**: 왼쪽 폼에 이름 `wave`, 리그 `character`, 길이 `0.5`, 끝 `restore` → **모션 추가**. 노드 `CharacterPortrait_Track_Move_X` · `position` → **채널 추가**. 채널 행의 **x** 토글을 켜면 현재 시각에 중립값 키 하나로 성분이 생긴다. 보기의 현재 시각을 `0.25`로 두고 **키 끼우기(I)**, 인스펙터 값에 `30` Enter. 현재 시각 `0.5`에서 다시 **I**, 값 `0`. 전체 선택 후 **flat(2)**. 문제 칸이 비면 내보낸다.
+**처음부터 만들기**: 왼쪽 **모션 추가**(이름 `motion`·선택 오브젝트의 리그·길이 1초·끝 `restore`로 생긴다 — 오른쪽 인스펙터에서 이름 `wave`, 길이 `0.5`로 바꾼다). 노드 `CharacterPortrait_Track_Move_X` · `position` · `relative` → **채널 추가**. 채널 행의 **x** 토글을 켜면 현재 시각에 중립값 키 하나로 성분이 생긴다. 보기의 현재 시각을 `0.25`로 두고 **키 끼우기(I)**, 인스펙터 값에 `30` Enter. 현재 시각 `0.5`에서 다시 **I**, 값 `0`. 전체 선택 후 **flat(2)**. 문제 칸이 비면 내보낸다.
 
 ## 구조
 
@@ -120,6 +120,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 - **월드 축·격자**: 루트 공간(가운데 원점·y 위·px). 빨강 x·초록 y 축, 가는 선 1u(기준 폭/48 = 40px), 굵은 선 5u, 무대 프레임. 항상 보인다.
 - **모션의 주인은 rigKind**다. 고른 오브젝트의 리그가 모션의 리그와 같거나 채널의 노드를 전부 가지면(공통 스키마) 그 오브젝트에 입혀 보인다. 아니면 "이 리그에 안 맞는다"로 표시된다.
 - **깊이**: 덤프 옆 `presets/depth.json`(ExportedTuning)이 있으면 레이어(far·back·mid·front·close)가 깊이(DepthY·DepthScale)가 된다. 런타임 size 폴드와 같은 코어 함수(`SetDepthStageReduction`, focus 보존 bust)를 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 없으면 레이어는 그리는 순서만 정한다.
+- 채널 종류는 화면에서 `position · scale · rotate`로 부른다(파일 규약은 `euler` 그대로). 채널 mode는 `relative`/`absolute`를 고른다(처음엔 모션의 기본 mode).
 - 씬은 하나만 쓴다(저작본 `scenes[]`와 편집기 명령은 여럿을 담을 수 있지만 UI는 활성 씬 하나만 보인다 — 모션 추출용이라 전환 UI는 뺐다).
 - **배역**: 채널 박스의 배역 콤보 — 덤프 옆 `presets/focus.json`(또는 `focus-tuning.json`)의 entries 키. 깊이 폴드의 focus 보존이 그 배역의 오프셋(base + defaultOffset + bust)을 쓴다 — 런타임 cast와 같은 뜻. 표가 없으면 base 오프셋 없이(0).
 - **부모 바꾸기는 월드 자세를 지킨다**(유니티 Set Parent 기본): 드래그·부모 콤보·"부모에서 떼기" 모두 오프셋 X/Y·Rot Z·Scale X/Y를 새 부모 공간으로 환산해 보이는 자리·각·크기가 그대로다(위치는 `CharSlot_Track`, 회전은 `CharSlot_SwayPivot`, 배율은 `CharSlot_Scale`의 부모 공간 기준). 드래그 중 놓을 자리는 헤더 앞 `⇥`로 보인다.

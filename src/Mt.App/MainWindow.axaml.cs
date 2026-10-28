@@ -33,8 +33,7 @@ public partial class MainWindow : Window
 {
     private static readonly string[] EndTokens = { "restore", "commit" };
     private static readonly string[] ModeTokens = { "relative", "absolute" };
-    private static readonly string[] KindTokens = { "position", "scale", "euler" };
-    private static readonly string[] ChannelModeTokens = { "(모션 기본)", "relative", "absolute" };
+    private static readonly string[] KindTokens = ChannelKindLabel.All;
 
     private readonly DocumentSession _session = new();
     private readonly GraphEditorView _graph = new();
@@ -138,10 +137,6 @@ public partial class MainWindow : Window
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
-    private readonly TextBox _newMotionName = new() { PlaceholderText = "이름 (a-z0-9_)", FontSize = 11 };
-    private readonly ComboBox _newMotionRig = new() { FontSize = 11, MinWidth = 100 };
-    private readonly TextBox _newMotionDuration = new() { Text = "1", Width = 56, FontSize = 11 };
-    private readonly ComboBox _newMotionEnd = new() { ItemsSource = EndTokens, SelectedIndex = 0, FontSize = 11 };
     private readonly StackPanel _channelRows = new() { Spacing = 0 };
     private readonly TextBox _outlinerSearch = new() { PlaceholderText = "검색…", FontSize = 11, Margin = new Avalonia.Thickness(2) };
     private static readonly IBrush OutlinerBackground = new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x2B));
@@ -152,7 +147,8 @@ public partial class MainWindow : Window
     private TimeDisplay Display => _settings.TimeDisplay;
     private readonly ComboBox _newChannelNode = new() { FontSize = 11, MinWidth = 180 };
     private readonly ComboBox _newChannelKind = new() { ItemsSource = KindTokens, SelectedIndex = 0, FontSize = 11 };
-    private readonly ComboBox _newChannelMode = new() { ItemsSource = ChannelModeTokens, SelectedIndex = 0, FontSize = 11 };
+    private readonly ComboBox _newChannelMode = new() { ItemsSource = ModeTokens, SelectedIndex = 0, FontSize = 11 };
+    private string? _channelModeInitializedFor;
 
     // 오른쪽 — 모션
     private readonly TextBox _motionName = new() { FontSize = 11 };
@@ -526,18 +522,20 @@ public partial class MainWindow : Window
     /// <summary>헤드리스 테스트가 폼을 채우는 손잡이 — 화면과 같은 명령 경로를 지난다.</summary>
     internal void AddMotionFromForm(string name, string rig, string duration, MotionEnd end)
     {
-        _newMotionName.Text = name;
-        _newMotionRig.SelectedItem = rig;
-        _newMotionDuration.Text = duration;
-        _newMotionEnd.SelectedIndex = (int)end;
-        AddMotion();
+        if (!TryFloat(duration, out float seconds))
+        {
+            throw new InvalidOperationException("길이는 초 단위 숫자다.");
+        }
+
+        AddMotion(name, rig, seconds, end);
     }
 
-    internal void AddChannelFromForm(string node, MotionChannelKind kind)
+    /// <summary>테스트 손잡이 — 채널 추가 폼. mode를 안 주면 모션의 기본 mode.</summary>
+    internal void AddChannelFromForm(string node, MotionChannelKind kind, MotionChannelMode? mode = null)
     {
         _newChannelNode.SelectedItem = node;
         _newChannelKind.SelectedIndex = (int)kind;
-        _newChannelMode.SelectedIndex = 0;
+        _newChannelMode.SelectedIndex = (mode ?? _graph.Motion?.DefaultMode ?? MotionChannelMode.Relative) == MotionChannelMode.Absolute ? 1 : 0;
         AddChannel();
     }
 
@@ -1064,21 +1062,14 @@ public partial class MainWindow : Window
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
         LeftPanel.Children.Add(_motionList);
 
-        var addMotion = new StackPanel { Spacing = 4 };
-        addMotion.Children.Add(_newMotionName);
-        addMotion.Children.Add(new StackPanel
+        var addMotionButton = SmallButton("모션 추가", (_, _) => Guard("모션 추가", () => AddMotion()));
+        ToolTip.SetTip(addMotionButton, "이름(motion, motion_2…)·리그(선택 오브젝트의 rigKind)·길이 1초·끝 restore로 만든다 — 오른쪽 인스펙터에서 바꾼다");
+        LeftPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 4,
-            Children = { _newMotionRig, _newMotionDuration, new TextBlock { Text = "초", FontSize = 11, VerticalAlignment = VerticalAlignment.Center }, _newMotionEnd },
+            Children = { addMotionButton, SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)) },
         });
-        addMotion.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children = { SmallButton("모션 추가", (_, _) => Guard("모션 추가", AddMotion)), SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)) },
-        });
-        LeftPanel.Children.Add(addMotion);
 
         LeftPanel.Children.Add(Header("채널 추가"));
         var addChannel = new StackPanel { Spacing = 4 };
@@ -1089,6 +1080,8 @@ public partial class MainWindow : Window
             Spacing = 4,
             Children = { _newChannelKind, _newChannelMode, SmallButton("채널 추가", (_, _) => Guard("채널 추가", AddChannel)) },
         });
+        ToolTip.SetTip(_newChannelKind, "채널 종류 — position · scale · rotate(파일에는 euler로 적힌다)");
+        ToolTip.SetTip(_newChannelMode, "relative = 중립값에 더함 · absolute = 값 그대로. 처음엔 모션의 기본 mode");
         LeftPanel.Children.Add(addChannel);
     }
 
@@ -2362,7 +2355,7 @@ public partial class MainWindow : Window
             string node = channel.Node;
             MotionChannelKind kind = channel.Kind;
 
-            if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !kind.ToString().Contains(query, StringComparison.OrdinalIgnoreCase))
+            if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !ChannelKindLabel.Of(kind).Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -2403,7 +2396,7 @@ public partial class MainWindow : Window
 
             var title = new TextBlock
             {
-                Text = $"{node} · {kind.ToString().ToLowerInvariant()}",
+                Text = $"{node} · {ChannelKindLabel.Of(kind)}",
                 FontSize = 11,
                 FontWeight = FontWeight.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -2436,7 +2429,7 @@ public partial class MainWindow : Window
                         Children =
                         {
                             new Border { Width = 8, Height = 8, Background = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
-                            new TextBlock { Text = $"{kind.ToString().ToLowerInvariant()} {axis.ToString().ToUpperInvariant()}", FontSize = 11, Foreground = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
+                            new TextBlock { Text = $"{ChannelKindLabel.Of(kind)} {axis.ToString().ToUpperInvariant()}", FontSize = 11, Foreground = new SolidColorBrush(color), VerticalAlignment = VerticalAlignment.Center },
                         },
                     },
                 };
@@ -2618,14 +2611,16 @@ public partial class MainWindow : Window
 
         try
         {
-            string? rigSelected = _newMotionRig.SelectedItem as string ?? _viewport.SelectedObject?.Rig;
-            List<string> rigs = _session.Rig?.RigKinds.ToList() ?? new List<string> { "character" };
-            _newMotionRig.ItemsSource = rigs;
-            _newMotionRig.SelectedIndex = Math.Max(0, rigSelected is null ? 0 : rigs.IndexOf(rigSelected));
-
             string? nodeSelected = _newChannelNode.SelectedItem as string;
             MotionAsset? motion = _graph.Motion;
             List<string> nodes = new();
+
+            // 채널 mode 콤보는 모션을 고를 때 그 모션의 기본 mode로 시작한다. 그 뒤로는 사용자가 고른 값을 지킨다.
+            if (motion?.Name != _channelModeInitializedFor)
+            {
+                _channelModeInitializedFor = motion?.Name;
+                _newChannelMode.SelectedIndex = motion?.DefaultMode == MotionChannelMode.Absolute ? 1 : 0;
+            }
 
             if (motion is not null && _session.Rig is not null && _session.Rig.NodeIds.TryGetValue(motion.Rig, out ICollection<string>? ids))
             {
@@ -2645,9 +2640,13 @@ public partial class MainWindow : Window
 
     // ── 명령 ──────────────────────────────────────────────────────────
 
-    private void AddMotion()
+    /// <summary>
+    /// 모션 추가 — 이름은 motion, motion_2…, 리그는 선택 오브젝트의 rigKind(없으면 character), 길이 1초, 끝 restore.
+    /// 전부 오른쪽 인스펙터에서 바꾼다. 테스트 손잡이는 값을 준다.
+    /// </summary>
+    private void AddMotion(string? name = null, string? rig = null, float duration = 1f, MotionEnd end = MotionEnd.Restore)
     {
-        string name = (_newMotionName.Text ?? "").Trim();
+        name = (name ?? "").Trim();
 
         // 이름을 비우면 motion, motion_2…로 만든다 — 빈 이름의 모션은 목록에서 안 보여 규칙 위반이 "안 없어지는" 것처럼 보인다.
         if (name.Length == 0)
@@ -2655,16 +2654,8 @@ public partial class MainWindow : Window
             name = MotionNames.Unique(_session.Editor.Document, MotionNames.Fallback);
         }
 
-        string rig = _newMotionRig.SelectedItem as string ?? "character";
-
-        if (!TryFloat(_newMotionDuration.Text ?? "", out float duration))
-        {
-            throw new InvalidOperationException("길이는 초 단위 숫자다.");
-        }
-
-        MotionEnd end = (MotionEnd)Math.Max(0, _newMotionEnd.SelectedIndex);
+        rig ??= _viewport.SelectedObject?.Rig ?? SceneObject.DefaultRig;
         _session.Editor.AddMotion(name, rig, duration, end, end == MotionEnd.Restore ? MotionChannelMode.Relative : MotionChannelMode.Absolute);
-        _newMotionName.Text = "";
         _motionList.SelectedItem = name;
     }
 
@@ -2681,7 +2672,7 @@ public partial class MainWindow : Window
         MotionAsset motion = _graph.Motion ?? throw new InvalidOperationException("먼저 모션을 고른다.");
         string node = _newChannelNode.SelectedItem as string ?? throw new InvalidOperationException("노드를 고른다 — 리그 덤프가 필요하다.");
         var kind = (MotionChannelKind)Math.Max(0, _newChannelKind.SelectedIndex);
-        MotionChannelMode? mode = _newChannelMode.SelectedIndex switch { 1 => MotionChannelMode.Relative, 2 => MotionChannelMode.Absolute, _ => null };
+        MotionChannelMode mode = _newChannelMode.SelectedIndex == 1 ? MotionChannelMode.Absolute : MotionChannelMode.Relative;
         _session.Editor.AddChannel(motion.Name, node, kind, mode);
     }
 

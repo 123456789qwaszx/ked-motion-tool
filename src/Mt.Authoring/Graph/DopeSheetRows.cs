@@ -81,7 +81,7 @@ public static class DopeSheetRows
                 string mode = channel.Mode == MotionChannelMode.Relative ? "rel" : "abs";
                 channelRows.Add(new DopeRow(
                     DopeRowLevel.Channel, channel.Node, channel.Kind, null,
-                    $"{channel.Kind.ToString().ToLowerInvariant()} · {mode}", Group(motion, channelKeys), null));
+                    $"{ChannelKindLabel.Of(channel.Kind)} · {mode}", Group(motion, channelKeys), null));
                 channelRows.AddRange(componentRows);
             }
 
