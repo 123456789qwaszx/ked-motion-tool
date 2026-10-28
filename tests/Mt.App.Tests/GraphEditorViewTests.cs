@@ -484,9 +484,10 @@ public class GraphEditorViewTests
 
             // 키를 고른 채 out 탄젠트 핸들 끝 둘레를 박스로 → 핸들이 고른 것이 되고 키 선택은 그대로(마야).
             KeyAsset before = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1];
+            // 박스는 핸들 끝을 품되, 누르는 점은 커브 선에서 떨어진 아래쪽(키 1이 골짜기라 커브는 핸들 위쪽을 지난다).
             Pixel end = HandleMath.HandleEnd(new Pixel(k1.X, k1.Y), before.OutTangent, inward: false, view.Camera);
-            Point ha = InWindow(window, view, new Point(end.X - 6, end.Y - 6));
-            Point hb = InWindow(window, view, new Point(end.X + 6, end.Y + 6));
+            Point ha = InWindow(window, view, new Point(end.X - 8, end.Y + 14));
+            Point hb = InWindow(window, view, new Point(end.X + 8, end.Y - 4));
             window.MouseDown(ha, MouseButton.Left);
             window.MouseMove(hb, RawInputModifiers.LeftMouseButton);
             window.MouseUp(hb, MouseButton.Left);
