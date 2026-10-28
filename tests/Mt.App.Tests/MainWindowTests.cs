@@ -350,7 +350,7 @@ public class MainWindowTests
 
                 // relative로 돌리면 자리·깊이 컨트롤러 경고(막지 않음) → 두 모션으로 나누기: 깊이는 step_place로, 숙임은 남는다.
                 window.Session.Editor.SetPreviewMode("step", MotionChannelMode.Relative);
-                MotionProblem warning = Assert.Single(window.ProblemsShown.Where(p => p.MotionName == "step" && !p.Blocking));
+                MotionProblem warning = Assert.Single(window.ProblemsShown, p => p.MotionName == "step" && !p.Blocking);
                 Assert.False(warning.Blocking);
                 Assert.True(window.ApplyFix("step", Mt.Authoring.Validation.MotionFix.SplitByGroup));
                 MotionAsset place = window.Session.Editor.Document.Find("step_place")!;
