@@ -1714,7 +1714,7 @@ public partial class MainWindow : Window
                 SmallButton("초상 PNG…", OnPickPortraitClick),
             },
         });
-        ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 자리/깊이/연기 › 컨트롤러 › 자식 오브젝트. 클릭 = 선택, 컨트롤러 클릭 = 채널 박스·매니퓰레이터의 손잡이(값을 넣거나 끌면 그 노드에 키가 생긴다). 우클릭 = 만들기/복제/삭제/레이어/부모 메뉴(오브젝트나 컨트롤러 위에서 만들면 그 자식). 끌어서 다른 오브젝트·컨트롤러에 놓으면 자식으로, 레이어에 놓으면 그 레이어로. '리그 노드 보기'(보기 설정)면 덤프 노드 26단. Del · Ctrl+D · Ctrl+Shift+N · F2");
+        ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 자리/깊이/연기 › 컨트롤러 › 자식 오브젝트. 클릭 = 선택, 컨트롤러 클릭 = 채널 박스·매니퓰레이터의 손잡이(값을 넣거나 끌면 그 노드에 키가 생긴다). 우클릭 = 이름/복제/삭제/숨기기/레이어/만들기 메뉴(층 위에서 만들면 그 층에). 오브젝트끼리 부모·자식은 없다. '리그 노드 보기'(보기 설정)면 덤프 노드 26단. Del · Ctrl+D · Ctrl+Shift+N · F2");
 
         LeftPanel.Children.Add(Header("모션"));
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
@@ -2101,7 +2101,7 @@ public partial class MainWindow : Window
         "  클릭·드래그  스크럽      Shift+드래그  프레임 범위 선택      범위 안 MMB  범위의 키 이동      범위 밖 MMB  포즈 들고 스크럽(S로 키)\n" +
         "  우클릭  복사·붙여넣기·삭제·스냅 · 재생 범위 · 재생 모드 메뉴\n\n" +
         "하이어아키\n" +
-        "  클릭  오브젝트·컨트롤러 고르기      우클릭  만들기·복제·삭제·층·부모 메뉴      드래그  붙이기/층 옮기기\n" +
+        "  클릭  오브젝트·컨트롤러 고르기      우클릭  이름·복제·삭제·숨기기·레이어·만들기 메뉴\n" +
         "  F2  이름 바꾸기      Ctrl+D  복제      Del  삭제      Ctrl+Shift+N  캐릭터 리그 만들기";
 
     /// <summary>테스트 손잡이.</summary>

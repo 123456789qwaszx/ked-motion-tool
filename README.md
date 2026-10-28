@@ -2,6 +2,8 @@
 
 캐릭터 모션 전용 저작 도구. 무대 런타임(`ked-stage-runtime`)이 읽는 `motions.json`(`motions/2`)을
 마야급 커브 편집으로 만든다. 계획 전체는 [`docs/PLAN.md`](docs/PLAN.md).
+인수인계는 [`docs/HANDOFF.md`](docs/HANDOFF.md), 사용법은 [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md),
+유지보수는 [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md).
 
 - **v1**: 초상화 한 장을 리그 축(`Track_Move_*`·`SwayPivot`…)으로 움직이는 단순 캐릭터 모션. 그래프
   편집기(키·탄젠트)·뷰포트·도프 시트.
