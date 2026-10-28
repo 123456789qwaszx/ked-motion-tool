@@ -171,7 +171,6 @@ public partial class MainWindow : Window
     private readonly TextBox _motionDuration = new() { FontSize = 11 };
     private readonly ComboBox _motionEnd = new() { ItemsSource = EndTokens, FontSize = 11 };
     private readonly ComboBox _motionDefaultMode = new() { ItemsSource = ModeTokens, FontSize = 11 };
-    private readonly TextBox _motionNotes = new() { FontSize = 11, AcceptsReturn = true, MinHeight = 48, PlaceholderText = "메모" };
 
     // 오른쪽 — 키
     private readonly TextBox _keyTime = new() { FontSize = 11 };
@@ -1879,7 +1878,6 @@ public partial class MainWindow : Window
         ToolTip.SetTip(_motionEnd, "모션이 끝난 뒤 — 복원(restore) = 시작 자세로 돌아간다 · 유지(commit) = 마지막 키 값이 남는다. 산출물(motions/2)의 end");
         panel.Children.Add(Labeled("재생 기준", _motionDefaultMode));
         ToolTip.SetTip(_motionDefaultMode, "키 값을 어떻게 읽나 — 상대값(relative) = 시작값 + 키(배율은 ×) · 절대값(absolute) = 키 그대로. 뷰포트 미리보기와 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때 쓴다. 파일에는 안 나간다: 재생은 대본의 <<motion slot 이름 relative|absolute>>가 정한다(생략 = relative)");
-        panel.Children.Add(_motionNotes);
 
         OnCommit(_motionName, text => WithMotion(m =>
         {
@@ -1904,7 +1902,6 @@ public partial class MainWindow : Window
                 _session.Editor.SetPreviewMode(m.Name, (MotionChannelMode)_motionDefaultMode.SelectedIndex);
             }
         });
-        OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
         return panel;
     }
 
@@ -3394,13 +3391,11 @@ public partial class MainWindow : Window
             _motionDuration.IsEnabled = has;
             _motionEnd.IsEnabled = has;
             _motionDefaultMode.IsEnabled = has;
-            _motionNotes.IsEnabled = has;
 
             _motionName.Text = motion?.Name ?? "";
             _motionDuration.Text = motion is null ? "" : motion.Duration.ToString("0.###", CultureInfo.InvariantCulture);
             _motionEnd.SelectedIndex = motion is null ? -1 : (int)motion.End;
             _motionDefaultMode.SelectedIndex = motion is null ? -1 : (int)motion.PreviewMode;
-            _motionNotes.Text = motion?.Notes ?? "";
         }
         finally
         {

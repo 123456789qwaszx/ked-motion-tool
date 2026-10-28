@@ -541,12 +541,6 @@ public sealed class MotionEditor
         Mutate(MotionChangeKind.Metadata, () => motion.PreviewMode = mode);
     }
 
-    public void SetNotes(string name, string? notes)
-    {
-        MotionAsset motion = Require(name);
-        Mutate(MotionChangeKind.Metadata, () => motion.Notes = string.IsNullOrEmpty(notes) ? null : notes);
-    }
-
     // ── 채널 ──────────────────────────────────────────────────────────
 
     public ChannelAsset AddChannel(string name, string node, MotionChannelKind kind)
@@ -591,7 +585,7 @@ public sealed class MotionEditor
             return null;
         }
 
-        var created = new MotionAsset { Name = newName, Rig = motion.Rig, Duration = motion.Duration, End = motion.End, PreviewMode = newPreviewMode, Notes = motion.Notes };
+        var created = new MotionAsset { Name = newName, Rig = motion.Rig, Duration = motion.Duration, End = motion.End, PreviewMode = newPreviewMode };
 
         Mutate(MotionChangeKind.Structure, () =>
         {

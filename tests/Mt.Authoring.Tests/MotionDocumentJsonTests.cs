@@ -15,7 +15,6 @@ public class MotionDocumentJsonTests
         var editor = new MotionEditor(document);
         editor.SetRigSchemas("../ExportedTuning/rig-schemas.json", "abc123");
         editor.SetPreviewPortrait("assets/harin_a_01.png");
-        editor.SetNotes("nod", "끄덕임 — 한글 메모");
 
         string first = MotionDocumentJson.Write(editor.Document);
         MotionDocument read = MotionDocumentJson.Read(first);
@@ -26,8 +25,7 @@ public class MotionDocumentJsonTests
         Assert.Equal("abc123", read.RigSchemas!.Sha256);
         Assert.Null(read.Preview); // 예전 Preview.Portrait는 기본 씬 c1의 초상이 된다
         Assert.Equal("assets/harin_a_01.png", read.ActiveSceneAsset!.Objects[0].Portrait);
-        Assert.Equal("끄덕임 — 한글 메모", read.Find("nod")!.Notes);
-        Assert.Contains("끄덕임", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"notes\"", first, StringComparison.Ordinal); // 메모는 없다(소유자, 2026-10-28)
     }
 
     [Fact]

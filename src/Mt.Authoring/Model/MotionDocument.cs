@@ -5,7 +5,7 @@ namespace Mt.Authoring.Model;
 /// <summary>
 /// 저작 원본 한 벌 (<c>*.motion-authoring.json</c>, 스키마 <see cref="AuthoringFormat.AuthoringSchema"/>).
 ///
-/// 산출물(<c>motions/2</c>)에 들어가지 않는 제작 정보 — 탄젠트 모드·끊김·재생 기준(relative/absolute)·메모·미리보기 —를
+/// 산출물(<c>motions/2</c>)에 들어가지 않는 제작 정보 — 탄젠트 모드·끊김·재생 기준(relative/absolute)·씬 —을
 /// 함께 든다. 내보내기는 그것을 벗기고 <see cref="MotionAsset"/>을 코어 <see cref="MotionClip"/>으로 바꾼다.
 ///
 /// 전부 가변 클래스다. 편집은 <see cref="Editing.MotionEditor"/>만 하고, 되돌리기는 문서 전체 스냅샷이다
@@ -100,8 +100,6 @@ public sealed class MotionAsset
     public MotionChannelMode? LegacyDefaultMode { get; set; }
 
     public List<ChannelAsset> Channels { get; set; } = new();
-
-    public string? Notes { get; set; }
 
     public ChannelAsset? FindChannel(string node, MotionChannelKind kind)
         => Channels.FirstOrDefault(c => string.Equals(c.Node, node, StringComparison.Ordinal) && c.Kind == kind);
