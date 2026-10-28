@@ -106,7 +106,8 @@ public partial class MainWindow : Window
     private Window? _shortcutsWindow;
     private readonly List<Panel> _settingsRows = new();
     private readonly TextBlock _pendingText = new() { FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap };
-    private readonly Button[] _toolButtons = new Button[4];
+    private Button? _regionButton;
+    private Button? _bufferButton;
     private readonly CheckBox _valueSnap = new() { Content = "값 스냅", FontSize = 11 };
     private static readonly string[] InfinityTokens = { "상수", "사이클", "사이클+오프셋", "왕복", "직선" };
     private readonly ComboBox _preInfinity = new() { ItemsSource = InfinityTokens, SelectedIndex = 0, FontSize = 11 };
@@ -173,7 +174,6 @@ public partial class MainWindow : Window
     private readonly ComboBox _motionDefaultMode = new() { ItemsSource = ModeTokens, FontSize = 11 };
 
     // 오른쪽 — 키
-    private readonly TextBox _keyTime = new() { FontSize = 11 };
     private readonly TextBox _keyValue = new() { FontSize = 11 };
     private readonly TextBox _keyIn = new() { FontSize = 11 };
     private readonly TextBox _keyOut = new() { FontSize = 11 };
@@ -929,25 +929,32 @@ public partial class MainWindow : Window
     /// <summary>마야 그래프 에디터 툴바: 툴 · 맞춤 · 탄젠트 · 버퍼 · 스냅/보기 · Stats.</summary>
     private Control BuildGraphToolbar()
     {
-        string[] toolLabels = { "선택 (Q)", "이동 (W)", "스케일 (R)", "리전" };
-
-        for (int i = 0; i < toolLabels.Length; i++)
+        // 툴 버튼은 리전 하나 — 선택·이동·스케일은 Q/W/R, 끼우기 I, 맞춤 A/F(소유자, 2026-10-28). 리전은 토글: 다시 누르면 선택 툴로.
+        _regionButton = SmallButton("리전", (_, _) =>
         {
-            var tool = (GraphTool)i;
-            Button button = SmallButton(toolLabels[i], (_, _) =>
+            _graph.Tool = _graph.Tool == GraphTool.Region ? GraphTool.Select : GraphTool.Region;
+            RefreshToolButtons();
+        });
+        _bufferButton = SmallButton("버퍼 찍기", (_, _) =>
+        {
+            if (_graph.HasBuffer)
             {
-                _graph.Tool = tool;
-                RefreshToolButtons();
-            });
-            _toolButtons[i] = button;
-        }
+                _graph.SwapBuffer();
+            }
+            else
+            {
+                _graph.SnapshotBuffer();
+            }
+
+            RefreshToolButtons();
+        });
+        ToolTip.SetTip(_bufferButton, "버퍼 커브 — 없으면 보이는 커브를 흐린 점선으로 찍어 두고(Ctrl+B), 있으면 찍어 둔 것과 지금을 바꾼다(Ctrl+Shift+B). 새로 찍으려면 먼저 지운다");
 
         _keyIn.Width = 56;
         _keyOut.Width = 56;
         ToolTip.SetTip(_keyIn, "선택 키 하나의 in 기울기(초당 값). 끊기지 않은 키는 out도 같이 바뀐다");
         ToolTip.SetTip(_keyOut, "선택 키 하나의 out 기울기(초당 값)");
-        OnCommit(_keyTime, text => ApplyToSelectedKeys(text, time: true));
-        OnCommit(_keyValue, text => ApplyToSelectedKeys(text, time: false));
+        OnCommit(_keyValue, text => ApplyValueToSelectedKeys(text));
         OnCommit(_keyIn, text => WithSingleKey((key, k) =>
         {
             if (TryFloat(text, out float v) && v != k.InTangent)
@@ -986,10 +993,8 @@ public partial class MainWindow : Window
         ToolTip.SetTip(_preInfinity, "Pre Infinity — 첫 키 앞을 어떻게 이어 보이나(보기만, 산출물의 끝은 restore/commit)");
         ToolTip.SetTip(_postInfinity, "Post Infinity — 마지막 키 뒤를 어떻게 이어 보이나(보기만)");
         ToolTip.SetTip(_valueSnap, "끌 때 키 값을 정수로(마야 Snap Values)");
-        ToolTip.SetTip(_toolButtons[3], "리전 툴 — 상자로 고르고, 안을 끌면 이동, 모서리를 끌면 그 축만 반대쪽 기준 스케일");
-        _keyTime.Width = 64;
+        ToolTip.SetTip(_regionButton, "리전 툴(토글) — 상자로 고르고, 안을 끌면 이동, 모서리를 끌면 그 축만 반대쪽 기준 스케일. 다시 누르면 선택 툴(Q)로");
         _keyValue.Width = 64;
-        ToolTip.SetTip(_keyTime, "선택 키의 시각(표시 단위). 여러 키면 +=3 · -=1 식 상대 입력");
         ToolTip.SetTip(_keyValue, "선택 키의 값. 여러 키면 +=3 · *=2 식 상대 입력");
 
         var bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Avalonia.Thickness(2, 2, 2, 4) };
@@ -1004,32 +1009,26 @@ public partial class MainWindow : Window
             }
         }
 
-        Add(_toolButtons[0], _toolButtons[1], _toolButtons[2]);
-        Add(SmallButton("끼우기 (I)", (_, _) => _graph.InsertKeyAtCurrentTime()),
-            SmallButton("전체 (A)", (_, _) => _graph.FitAll()),
-            SmallButton("선택 (F)", (_, _) => _graph.FitSelection()),
-            SmallButton("재생 범위", (_, _) => _graph.FitRange()),
-            SmallButton("현재 시각 가운데", (_, _) => _graph.CenterCurrentTime()),
-            Separator());
+        Add(SmallButton("재생 범위", (_, _) => _graph.FitRange()), Separator());
         Add(SmallButton("auto", (_, _) => _graph.SetTangentMode(TangentMode.Auto)),
             SmallButton("spline", (_, _) => _graph.SetTangentMode(TangentMode.Spline)),
             SmallButton("linear", (_, _) => _graph.SetTangentMode(TangentMode.Linear)),
             SmallButton("flat", (_, _) => _graph.SetTangentMode(TangentMode.Flat)),
             SmallButton("plateau", (_, _) => _graph.SetTangentMode(TangentMode.Plateau)),
-            SmallButton("free", (_, _) => _graph.SetTangentMode(TangentMode.Free)),
             SmallButton("끊기", (_, _) => _graph.SetBroken(true)),
             SmallButton("붙이기", (_, _) => _graph.SetBroken(false)),
             Separator());
-        Add(SmallButton("버퍼 찍기", (_, _) => _graph.SnapshotBuffer()),
-            SmallButton("버퍼 바꾸기", (_, _) => _graph.SwapBuffer()),
-            SmallButton("버퍼 지우기", (_, _) => _graph.ClearBuffer()),
-            Separator());
-        Add(_toolButtons[3], Separator());
+        Add(_bufferButton, SmallButton("버퍼 지우기", (_, _) =>
+        {
+            _graph.ClearBuffer();
+            RefreshToolButtons();
+        }), Separator());
+        Add(_regionButton, Separator());
         Add(_snap, _valueSnap, _viewMode, Separator());
         Add(new TextBlock { Text = "무한", FontSize = 10, Opacity = 0.7 }, _preInfinity, _postInfinity, Separator());
-        Add(new TextBlock { Text = "Stats", FontSize = 10, Opacity = 0.7 }, _keyTime, _keyValue);
+        Add(new TextBlock { Text = "값", FontSize = 10, Opacity = 0.7 }, _keyValue);
         Add(new TextBlock { Text = "기울기 in/out", FontSize = 10, Opacity = 0.7 }, _keyIn, _keyOut);
-        ToolTip.SetTip(bar, "탄젠트 Ctrl+1 auto · 2 flat · 3 linear · 4 free · 5 spline · 6 plateau · 버퍼 Ctrl+B / Ctrl+Shift+B");
+        ToolTip.SetTip(bar, "툴 Q 선택 · W 이동 · R 스케일 · I 현재 시각에 키 끼우기 · A 전체 맞춤 · F 선택 맞춤 · 탄젠트 Ctrl+1 auto · 2 flat · 3 linear · 4 free · 5 spline · 6 plateau · 버퍼 Ctrl+B 찍기 / Ctrl+Shift+B 바꾸기");
         RefreshToolButtons();
         return bar;
     }
@@ -1041,13 +1040,19 @@ public partial class MainWindow : Window
         RefreshKeyInspector();
     }
 
+    /// <summary>리전 버튼의 켜짐 표시와 버퍼 버튼의 라벨(찍기/바꾸기) — 툴·버퍼가 단축키로 바뀌어도 따라가도록 키 인스펙터 갱신 때마다 부른다.</summary>
     private void RefreshToolButtons()
     {
-        for (int i = 0; i < _toolButtons.Length; i++)
+        if (_regionButton is not null)
         {
-            bool active = (int)_graph.Tool == i;
-            _toolButtons[i].Opacity = active ? 1 : 0.55;
-            _toolButtons[i].FontWeight = active ? FontWeight.Bold : FontWeight.Normal;
+            bool active = _graph.Tool == GraphTool.Region;
+            _regionButton.Opacity = active ? 1 : 0.55;
+            _regionButton.FontWeight = active ? FontWeight.Bold : FontWeight.Normal;
+        }
+
+        if (_bufferButton is not null)
+        {
+            _bufferButton.Content = _graph.HasBuffer ? "버퍼 바꾸기" : "버퍼 찍기";
         }
     }
 
@@ -3415,15 +3420,14 @@ public partial class MainWindow : Window
             KeyAsset? single = count == 1 && motion is not null ? _graph.Selection.First().Resolve(motion) : null;
             bool editable = single is not null;
 
-            _keyTime.IsEnabled = count > 0;
             _keyValue.IsEnabled = count > 0;
             _keyIn.IsEnabled = editable;
             _keyOut.IsEnabled = editable;
 
-            _keyTime.Text = single is null ? (count > 0 ? "+=0" : "") : TimeText.Format(single.T, Display);
             _keyValue.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.V);
             _keyIn.Text = single is null ? "" : F(single.InTangent);
             _keyOut.Text = single is null ? "" : F(single.OutTangent);
+            RefreshToolButtons();
         }
         finally
         {
@@ -3521,7 +3525,8 @@ public partial class MainWindow : Window
     /// 시각·값 칸: 숫자는 절대값, <c>+=</c>·<c>-=</c>·<c>*=</c>·<c>/=</c>는 상대. 선택 키 전부에 적용한다.
     /// 시각의 절대값은 키 하나일 때만(여러 키를 한 시각에 겹칠 수 없다).
     /// </summary>
-    private void ApplyToSelectedKeys(string text, bool time)
+    /// <summary>값 칸 — 선택 키 전부에 적용(숫자는 절대값, +=·-=·*=·/=는 상대). 시각 칸은 없다(소유자, 2026-10-28): 시각은 끌거나 도프 시트로.</summary>
+    private void ApplyValueToSelectedKeys(string text)
     {
         if (_refreshing || _graph.Motion is not { } motion || _graph.Selection.Count == 0 || !RelativeInput.TryParse(text, out Func<float, float> apply))
         {
@@ -3529,37 +3534,7 @@ public partial class MainWindow : Window
         }
 
         List<KeyRef> keys = _graph.Selection.ToList();
-
-        Guard(time ? "키 시각" : "키 값", () =>
-        {
-            if (!time)
-            {
-                _session.Editor.SetKeyValues(motion.Name, keys, k => apply(k.V));
-                return;
-            }
-
-            bool relative = text.TrimStart().Length >= 2 && text.TrimStart()[1] == '=';
-
-            if (relative)
-            {
-                float probe = 1f;
-                float delta = (float)TimeText.ToSeconds(apply(probe) - probe, Display); // +=·-=는 표시 단위의 상수 변위; *=·/=는 시각에 쓰지 않는다
-                _graph.Select(_session.Editor.MoveKeys(motion.Name, keys, delta, _graph.SnapEnabled ? t => (float)TimeSnap.Snap(t, _graph.SnapStep) : null)
-                    .Select(m => new KeyRef(m.Curve, m.Curve.Resolve(_session.Editor.Document.Find(motion.Name)!)!.Keys.FindIndex(k => Math.Abs(k.T - m.T) <= MotionRules.Tolerance)))
-                    .Where(k => k.Index >= 0), additive: false);
-                return;
-            }
-
-            if (keys.Count == 1 && keys[0].Resolve(motion) is { } single)
-            {
-                float t = (float)TimeText.ToSeconds(apply((float)TimeText.FromSeconds(single.T, Display)), Display);
-
-                if (Math.Abs(t - single.T) > 1e-7f)
-                {
-                    UpdateKey(keys[0], single, t: t);
-                }
-            }
-        });
+        Guard("키 값", () => _session.Editor.SetKeyValues(motion.Name, keys, k => apply(k.V)));
     }
 
     private void UpdateKey(KeyRef key, KeyAsset current, float? t = null, float? value = null)
