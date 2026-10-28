@@ -627,7 +627,7 @@ public class MainWindowTests
                 // s2를 mid 레이어 폴더에 놓는다 → 그 레이어의 최상위.
                 Point to = window.HierarchyItemCenter(null, null, "stage00", "mid") ?? throw new InvalidOperationException("층 항목이 없다");
                 Drag(window, from, to);
-                Assert.Equal("mid", window.Viewport.Scene!.Find("s2")!.Layer);
+                Assert.True(window.Viewport.Scene!.Find("s2")!.Layer == "mid", $"층이 안 바뀜 — from {from} to {to} · 상태: {window.Session.Status}");
                 Assert.Null(window.Viewport.Scene!.Find("s2")!.Parent);
 
                 // s3를 s1 오브젝트 항목에 놓는다 → 루트 자식(노드 위에 놓으면 그 노드 — 같은 길, 메뉴 테스트가 덮는다).

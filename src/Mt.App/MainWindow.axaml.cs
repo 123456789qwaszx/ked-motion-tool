@@ -2254,8 +2254,11 @@ public partial class MainWindow : Window
         }
 
         _hierarchy.UpdateLayout();
-        // 항목의 첫 줄(헤더) 안 — 자식 영역은 그 아래다.
-        return item.TranslatePoint(new Avalonia.Point(Math.Min(60, item.Bounds.Width / 2), 10), this);
+        // 헤더(글자) 가운데 — 자식 영역·들여쓰기와 무관하게 그 항목의 줄이다. 헤더 프레젠터가 아직 없으면 항목의 첫 줄.
+        Control header = item.HeaderPresenter ?? (Control)item;
+        return header == item
+            ? item.TranslatePoint(new Avalonia.Point(Math.Min(60, item.Bounds.Width / 2), 10), this)
+            : header.TranslatePoint(new Avalonia.Point(header.Bounds.Width / 2, header.Bounds.Height / 2), this);
     }
 
     internal void CommitObjectPlacementFromForm(float x, float y, float rotationZ, float scaleX, float scaleY)
