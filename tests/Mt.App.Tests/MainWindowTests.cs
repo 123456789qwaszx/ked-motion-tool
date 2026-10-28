@@ -683,9 +683,9 @@ public class MainWindowTests
 
                 // 오브젝트 › 묶음(라벨 · mode) › 컨트롤러(라벨 · 종류 성분). 노드 항목은 없다.
                 IReadOnlyList<string> body = window.HierarchyPathOfController("s1", "body");
-                Assert.Equal(new[] { "s1  ·  character", "연기  ·  relative", "몸  ·  position XY" }, body.TakeLast(3));
-                Assert.Equal("자리  ·  absolute", window.HierarchyPathOfController("s1", "place")[^2]);
-                Assert.Equal("깊이  ·  absolute", window.HierarchyPathOfController("s1", "depth")[^2]);
+                Assert.Equal(new[] { "s1  ·  character", "연기  ·  상대값", "몸  ·  position XY" }, body.TakeLast(3));
+                Assert.Equal("자리  ·  절대값", window.HierarchyPathOfController("s1", "place")[^2]);
+                Assert.Equal("깊이  ·  절대값", window.HierarchyPathOfController("s1", "depth")[^2]);
                 Assert.Equal("숙임  ·  rotate Z", window.HierarchyPathOfController("s1", "bow")[^1]);
                 Assert.Empty(window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move"));
 

@@ -1200,7 +1200,7 @@ public partial class MainWindow : Window
             string groupId = group.Id;
             var header = new TextBlock
             {
-                Text = $"{(collapsed ? "▸" : "▾")} {group.Label}   ·   {MotionModeToken.Of(group.Mode)}",
+                Text = $"{(collapsed ? "▸" : "▾")} {group.Label}   ·   {MotionModeLabel.Of(group.Mode)}",
                 FontSize = 11,
                 FontWeight = FontWeight.SemiBold,
                 Margin = new Avalonia.Thickness(0, 6, 0, 1),
@@ -2341,7 +2341,7 @@ public partial class MainWindow : Window
 
             foreach (ControllerGroup group in table.Groups)
             {
-                TreeViewItem groupItem = Folder($"{group.Label}  ·  {MotionModeToken.Of(group.Mode)}", $"group:{o.Id}/{group.Id}");
+                TreeViewItem groupItem = Folder($"{group.Label}  ·  {MotionModeLabel.Of(group.Mode)}", $"group:{o.Id}/{group.Id}");
                 groupItem.Tag = new HierarchyControllerGroup(o.Id, group.Id);
                 groupItem.FontWeight = FontWeight.Normal;
                 groupItem.Opacity = 0.8;

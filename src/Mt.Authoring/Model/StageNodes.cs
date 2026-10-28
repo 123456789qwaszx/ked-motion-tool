@@ -17,9 +17,12 @@ public static class StageNodes
     public const string PanRoot = "StagePan_Root";
     public const string ZoomRoot = "StageZoom_Root";
 
-    public static readonly IReadOnlyList<string> Stages = new[] { "stage00", "stage01", "stage02" };
+    public static readonly string[] Stages = { "stage00", "stage01", "stage02" };
 
     public static bool IsKnownStage(string? stage) => stage is not null && Stages.Contains(stage);
+
+    /// <summary>무대의 차례(0·1·2) — 그리는 순서. 모르는 무대는 −1(맨 뒤에 그린다).</summary>
+    public static int IndexOf(string? stage) => stage is null ? -1 : Array.IndexOf(Stages, stage);
 
     /// <summary>"stage00" → "Stage00". 모르는 꼴은 그대로 머리글자만 올린다.</summary>
     public static string StageName(string stage)

@@ -19,9 +19,12 @@ public sealed class SceneAsset
     public SceneObject? Find(string id)
         => Objects.FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.Ordinal));
 
-    /// <summary>그리는 순서 — 먼 레이어부터(far → close), 같은 레이어는 목록 순. 클릭 선택은 그 역순.</summary>
+    /// <summary>
+    /// 그리는 순서 — 유니티 PresentataionUIRoot 그대로: 무대 stage00 → stage01 → stage02(뒤 무대가 앞에 그려진다),
+    /// 무대 안에서는 먼 레이어부터(far → close), 같은 층은 목록 순. 클릭 선택은 그 역순.
+    /// </summary>
     public IEnumerable<SceneObject> DrawOrder()
-        => Objects.OrderBy(o => SceneLayers.IndexOf(o.Layer)).ThenBy(o => Objects.IndexOf(o));
+        => Objects.OrderBy(o => StageNodes.IndexOf(o.Stage)).ThenBy(o => SceneLayers.IndexOf(o.Layer)).ThenBy(o => Objects.IndexOf(o));
 
     /// <summary>캐릭터 리그 하나(s1, stage00/mid)를 세운 기본 씬 — 씬이 없던 문서(예전 판)와 새 문서가 이것으로 시작한다.</summary>
     public static SceneAsset Default(string? portrait = null) => new()
@@ -63,7 +66,7 @@ public sealed class SceneObject
     /// <summary>무대(stage00·stage01·stage02) — 런타임 slot 커맨드의 어휘. 뼈대의 <c>Stage{NN}_Root</c>.</summary>
     public string Stage { get; set; } = DefaultStage;
 
-    /// <summary>깊이 레이어(far · back · mid · front · close). 그리는 순서를 정한다.</summary>
+    /// <summary>깊이 레이어(far · back · mid · front · close). 무대 안의 그리는 순서를 정한다.</summary>
     public string Layer { get; set; } = SceneLayers.Mid;
 
     /// <summary>

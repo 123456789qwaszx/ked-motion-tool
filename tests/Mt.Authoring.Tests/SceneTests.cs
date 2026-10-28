@@ -296,6 +296,13 @@ public class SceneTests
         Assert.Equal("stage/Stage01Depth_Far_Content", staged.GetParentKey("s2/__root"));
         Assert.Null(plain.GetParentKey("s1/__root"));
 
+        // 그리는 순서는 무대 먼저(stage00 → stage01 → stage02), 무대 안에서 far → close — 유니티 PresentataionUIRoot 그대로.
+        editor.AddSceneObject(null, "s3", "character", SceneLayers.Close, stage: "stage00");
+        editor.AddSceneObject(null, "s4", "character", SceneLayers.Far, stage: "stage02");
+        Assert.Equal(new[] { "s1", "s3", "s2", "s4" }, scene.DrawOrder().Select(o => o.Id)); // stage00 mid·close → stage01 far → stage02 far
+        editor.RemoveSceneObject(null, "s3");
+        editor.RemoveSceneObject(null, "s4");
+
         foreach (string key in new[] { "s1/CharacterPortraitSprite_Image", "s2/CharacterPortraitSprite_Image", "s1/CharSlot_Track" })
         {
             Vec2 a = plain.TransformPoint(key, Vec3.Zero).XY;
