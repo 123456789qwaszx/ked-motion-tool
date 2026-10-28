@@ -522,6 +522,17 @@ public class GraphEditorViewTests
             window.MouseMove(new Point(far.X - 40, far.Y), RawInputModifiers.RightMouseButton);
             window.MouseUp(new Point(far.X - 40, far.Y), MouseButton.Right);
             Assert.True(view.Camera.TimeOrigin > panned.TimeOrigin);
+
+            // 선택 둘레 밖의 MMB 드래그도 팬이고 키는 그대로다(뷰포트와 같이 MMB·RMB 둘 다 — 소유자).
+            float keyBefore = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V;
+            long revisionBefore = editor.Revision;
+            GraphCamera beforeMiddle = view.Camera;
+            window.MouseDown(far, MouseButton.Middle);
+            window.MouseMove(new Point(far.X + 30, far.Y), RawInputModifiers.MiddleMouseButton);
+            window.MouseUp(new Point(far.X + 30, far.Y), MouseButton.Middle);
+            Assert.True(view.Camera.TimeOrigin < beforeMiddle.TimeOrigin);
+            Assert.Equal(revisionBefore, editor.Revision);
+            Assert.Equal(keyBefore, Y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V);
         }
         finally
         {

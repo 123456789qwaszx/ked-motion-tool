@@ -54,6 +54,14 @@ public class ViewportViewTests
             Assert.Equal(30, view.ViewPan.X - panBefore.X, 3);
             Assert.Equal(-10, view.ViewPan.Y - panBefore.Y, 3);
 
+            // RMB 드래그도 보기 이동(그래프와 같다).
+            panBefore = view.ViewPan;
+            window.MouseDown(inWindow, MouseButton.Right);
+            window.MouseMove(new Point(inWindow.X - 12, inWindow.Y + 8), RawInputModifiers.RightMouseButton);
+            window.MouseUp(new Point(inWindow.X - 12, inWindow.Y + 8), MouseButton.Right);
+            Assert.Equal(-12, view.ViewPan.X - panBefore.X, 3);
+            Assert.Equal(8, view.ViewPan.Y - panBefore.Y, 3);
+
             // F = 맞춤(배율 1 · 이동 0) — 무대가 처음 자리로.
             view.Focus();
             window.KeyPressQwerty(PhysicalKey.F, RawInputModifiers.None);

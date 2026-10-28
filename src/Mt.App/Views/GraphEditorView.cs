@@ -1302,21 +1302,23 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        // MMB 드래그 = 선택 키 이동(마야). 툴과 무관하다. MMB 클릭(안 움직임) = 선택한 커브에 키 끼우기.
+        // MMB: 고른 핸들이 있으면 돌리기, 선택 키 둘레(12px 안)에서 누르면 선택 키 이동(마야), 그 밖은 화면 이동(팬 — RMB와 같다, 소유자).
+        // MMB 클릭(안 움직임) = 선택한 커브에 키 끼우기.
         if (point.Properties.IsMiddleButtonPressed)
         {
             if (pressedMotion is not null && _selectedHandles.Count > 0 && BeginHandleDrag(pressedMotion))
             {
                 StartDrag(Drag.Handles, position, e);
             }
-            else if (pressedMotion is not null && _selection.Count > 0)
+            else if (pressedMotion is not null && _selection.Count > 0 && SelectionScreenBounds(pressedMotion) is { } keyBounds && keyBounds.Inflate(12).Contains(position))
             {
                 BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
                 StartDrag(Drag.Keys, position, e);
             }
-            else if (pressedMotion is not null && _selectedCurves.Count > 0)
+            else
             {
                 StartDrag(Drag.CurveInsert, position, e);
+                _panStart = _camera;
             }
 
             return;
@@ -1721,6 +1723,7 @@ public sealed class GraphEditorView : Control
                 break;
 
             case Drag.CurveInsert:
+                _camera = _panStart.Pan(dx, dy); // 움직이면 팬, 안 움직이고 놓으면 키 끼우기
                 break;
 
             case Drag.InHandle:
@@ -1934,7 +1937,7 @@ public sealed class GraphEditorView : Control
             switch (drag)
             {
                 case Drag.CurveInsert:
-                    if (Math.Abs(_dragNow.X - _dragStart.X) < DragThreshold && Math.Abs(_dragNow.Y - _dragStart.Y) < DragThreshold)
+                    if (_selectedCurves.Count > 0 && Math.Abs(_dragNow.X - _dragStart.X) < DragThreshold && Math.Abs(_dragNow.Y - _dragStart.Y) < DragThreshold)
                     {
                         InsertKeysOnSelectedCurves(ToGraph(_dragStart).T);
                     }

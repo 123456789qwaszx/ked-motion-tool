@@ -1168,8 +1168,10 @@ public sealed class ViewportView : Control
         Focus();
         Point position = e.GetPosition(this);
 
-        // MMB 드래그 = 보기 이동(팬). 씬·키는 안 건드린다.
-        if (e.GetCurrentPoint(this).Properties.IsMiddleButtonPressed)
+        // MMB·RMB 드래그 = 보기 이동(팬). 씬·키는 안 건드린다. (소유자: 그래프와 같이 둘 다)
+        PointerPointProperties pressed = e.GetCurrentPoint(this).Properties;
+
+        if (pressed.IsMiddleButtonPressed || pressed.IsRightButtonPressed)
         {
             _panning = true;
             _panPointerStart = position;
@@ -1179,7 +1181,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (!pressed.IsLeftButtonPressed)
         {
             return;
         }
