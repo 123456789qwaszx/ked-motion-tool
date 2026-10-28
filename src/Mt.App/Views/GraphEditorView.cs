@@ -90,7 +90,7 @@ public sealed class GraphEditorView : Control
     private bool _cameraFitted;
     private double _currentTime;
 
-    private enum Drag { None, Keys, KeysAxis, CurveInsert, InHandle, OutHandle, Box, Pan, Scrub, Zoom, Scale, Lasso, RegionLeft, RegionRight, RegionTop, RegionBottom }
+    private enum Drag { None, Keys, KeysAxis, CurveInsert, InHandle, OutHandle, Handles, Box, Pan, Scrub, Zoom, Scale, Lasso, RegionLeft, RegionRight, RegionTop, RegionBottom }
 
     /// <summary>선택한 커브(마야: 커브 선을 클릭). MMB 클릭이 여기에 키를 끼운다.</summary>
     private readonly HashSet<CurveRef> _selectedCurves = new();
@@ -127,6 +127,9 @@ public sealed class GraphEditorView : Control
 
     /// <summary>선택한 커브들.</summary>
     public IReadOnlyCollection<CurveRef> SelectedCurves => _selectedCurves;
+
+    /// <summary>고른 탄젠트 핸들(마야: 키를 고른 채 핸들 끝을 박스로 고른다) — MMB 드래그가 이 핸들들을 돌린다. 키 선택이 바뀌면 비운다.</summary>
+    public IReadOnlyCollection<(KeyRef Key, bool Inward)> SelectedHandles => _selectedHandles;
 
     /// <summary>커브 선을 고른다(마야). additive가 아니면 다른 커브 선택은 풀린다.</summary>
     public void SelectCurve(CurveRef curve, bool additive)
@@ -388,6 +391,9 @@ public sealed class GraphEditorView : Control
     private Point _dragNow;
     private bool _dragMoved;
     private KeyRef _handleKey;
+    private bool _boxShift;
+    private readonly HashSet<(KeyRef Key, bool Inward)> _selectedHandles = new();
+    private readonly List<((KeyRef Key, bool Inward) Handle, Pixel End)> _handleDrag = new();
     private GraphCamera _panStart;
     private readonly Dictionary<CurveRef, List<KeyAsset>> _preview = new();
     private readonly Dictionary<KeyRef, KeyAsset> _previewKeys = new();
@@ -405,6 +411,7 @@ public sealed class GraphEditorView : Control
 
     private void OnSelectionChanged(object? sender, EventArgs e)
     {
+        _selectedHandles.Clear();
         UpdateRegion();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
@@ -1083,7 +1090,7 @@ public sealed class GraphEditorView : Control
 
                     if (selected)
                     {
-                        DrawHandles(context, keys, i, center, valueScale);
+                        DrawHandles(context, keys, i, center, valueScale, keyRef);
                         DrawLabel(context, $"{TimeText.Format(keys[i].T, TimeDisplay)}  {keys[i].V:0.###}", new Point(center.X + 7, center.Y - 16), ValueLabelBrush, 10);
                     }
 
@@ -1133,7 +1140,7 @@ public sealed class GraphEditorView : Control
         return curveRef.Resolve(motion)?.Keys ?? new List<KeyAsset>();
     }
 
-    private void DrawHandles(DrawingContext context, List<KeyAsset> keys, int index, Point center, double valueScale)
+    private void DrawHandles(DrawingContext context, List<KeyAsset> keys, int index, Point center, double valueScale, KeyRef keyRef)
     {
         KeyAsset key = keys[index];
         Pixel origin = ToPixel(center);
@@ -1142,16 +1149,20 @@ public sealed class GraphEditorView : Control
         {
             Point inEnd = ToPoint(HandleMath.HandleEnd(origin, key.InTangent * valueScale, inward: true, _camera));
             context.DrawLine(HandlePen, center, inEnd);
-            context.FillRectangle(HandleBrush, new Rect(inEnd.X - 2.5, inEnd.Y - 2.5, 5, 5));
+            DrawHandleEnd(context, inEnd, _selectedHandles.Contains((keyRef, true)));
         }
 
         if (index < keys.Count - 1)
         {
             Point outEnd = ToPoint(HandleMath.HandleEnd(origin, key.OutTangent * valueScale, inward: false, _camera));
             context.DrawLine(HandlePen, center, outEnd);
-            context.FillRectangle(HandleBrush, new Rect(outEnd.X - 2.5, outEnd.Y - 2.5, 5, 5));
+            DrawHandleEnd(context, outEnd, _selectedHandles.Contains((keyRef, false)));
         }
     }
+
+    /// <summary>핸들 끝 네모 — 고른 핸들은 선택 키 색으로 조금 크게.</summary>
+    private static void DrawHandleEnd(DrawingContext context, Point end, bool selected)
+        => context.FillRectangle(selected ? SelectedKeyBrush : HandleBrush, selected ? new Rect(end.X - 3.5, end.Y - 3.5, 7, 7) : new Rect(end.X - 2.5, end.Y - 2.5, 5, 5));
 
     private void DrawGrid(DrawingContext context, Rect plot, MotionAsset? motion)
     {
@@ -1278,6 +1289,21 @@ public sealed class GraphEditorView : Control
 
     private bool TryHitHandle(MotionAsset motion, Pixel at, out KeyRef key, out bool inward)
     {
+        if (GraphHitTest.TryNearest(HandleCandidates(motion), at, GraphHitTest.HandleRadius, out (KeyRef Key, bool Inward) hit))
+        {
+            key = hit.Key;
+            inward = hit.Inward;
+            return true;
+        }
+
+        key = default;
+        inward = false;
+        return false;
+    }
+
+    /// <summary>고른 키들의 핸들 끝(in·out) 픽셀 — 핸들 클릭·박스 선택의 후보.</summary>
+    private List<((KeyRef Key, bool Inward) Item, Pixel At)> HandleCandidates(MotionAsset motion)
+    {
         var candidates = new List<((KeyRef Key, bool Inward) Item, Pixel At)>();
 
         foreach (KeyRef keyRef in _selection)
@@ -1302,16 +1328,7 @@ public sealed class GraphEditorView : Control
             }
         }
 
-        if (GraphHitTest.TryNearest(candidates, at, GraphHitTest.HandleRadius, out (KeyRef Key, bool Inward) hit))
-        {
-            key = hit.Key;
-            inward = hit.Inward;
-            return true;
-        }
-
-        key = default;
-        inward = false;
-        return false;
+        return candidates;
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -1345,7 +1362,11 @@ public sealed class GraphEditorView : Control
         // MMB 드래그 = 선택 키 이동(마야). 툴과 무관하다. MMB 클릭(안 움직임) = 선택한 커브에 키 끼우기.
         if (point.Properties.IsMiddleButtonPressed)
         {
-            if (pressedMotion is not null && _selection.Count > 0)
+            if (pressedMotion is not null && _selectedHandles.Count > 0 && BeginHandleDrag(pressedMotion))
+            {
+                StartDrag(Drag.Handles, position, e);
+            }
+            else if (pressedMotion is not null && _selection.Count > 0)
             {
                 BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
                 StartDrag(Drag.Keys, position, e);
@@ -1519,13 +1540,8 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        // 빈 자리: 박스 선택. Shift가 아니면 선택을 비운다.
-        if (!shift)
-        {
-            _selection.Clear();
-            _selectedCurves.Clear();
-        }
-
+        // 빈 자리: 박스 선택. 선택은 놓을 때 정한다 — 키를 고른 채 핸들 끝을 박스로 고를 수 있어야 한다(마야).
+        _boxShift = shift;
         StartDrag(Drag.Box, position, e);
     }
 
@@ -1775,6 +1791,19 @@ public sealed class GraphEditorView : Control
 
                 break;
 
+            case Drag.Handles:
+                if (motion is not null)
+                {
+                    Pixel delta = new(ToPixel(position).X - ToPixel(_dragStart).X, ToPixel(position).Y - ToPixel(_dragStart).Y);
+
+                    foreach (((KeyRef key, bool inward), Pixel end) in _handleDrag)
+                    {
+                        ApplyHandleSlope(motion, key, inward, new Pixel(end.X + delta.X, end.Y + delta.Y));
+                    }
+                }
+
+                break;
+
             case Drag.Box:
                 break;
         }
@@ -1891,14 +1920,44 @@ public sealed class GraphEditorView : Control
     }
 
     private void DragHandlePreview(MotionAsset motion, Point position, bool inward)
+        => ApplyHandleSlope(motion, _handleKey, inward, ToPixel(position));
+
+    /// <summary>MMB 핸들 드래그 시작 — 고른 핸들 끝의 지금 픽셀을 기억하고 그 커브들을 미리보기로 든다.</summary>
+    private bool BeginHandleDrag(MotionAsset motion)
     {
-        if (_handleKey.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(_handleKey, out KeyAsset? preview))
+        _handleDrag.Clear();
+
+        foreach ((KeyRef key, bool inward) in _selectedHandles)
+        {
+            if (key.Resolve(motion) is not { } k)
+            {
+                continue;
+            }
+
+            Pixel origin = ToPixel(ScreenOf(key.Curve, k.T, k.V));
+            double valueScale = ViewTransformOf(key.Curve).Scale;
+            _handleDrag.Add(((key, inward), HandleMath.HandleEnd(origin, (inward ? k.InTangent : k.OutTangent) * valueScale, inward, _camera)));
+        }
+
+        if (_handleDrag.Count == 0)
+        {
+            return false;
+        }
+
+        BeginPreview(motion, _handleDrag.Select(h => h.Handle.Key.Curve).Distinct());
+        return true;
+    }
+
+    /// <summary>핸들 끝 픽셀 → 기울기 미리보기. 끊긴 키는 그쪽만, 아니면 양쪽 같이.</summary>
+    private void ApplyHandleSlope(MotionAsset motion, KeyRef keyRef, bool inward, Pixel handleEnd)
+    {
+        if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
         {
             return;
         }
 
-        Pixel origin = ToPixel(ScreenOf(_handleKey.Curve, original.T, original.V));
-        float slope = (float)(HandleMath.SlopeFromHandle(origin, ToPixel(position), inward, _camera) / ViewTransformOf(_handleKey.Curve).Scale);
+        Pixel origin = ToPixel(ScreenOf(keyRef.Curve, original.T, original.V));
+        float slope = (float)(HandleMath.SlopeFromHandle(origin, handleEnd, inward, _camera) / ViewTransformOf(keyRef.Curve).Scale);
 
         if (original.Broken)
         {
@@ -1988,17 +2047,75 @@ public sealed class GraphEditorView : Control
 
                     break;
 
+                case Drag.Handles:
+                    if (_dragMoved && motion is not null && _editor is not null && _motionName is not null)
+                    {
+                        string name = _motionName;
+                        var keep = _selectedHandles.ToList();
+                        List<(KeyRef Key, KeyAsset Preview)> edits = _handleDrag.Select(h => h.Handle.Key).Distinct()
+                            .Where(k => _previewKeys.ContainsKey(k)).Select(k => (k, _previewKeys[k])).ToList();
+                        _editor.Batch(MotionChangeKind.Keys, () =>
+                        {
+                            foreach ((KeyRef key, KeyAsset p) in edits)
+                            {
+                                _editor.SetTangents(name, key, p.InTangent, p.OutTangent);
+                            }
+                        });
+                        // 편집 뒤에도 핸들은 고른 채로(마야) — 선택 갱신이 비운 것을 되돌린다.
+                        _selectedHandles.UnionWith(keep);
+                    }
+
+                    _handleDrag.Clear();
+                    break;
+
                 case Drag.Box:
                     if (motion is not null && _dragMoved)
                     {
-                        // 박스 안의 키 + 박스가 지나는 커브(정확히 선을 안 눌러도 고를 수 있다).
-                        List<KeyRef> inBox = GraphHitTest.InBox(KeyCandidates(motion), ToPixel(_dragStart), ToPixel(_dragNow));
-                        _selection.AddRange(inBox);
+                        Pixel a = ToPixel(_dragStart);
+                        Pixel b = ToPixel(_dragNow);
+                        List<KeyRef> inBox = GraphHitTest.InBox(KeyCandidates(motion), a, b);
+                        List<(KeyRef Key, bool Inward)> handlesInBox = GraphHitTest.InBox(HandleCandidates(motion), a, b);
 
-                        foreach (CurveRef curve in CurvesInBox(motion, ToPixel(_dragStart), ToPixel(_dragNow)))
+                        if (inBox.Count == 0 && handlesInBox.Count > 0)
                         {
-                            _selectedCurves.Add(curve);
+                            // 키를 고른 채 핸들 끝을 박스로 — 핸들 선택(키 선택은 그대로). MMB 드래그가 돌린다.
+                            if (!_boxShift)
+                            {
+                                _selectedHandles.Clear();
+                            }
+
+                            _selectedHandles.UnionWith(handlesInBox);
                         }
+                        else
+                        {
+                            if (!_boxShift)
+                            {
+                                _selection.Clear();
+                                _selectedCurves.Clear();
+                                _selectedHandles.Clear();
+                            }
+
+                            if (inBox.Count > 0)
+                            {
+                                // 박스에 키가 들면 키만 — 커브는 하얘지지 않는다(마야).
+                                _selection.AddRange(inBox);
+                            }
+                            else
+                            {
+                                // 키 없이 커브만 지나면 커브 선택(정확히 선을 안 눌러도 고를 수 있다).
+                                foreach (CurveRef curve in CurvesInBox(motion, a, b))
+                                {
+                                    _selectedCurves.Add(curve);
+                                }
+                            }
+                        }
+                    }
+                    else if (!_dragMoved && !_boxShift)
+                    {
+                        // 빈 자리 클릭 = 선택 비우기(키·커브·핸들).
+                        _selection.Clear();
+                        _selectedCurves.Clear();
+                        _selectedHandles.Clear();
                     }
 
                     break;

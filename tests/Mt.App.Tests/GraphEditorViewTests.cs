@@ -463,6 +463,66 @@ public class GraphEditorViewTests
     });
 
     [Fact]
+    public void 박스에_키가_들면_키만_고르고_커브는_하얘지지_않으며_핸들_끝_박스는_핸들을_골라_MMB로_돌린다() => HeadlessUi.Run(() =>
+    {
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+
+        try
+        {
+            // 키 둘레를 박스로(커브도 지난다) → 키만 고른다. 커브 선택(하얀 선)은 없다.
+            Point k1 = At(view, 1);
+            Point a = InWindow(window, view, new Point(k1.X - 12, k1.Y - 12));
+            Point b = InWindow(window, view, new Point(k1.X + 12, k1.Y + 12));
+            window.MouseDown(a, MouseButton.Left);
+            window.MouseMove(b, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(b, MouseButton.Left);
+
+            var key1 = new KeyRef(Y, 1);
+            Assert.Contains(key1, view.Selection);
+            Assert.Empty(view.SelectedCurves);
+            Assert.Empty(view.SelectedHandles);
+
+            // 키를 고른 채 out 탄젠트 핸들 끝 둘레를 박스로 → 핸들이 고른 것이 되고 키 선택은 그대로(마야).
+            KeyAsset before = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1];
+            Pixel end = HandleMath.HandleEnd(new Pixel(k1.X, k1.Y), before.OutTangent, inward: false, view.Camera);
+            Point ha = InWindow(window, view, new Point(end.X - 6, end.Y - 6));
+            Point hb = InWindow(window, view, new Point(end.X + 6, end.Y + 6));
+            window.MouseDown(ha, MouseButton.Left);
+            window.MouseMove(hb, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(hb, MouseButton.Left);
+
+            Assert.Contains((key1, false), view.SelectedHandles);
+            Assert.Contains(key1, view.Selection);
+            Assert.Empty(view.SelectedCurves);
+
+            // MMB 드래그 = 고른 핸들을 돌린다(편집 하나). 끊기지 않은 키라 in·out이 같이 간다. 핸들은 고른 채로 남는다.
+            float outBefore = before.OutTangent;
+            long revision = editor.Revision;
+            Point grab = InWindow(window, view, new Point(end.X, end.Y));
+            window.MouseDown(grab, MouseButton.Middle);
+            window.MouseMove(new Point(grab.X, grab.Y - 20), RawInputModifiers.MiddleMouseButton);
+            window.MouseUp(new Point(grab.X, grab.Y - 20), MouseButton.Middle);
+
+            KeyAsset after = Y.Resolve(editor.Document.Find("nod")!)!.Keys[1];
+            Assert.Equal(revision + 1, editor.Revision);
+            Assert.NotEqual(outBefore, after.OutTangent);
+            Assert.Equal(after.InTangent, after.OutTangent);
+            Assert.Contains((key1, false), view.SelectedHandles);
+
+            // 빈 자리 클릭은 핸들 선택도 푼다.
+            Point empty = InWindow(window, view, new Point(At(view, 0).X + 20, GraphEditorView.PadTop + 10));
+            window.MouseDown(empty, MouseButton.Left);
+            window.MouseUp(empty, MouseButton.Left);
+            Assert.Empty(view.SelectedHandles);
+            Assert.Empty(view.Selection);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 박스_드래그가_커브를_지나면_커브가_선택되고_빈_자리_RMB_드래그는_팬이다() => HeadlessUi.Run(() =>
     {
         (Window window, GraphEditorView view, _) = Show();
