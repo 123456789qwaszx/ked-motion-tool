@@ -166,6 +166,78 @@ Scene "scene_a"
 - 리그 노드 자체의 추가·삭제·재배치 — 리그는 덤프(유니티 익스포터)가 정한다. 툴은 그 밑에 **오브젝트**를 붙일 뿐이다.
 - 노드 단위 멀티 선택·복수 드래그 — 하나씩.
 
+---
+
+## 7. 검토 — 기본 리그 내장 · 무대 뼈대(PresentationUIRoot) · "부모 먼저, 리그는 자유롭게" (소유자 요청, 2026-10-28)
+
+요청: ⓐ 리그 덤프는 거의 완성이니 **덤프 없이도 기본으로** 제공. ⓑ 실제 유니티 씬의 `PresentataionUIRoot`는 캐릭터 리그가 없어도 `StageShot › StagePan › StageZoom › Stage00~02 › Mask › DepthSystem › Depth_{Far…Close} › FramingTransform › FramingScale › Content` 구조를 갖는다 — 그 구조를 참고하되, **만들 수 있는 것은 캐릭터 리그뿐**이고, 어느 `Stage{NN}Depth_{Layer}_Content`를 부모로 할지만 정한 뒤 리그를 자유롭게 세워 **프리비즈처럼 화면을 구성하고 그 위에 모션을 Import**한다.
+
+### 7.1 프리팹 조사 (`PresentataionUIRoot.prefab`, `tools/prefab-tree.py`로 읽음)
+
+```
+PresentataionUIRoot
+├ StageViewportLayer
+│ └ StageShot_Root › StagePan_Root › StageZoom_Root
+│    ├ Stage00_Root
+│    │ ├ Stage00Mask_Root › Stage00DepthSystem_Root
+│    │ │   ├ Stage00Depth_Far_Root   › _FramingTransform › _FramingScale › Stage00Depth_Far_Content
+│    │ │   ├ Stage00Depth_Back_Root  › … › Stage00Depth_Back_Content
+│    │ │   ├ Stage00Depth_Mid_Root   › … › Stage00Depth_Mid_Content
+│    │ │   ├ Stage00Depth_Front_Root › … › Stage00Depth_Front_Content
+│    │ │   └ Stage00Depth_Close_Root › … › Stage00Depth_Close_Content
+│    │ └ Stage00MaskEdge_Root › Stage00MaskEdgeGraphic
+│    ├ Stage01_Root (같은 꼴)
+│    └ Stage02_Root (같은 꼴)
+├ StageOverlayLayer › SpriteRig_Root · TextRig_Root
+└ ScreenEffectLayer › ScreenOverlay_Root
+```
+
+- RectTransform 85개. **전부 스트레치 풀 항등**(anchor 0–1, pos 0, size 0, pivot .5, scale 1, euler 0). 컴포넌트는 MonoBehaviour 13(마스크·그래픽류), CanvasRenderer 6, CanvasGroup 4 — 좌표에는 영향이 없다.
+- 코어의 전제와 정확히 맞는다: `StageReducer.Slot` "v1 가정 1: 컨테이너는 항등이므로 리그를 루트 공간 직속으로 세운다". 즉 **리그를 `…_Content` 밑에 세우든 루트 직속에 세우든 좌표는 같다.** 뼈대를 트리에 넣는 것은 좌표가 아니라 **모양(하이어아키)과 자리(어느 Content인지)**를 위한 것이다.
+- 코어는 뼈대 노드 이름을 모른다(`Stage00…` 문자열이 없다). 슬롯 부착은 `SlotAttachment(stageKey "stage00~02", layerKey "far…close")`라는 **라벨**이고, 커맨드 기본은 `slot(slotKey, stage="stage00", layer="mid")`. 깊이는 `CharSlot_DepthY/DepthScale`(리그 안)에 접히고, 샷은 `StageState.Shot`(zoom·pan) 한 장이다 — 런타임이 그것을 `StageZoom_Root`·`StagePan_Root`에 어떻게 입히는지는 코어에 없다(런타임 쪽).
+- 툴의 `SceneObject.Stage/Layer`("stage01"/"mid")는 이 라벨과 같은 뜻이고, 뼈대의 `Stage{NN}Depth_{Layer}_Content`로 1:1 대응한다(`stage01` ↔ `Stage01`, `mid` ↔ `Mid`).
+
+### 7.2 지금 덤프(`tests/…/Fixtures/rig-schemas.json`)
+
+`capturedUnderParentSize` 1920×1080, 리그 셋: `character`(26 노드, `Assets/Ked.Presentation/Prefabs/CharacterRig.prefab`), `background`(19), `screenEffect`(5). 옆에 `presets/depth.json`·`presets/focus.json`(테스트 픽스처). **이것이 현재 익스포터 산출물 그대로인지 소유자 확인이 필요하다**(질문 1).
+
+### 7.3 설계 검토 — 결론과 근거
+
+| # | 제안 | 근거·주의 |
+|---|---|---|
+| A | **기본 리그 내장** — `rig-schemas.json`·`base-resolution.json`·`presets/depth.json`·`presets/focus.json`을 `Mt.Authoring`의 **임베디드 리소스**로 넣고, 리그 덤프를 싣지 않은 문서는 그것으로 시작한다. 문서에는 `rigSchemas: { path: "builtin:rig-schemas", sha256 }`로 적어 지금처럼 SHA로 대조한다. "리그 덤프…" 버튼은 그대로 — 파일을 실으면 내장본을 덮는다. | 내장본은 **ExportedTuning의 사본**이다(`vendoring.md`와 같은 규칙: 손으로 고치지 않고, 코어 동기화 때 같이 갱신하며 원본 커밋을 적는다). 위험은 **표류**(유니티 프리팹이 바뀌었는데 내장본이 옛것) — 상태 줄에 "내장 리그(원본 커밋 …)"을 늘 보이고, 문서가 다른 SHA를 기억하면 지금처럼 경고한다. |
+| B | **무대 뼈대를 데이터로** — 7.1의 85 노드를 **덤프와 같은 형식**(`rigKind: "stage"`, 노드 id·parent·항등 트랜스폼)으로 내장한다. `RigSchemaLoader.AddRigTo`가 그대로 세우므로 새 로더가 없다. 지금은 프리팹에서 `tools/prefab-tree.py`로 뽑아 넣고, 나중에 Unity 익스포터가 `rigKind: "stage"`를 덤프에 더하면 그것이 내장본을 대신한다. | 코어는 안 바뀐다(반입본 불변). 뼈대가 항등이라 좌표 불변이 보장되고(7.1), 런타임이 언젠가 `FramingTransform`·`Pan`·`Zoom`을 움직이면 그 자리에 값이 들어갈 곳이 생긴다. |
+| C | **씬 = 뼈대 + 캐릭터 리그 인스턴스** — 미리보기 트리는 `stage/…` 접두사로 뼈대를 먼저 세우고, 오브젝트는 `Stage{NN}Depth_{Layer}_Content` 밑에 `AddRigTo(attachParentKey)`로 붙인다(S6에서 만든 길). 모델은 **그대로**(`stage`·`layer` 라벨) — 파일 형식이 안 바뀌고 런타임 `slot c1 stage01 mid`와 같은 뜻이 유지된다. `parent/parentNode`(S6)는 리그 밑의 리그(소품)용으로 남는다. | 뼈대 노드는 **오브젝트가 아니다**: 선택·삭제·이동·채널 추가 대상이 아니고, 우클릭 메뉴는 "여기에 캐릭터 리그 만들기"만 준다. |
+| D | **하이어아키 = 유니티 그대로 + 압축 보기** — 기본은 `PresentataionUIRoot › StageViewportLayer › StageShot_Root › StagePan_Root › StageZoom_Root › Stage00_Root › Stage00Mask_Root › … › Content › c1`의 전체 사슬(비어 있는 스테이지·레이어도 보인다 — 거기 우클릭해 만들 수 있어야 하므로). 12단이 깊으므로 **"압축 보기"** 토글: `Stage00 › Far › Content › c1`처럼 중간 항등 노드를 접는다(툴 표시만, 데이터는 같다). Overlay·ScreenEffect 레이어도 보이되 만들기는 없다. | 지금의 `Scene › stage › layer` 폴더는 압축 보기의 특수형이다. 펼침 기억은 그대로 쓴다. |
+| E | **만들기 = 부모 먼저, 리그는 자유롭게** — `…_Content`(또는 스테이지/레이어 폴더) 우클릭 → "캐릭터 리그 만들기" 하나. id 자동(c1, c2…), 그 자리에 선다. 만든 뒤 채널 박스에서 초상·배역·배치를 정하고 드래그로 다른 Content로 옮긴다(= 스테이지/레이어 바꾸기, 월드 위치 유지). `background`·`screenEffect`·빈 오브젝트 만들기는 **메뉴에서 뺀다**(모델과 명령은 남겨 두고 "고급" 설정으로 숨긴다 — 소유자 결정: 캐릭터부터). | 런타임 `slot` 폴드도 `character`만 세우므로 툴과 런타임이 같은 제약을 갖는다. |
+| F | **프리비즈 → 모션 Import** — 흐름은 이미 있다(씬 구성 → `motions.json 가져오기` → rigKind별 목록 → 오브젝트 골라 입힘). 더할 것: 가져오기 직후 **고른 오브젝트에 자동으로 입혀 보기**, 씬을 **프리셋으로 저장/불러오기**(문서 간 재사용). 선택: 씬을 **Yarn 커맨드 열로 내보내기**(`slot c1 stage01 mid` · `cast` · `place` · `size`) — 씬을 런타임에 "보내지 않는다"는 결정과 어긋나지 않는 **텍스트 산출물**이고, 커맨드 문법은 코어 파서가 안다. 소유자 판단에 맡긴다(질문 5). | — |
+| G | **새 문서의 기본 씬** — 지금은 `c1 · character` 하나. 뼈대가 생기면 "캐릭터 없이 뼈대만"이 유니티와 같다. 다만 모션을 열자마자 보려면 리그 하나는 있어야 하므로, **빈 뼈대 + 첫 모션/가져오기 때 "캐릭터가 없다 — Stage01 Mid에 c1 만들기" 한 줄 버튼**을 권한다. 예전 문서(씬 없음)는 지금처럼 c1로 옮긴다. | 소유자 결정(질문 4). |
+| H | **카메라를 트리로** — 지금 샷 zoom·pan은 뷰포트의 보기 변환이다. 뼈대가 생기면 `StageZoom_Root`(배율)·`StagePan_Root`(위치)에 넣는 것이 런타임과 같은 자리다. 그러나 **런타임이 정확히 어느 노드에 어떤 피벗으로 입히는지**를 코어가 말하지 않으므로 확인 전에는 보기 변환으로 둔다. | 질문 3. 마스크(`Stage00Mask_Root`)는 Pan/Zoom 아래라 카메라와 같이 움직인다 — 트리로 옮기면 클리핑까지 맞출 수 있다. |
+
+### 7.4 소유자에게 묻는 것
+
+1. **내장할 덤프** — `tests/…/Fixtures/rig-schemas.json`(+ `presets/depth.json`·`focus.json`)이 현재 익스포터 산출물 그대로인가? 아니면 최신 `ExportedTuning/` 폴더를 주시면 그것을 내장하고 원본 커밋을 적는다.
+2. **뼈대의 출처** — 지금은 올려 주신 프리팹에서 뽑아 `rigKind: "stage"` 형식으로 내장한다. 나중에 Unity 익스포터가 같은 것을 덤프에 더할지(권장 — 표류 방지) 결정.
+3. **샷 노드** — 런타임이 zoom·pan을 `StageZoom_Root`·`StagePan_Root`에 어떻게(배율·피벗·단위) 입히는가? 알려 주시면 카메라를 트리로 옮긴다(H). 모르면 보기 변환 유지.
+4. **새 문서 기본** — 빈 뼈대(+ "c1 만들기" 버튼) vs 지금처럼 c1 하나.
+5. **Yarn 커맨드 열 내보내기**(F 선택) — 할지 말지.
+6. **메뉴 축소** — background·screenEffect·빈 오브젝트 만들기를 숨길지(권장) 아예 뺄지.
+
+### 7.5 단계(안) — 결정 뒤
+
+| 단계 | 내용 | 끝났다는 증거 |
+|---|---|---|
+| **S8a** 기본 리그 내장 | 임베디드 리소스 4개 · `builtin:` 참조와 SHA 대조 · 상태 줄 "내장 리그(원본 …)" · 덤프 파일을 실으면 덮기 | 덤프 없이 새 문서 → 바로 c1이 서고 모션 열림. 파일 덤프와 내장본 SHA 비교 테스트 |
+| **S8b** 무대 뼈대 | `stage` 리그 데이터(프리팹에서 생성, `tools/prefab-tree.py`) · 미리보기 트리에 뼈대 먼저 · 오브젝트는 `…_Content` 밑 · 하이어아키 전체 사슬 + 압축 보기 · 빈 스테이지/레이어도 표시 | 뼈대를 넣기 전후 모든 오브젝트 좌표가 같다(항등 증명 테스트). 하이어아키 경로 테스트 |
+| **S8c** 만들기 흐름 | Content 우클릭 "캐릭터 리그 만들기" · 다른 만들기는 고급으로 · 새 문서 기본(결정 4) · 가져오기 직후 자동 입히기 · "캐릭터가 없다" 버튼 | 헤드리스: Content 우클릭 → 만들기 → 그 스테이지/레이어 |
+| **S8d** 선택 | 카메라를 트리로(결정 3) · 씬 프리셋 저장/불러오기 · Yarn 열 내보내기(결정 5) | — |
+
+### 7.6 하지 않는 것
+
+- 코어 반입본 수정(뼈대 이름을 코어에 넣지 않는다 — 데이터로 간다).
+- 뼈대 노드의 편집·삭제·키잉 — 뼈대는 런타임이 정한다.
+- 비-character 리그의 재생 — 이전 결정 그대로.
+
 ## 결정 (2026-10-28, 소유자)
 
 - 모션의 주인은 **rigKind**. 공통 스키마를 가진 리그끼리는 모션을 공유할 수 있다 → 툴은 "rigKind가 같거나 채널 노드가 전부 있으면" 그 오브젝트에 입혀 보인다(`ScenePreview.CanWear`).
