@@ -93,7 +93,7 @@ tools/  prefab-to-stage-rig.py(유니티 프리팹 → 무대 뼈대 JSON) · pr
 
 우선순위 순.
 
-1. **런타임 실제 적용(M6 일부) — 툴 쪽 끝, 무대 쪽 Unity 확인 남음.** 견본 `tests/Mt.Authoring.Tests/Fixtures/stage-parity/`(`motions.json` + 포즈 표 `poses.json`)가 두 저장소를 잇는다. 툴 쪽 `StageParityTests`(CI)가 ① 편집기로 지어 내보낸 바이트 = 견본 ② 미리보기 포즈 = 표 ③ 반입 코어 리듀서가 접은 끝 상태 = 표를 지킨다. 무대 쪽 `UnityParity/ToolExportMotionParityTests`가 같은 두 파일을 런타임 로더(`MotionLibrary`, JsonUtility)·리그 스키마·리듀서로 읽어 같은 표를 확인한다 — 무대 저장소에는 CI가 없어 소유자가 Unity Test Runner로 돌린다. 시간에 따른 재생(`MotionCommandCharR`, DOTween)은 플레이모드라 범위 밖.
+1. **런타임 실제 적용(M6 일부) — 툴 쪽 끝, 무대 쪽 Unity 확인 남음.** 견본 `tests/Mt.Authoring.Tests/Fixtures/stage-parity/`(`motions.json` + 포즈 표 `poses.json`)가 두 저장소를 잇는다. 툴 쪽 `StageParityTests`(CI)가 ① 편집기로 지어 내보낸 바이트 = 견본 ② 미리보기 포즈 = 표 ③ 반입 코어 리듀서가 접은 끝 상태 = 표를 지킨다. 무대 쪽 `UnityParity/ToolExportMotionParityTests`(무대 `dev` 7aeef7f)가 같은 두 파일을 런타임 로더(`MotionLibrary`, JsonUtility)·리그 스키마·리듀서로 읽어 같은 표를 확인한다 — 무대 저장소에는 CI가 없어 소유자가 Unity Test Runner로 돌린다. 시간에 따른 재생(`MotionCommandCharR`, DOTween)은 플레이모드라 범위 밖.
 2. **VnTool 연결(M6 나머지).** VnTool 쪽 `<<motion>>` 자동완성이 `motions.json`의 이름·길이·end 목록만 읽게. 이 툴은 바뀔 것이 없다.
 3. **Windows 휴대용 패키지.** 지금 CI는 Linux 빌드·헤드리스 테스트뿐. VnTool처럼 `publish-windows.ps1` + windows-latest 스모크를 더할 때가 되면 `.github/workflows/test.yml`에 잡을 추가한다.
 4. **알려진 한계(`PLAN-undo.md` §4).** 설정 창·단축키 창은 헤드리스에서 두 번째 창이 멈춰 테스트하지 않는다(08df523). PNG 디코딩도 헤드리스에서 안 된다 — 초상 관련은 자리표시 사각형으로 검증한다.
