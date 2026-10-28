@@ -147,8 +147,10 @@
 
 | 단계 | 무엇 | 끝 |
 |---|---|---|
-| **C1** 표·모델 | `controllers.json` 내장 + 덤프 옆 우선 · `ControllersFile`/`ControllerRig`(TryResolve·LabelOf·DefaultFor·Validate) · `DepthTuningFile.TryScaleOf/TryLevelOf` · 세션 | 테스트: 견본 `nod`(`Track_Move_Y`)가 "연기 · 몸 Y"로 풀린다, level↔배율 왕복 |
-| **C2** 채널 박스 = 컨트롤러 | 세 섹션 · 값 입력 = 키 · 깊이 굽기 · 별칭 합산/있는 채널에 쓰기 · 경고와 돕는 손 · 표 없는 리그는 노드 박스 | 헤드리스: "숙임"에 15 → `CharacterPortrait_SwayPivot` euler Z 키 · 깊이 20 → `DepthScale` X·Y 2.2 |
+| **C1** 표·모델 ✅ | `controllers.json` 내장 + 덤프 옆 우선 · `ControllersFile`/`ControllerRig`(TryResolve·LabelOf·DefaultFor·Validate) · `DepthTuningFile.TryScaleOf/TryLevelOf` · 세션 | 테스트: 견본 `nod`(`Track_Move_Y`)가 "연기 · 몸 Y"로 풀린다, level↔배율 왕복 |
+| **C2** 채널 박스 = 컨트롤러 ✅ | 세 섹션 · 값 입력 = 키 · 깊이 굽기 · 별칭 합산/있는 채널에 쓰기 · 경고와 돕는 손 · 표 없는 리그는 노드 박스 | 헤드리스: "숙임"에 15 → `CharacterPortrait_SwayPivot` euler Z 키 · 깊이 20 → `DepthScale` X·Y 2.2 |
 | **C3** 하이어아키·라벨 ✅ | 오브젝트 › 자리/깊이/연기 폴더 › 컨트롤러 · "리그 노드 보기" 설정 · 도프/아웃라이너 라벨 | 라벨 `연기 · 몸 Y` |
 | **C4** 매니퓰레이터 ✅ | W 몸 · E 숙임 · R 크기(표의 `manipulator`) · 자리 컨트롤러를 고른 채면 그 노드 · 표 밖 노드는 그대로 | 헤드리스: 자리 X·Y 고른 채 W → `CharSlot_Track`, E → `SwayPivot`, R → `ActingScale`, W → `Track_Move` |
 | **C5** 프리셋 ✅ | 9종을 컨트롤러 위에 코드로(`MotionPresets`) · "프리셋에서 추가"(되돌리기 하나) | 전부 규칙·경고 없이 내보내기 · 끄덕 = 몸 Y −18 + 숙임 4° · 돌아서기 = 방향 1 → −1 commit |
+
+C1–C5 전부 `dev`에 들어갔다(2026-10-28, CI 녹색). 남은 것은 쓰면서 나온다 — 후보: 프리셋의 진폭·타이밍 손보기(애니메이터 피드백), 리그 노드 보기에서 컨트롤러 노드 표시, `controllers.json`을 리거가 고칠 때의 검증 메시지(`Validate`) 표면화, 자리·깊이 컨트롤러의 `place`·`size` 커맨드와의 왕복(툴에서 커맨드로 내보내기).
