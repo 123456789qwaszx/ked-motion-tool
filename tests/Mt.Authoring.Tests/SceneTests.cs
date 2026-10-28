@@ -222,7 +222,7 @@ public class SceneTests
         // 저작본에 parent·parentNode·character는 없다.
         string json = MotionDocumentJson.Write(editor.Document);
         Assert.DoesNotContain("\"parent", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"character\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"character\":", json, StringComparison.Ordinal); // 값("rig": "character")이 아니라 키
 
         Assert.Equal("s5", MotionEditor.NextObjectId("s1", new[] { "s2", "s3", "s4" }));
         Assert.Equal("bg_2", MotionEditor.NextObjectId("bg", Array.Empty<string>()));
