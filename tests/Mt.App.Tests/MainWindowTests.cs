@@ -615,7 +615,7 @@ public class MainWindowTests
                 window.Viewport.ScrubTo(0.3);
                 window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
                 Assert.True(window.Viewport.IsPlaying);
-                Assert.Equal(0, window.Viewport.Time, 6);
+                Assert.InRange(window.Viewport.Time, 0, 0.15); // 처음부터(0.3이 아니라) — 재생 시계가 이미 한 틱 갔을 수 있다
                 window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
                 Assert.True(window.Viewport.IsPlaying);
                 window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.Alt);
