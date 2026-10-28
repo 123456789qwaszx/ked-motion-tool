@@ -49,6 +49,7 @@ public sealed class ViewportView : Control
     private static readonly IBrush GizmoYBrush = new SolidColorBrush(Color.FromArgb(240, 74, 222, 128));
     private static readonly Pen GizmoRingPen = new(new SolidColorBrush(Color.FromArgb(230, 96, 165, 250)), 2);
     private static readonly Pen PendingPen = new(new SolidColorBrush(Color.FromArgb(220, 251, 146, 60)), 1.5, DashStyle.Dash);
+    private static readonly IBrush OutsideBrush = new SolidColorBrush(Color.FromArgb(185, 58, 58, 66));
 
     private readonly PlaybackClock _clock = new();
     private readonly DispatcherTimer _timer;
@@ -111,6 +112,8 @@ public sealed class ViewportView : Control
     private PendingSnapshot? _dragPendingBefore;
     private Vec2 _dragStartRoot;
     private Vec2 _dragPivotRoot;
+    private Point _dragStartControl;
+    private Vec2 _dragScaleDirection;
     private RectNodeState _dragStartState;
 
     public ViewportView()
@@ -259,6 +262,12 @@ public sealed class ViewportView : Control
             return null;
         }
 
+        return QuadOf(pose, o);
+    }
+
+    /// <summary>포즈 위의 오브젝트 사각형(루트 공간) — 초상이 있으면 보이는 그림, 없으면 루트 rect.</summary>
+    private Quad? QuadOf(RectNodeTree pose, SceneObject o)
+    {
         string? image = ScenePreview.ImageKeyOf(pose, o);
         return image is not null
             ? PortraitLayout.VisualQuad(pose, image, AspectOf(o))
@@ -298,7 +307,7 @@ public sealed class ViewportView : Control
         return pose;
     }
 
-    /// <summary>선택 노드의 피벗(컨트롤 좌표) — 매니퓰레이터 중심. 테스트가 쓴다.</summary>
+    /// <summary>매니퓰레이터 중심(컨트롤 좌표). 테스트가 쓴다.</summary>
     public Point? GizmoCenter()
     {
         RectNodeTree? pose = CurrentPose();
@@ -308,7 +317,28 @@ public sealed class ViewportView : Control
             return null;
         }
 
-        return ToControl(pose.TransformPoint(key, Vec3.Zero).XY);
+        return ToControl(GizmoAnchor(pose, key));
+    }
+
+    /// <summary>
+    /// 매니퓰레이터가 서는 점(루트 공간) — 노드의 원점. 원점이 오브젝트 그림 밖이면(화면 크기 스트레치 노드의 pivot —
+    /// 발 기준 회전의 SwayPivot은 rect 아래 끝이라 무대 밖으로 나간다) 그림 가운데에 둔다. 손잡이는 늘 보이는 곳에 있어야 한다.
+    /// </summary>
+    private Vec2 GizmoAnchor(RectNodeTree pose, string key)
+    {
+        Vec2 origin = pose.TransformPoint(key, Vec3.Zero).XY;
+
+        if (SelectedObject is not { } o || QuadOf(pose, o) is not { } quad)
+        {
+            return origin;
+        }
+
+        float minX = Math.Min(Math.Min(quad.BottomLeft.X, quad.BottomRight.X), Math.Min(quad.TopLeft.X, quad.TopRight.X));
+        float maxX = Math.Max(Math.Max(quad.BottomLeft.X, quad.BottomRight.X), Math.Max(quad.TopLeft.X, quad.TopRight.X));
+        float minY = Math.Min(Math.Min(quad.BottomLeft.Y, quad.BottomRight.Y), Math.Min(quad.TopLeft.Y, quad.TopRight.Y));
+        float maxY = Math.Max(Math.Max(quad.BottomLeft.Y, quad.BottomRight.Y), Math.Max(quad.TopLeft.Y, quad.TopRight.Y));
+        bool inside = origin.X >= minX && origin.X <= maxX && origin.Y >= minY && origin.Y <= maxY;
+        return inside ? origin : quad.Center;
     }
 
     /// <summary>키 없는 포즈를 버린다(시각이 바뀌거나 Esc·선택 변경·재생). 버린 것도 이력에 올라 Ctrl+Z로 돌아온다.</summary>
@@ -1063,24 +1093,27 @@ public sealed class ViewportView : Control
 
         MotionAsset? motion = Motion;
 
-        using (context.PushClip(stage))
+        if (ShowGrid)
         {
-            if (ShowGrid)
+            using (context.PushClip(stage))
             {
                 DrawWorld(context, stage);
             }
-
-            if (_template is null)
-            {
-                DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 오브젝트가 선다." : "씬에 오브젝트가 없다 — 왼쪽 '씬'에서 추가한다.", new Point(stage.X + 10, stage.Y + 10));
-                return;
-            }
-
-            RectNodeTree pose = CurrentPose() ?? _template;
-            DrawObjects(context, pose);
-            DrawAxes(context, pose);
-            DrawGizmo(context, pose);
         }
+
+        if (_template is null)
+        {
+            DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 오브젝트가 선다." : "씬에 오브젝트가 없다 — 왼쪽 '씬'에서 추가한다.", new Point(stage.X + 10, stage.Y + 10));
+            return;
+        }
+
+        // 오브젝트는 무대 밖도 그대로 그리고, 카메라에 안 잡히는 바깥을 회색으로 덮어 가른다. 축·손잡이는 그 위에.
+        RectNodeTree pose = CurrentPose() ?? _template;
+        DrawObjects(context, pose);
+        DrawOutside(context, stage);
+        context.DrawRectangle(StagePen, stage);
+        DrawAxes(context, pose);
+        DrawGizmo(context, pose);
 
         string objectLabel = SelectedObject is { } so ? $"{so.Id} ({so.Rig} · {so.Layer})" : "오브젝트 없음";
         string motionLabel = motion is null
@@ -1088,6 +1121,27 @@ public sealed class ViewportView : Control
             : $"{motion.Name} · {(motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다")}"
               + (SelectedObject is { } wearer && !CanWear(wearer) ? " · 이 오브젝트의 리그에는 안 맞는다" : "");
         DrawLabel(context, $"{objectLabel} · {motionLabel}", new Point(stage.X + 8, stage.Y + 6));
+    }
+
+    /// <summary>무대 프레임 바깥(카메라가 안 잡는 곳)을 회색으로 덮는다 — 네 띠.</summary>
+    private void DrawOutside(DrawingContext context, Rect stage)
+    {
+        var bounds = new Rect(Bounds.Size);
+        double left = Math.Max(bounds.X, stage.X);
+        double right = Math.Min(bounds.Right, stage.Right);
+        double top = Math.Max(bounds.Y, stage.Y);
+        double bottom = Math.Min(bounds.Bottom, stage.Bottom);
+
+        if (right <= left || bottom <= top)
+        {
+            context.FillRectangle(OutsideBrush, bounds);
+            return;
+        }
+
+        context.FillRectangle(OutsideBrush, new Rect(bounds.X, bounds.Y, bounds.Width, top - bounds.Y));
+        context.FillRectangle(OutsideBrush, new Rect(bounds.X, bottom, bounds.Width, bounds.Bottom - bottom));
+        context.FillRectangle(OutsideBrush, new Rect(bounds.X, top, left - bounds.X, bottom - top));
+        context.FillRectangle(OutsideBrush, new Rect(right, top, bounds.Right - right, bottom - top));
     }
 
     /// <summary>월드 축·격자·무대 프레임 — 루트 공간(가운데 원점·y 위, px). 가는 선 1u(기준 폭/48), 굵은 선 5u.</summary>
@@ -1238,7 +1292,15 @@ public sealed class ViewportView : Control
         switch (Manipulator)
         {
             case ManipulatorMode.Move:
+                // 이동 = 화살표(마야). 가운데 네모는 자유 이동.
+                context.DrawLine(XAxisPen, center, xEnd);
+                context.DrawLine(YAxisPen, center, yEnd);
+                context.DrawGeometry(GizmoXBrush, null, ArrowHead(center, xEnd));
+                context.DrawGeometry(GizmoYBrush, null, ArrowHead(center, yEnd));
+                context.FillRectangle(GizmoCenterBrush, new Rect(center.X - 6, center.Y - 6, 12, 12));
+                break;
             case ManipulatorMode.Scale:
+                // 배율 = 끝에 상자(마야). 가운데 상자는 양쪽 같이.
                 context.DrawLine(XAxisPen, center, xEnd);
                 context.DrawLine(YAxisPen, center, yEnd);
                 context.FillRectangle(GizmoXBrush, new Rect(xEnd.X - 5, xEnd.Y - 5, 10, 10));
@@ -1247,17 +1309,40 @@ public sealed class ViewportView : Control
                 break;
             case ManipulatorMode.Rotate:
                 context.DrawEllipse(null, GizmoRingPen, center, GizmoArm, GizmoArm);
-                context.FillRectangle(GizmoCenterBrush, new Rect(center.X - 4, center.Y - 4, 8, 8));
+                context.DrawEllipse(GizmoCenterBrush, null, center, 4, 4);
                 break;
         }
     }
 
-    /// <summary>매니퓰레이터의 중심과 x·y 팔 끝(컨트롤 좌표, 팔 길이는 화면 고정).</summary>
+    /// <summary>팔 끝의 화살촉(삼각형) — 길이 14, 폭 10, 끝이 팔 끝에 온다.</summary>
+    private static PolylineGeometry ArrowHead(Point from, Point tip)
+    {
+        double dx = tip.X - from.X;
+        double dy = tip.Y - from.Y;
+        double length = Math.Sqrt(dx * dx + dy * dy);
+
+        if (length < 1e-6)
+        {
+            dx = 1;
+            dy = 0;
+            length = 1;
+        }
+
+        double ux = dx / length;
+        double uy = dy / length;
+        var back = new Point(tip.X - ux * 14, tip.Y - uy * 14);
+        var left = new Point(back.X - uy * 5, back.Y + ux * 5);
+        var right = new Point(back.X + uy * 5, back.Y - ux * 5);
+        return new PolylineGeometry(new[] { tip, left, right, tip }, true);
+    }
+
+    /// <summary>매니퓰레이터의 중심과 x·y 팔 끝(컨트롤 좌표, 팔 길이는 화면 고정). 팔 방향은 노드의 축, 중심은 <see cref="GizmoAnchor"/>.</summary>
     private (Point Center, Point XEnd, Point YEnd) GizmoPoints(RectNodeTree pose)
     {
         (Vec2 origin, Vec2 xAxis, Vec2 yAxis) = PortraitLayout.Axes(pose, SelectedKey!, 100f);
-        Point center = ToControl(origin);
-        return (center, Along(center, ToControl(xAxis)), Along(center, ToControl(yAxis)));
+        Vec2 anchor = GizmoAnchor(pose, SelectedKey!);
+        Point center = ToControl(anchor);
+        return (center, Along(center, ToControl(anchor + (xAxis - origin))), Along(center, ToControl(anchor + (yAxis - origin))));
     }
 
     private static Point Along(Point from, Point towards)
@@ -1369,7 +1454,7 @@ public sealed class ViewportView : Control
     {
         RectNodeTree? pose = CurrentPose();
 
-        if (Manipulator == ManipulatorMode.Select || SelectedKey is not { } key || pose is null || !pose.Contains(key) || !StageRect.Contains(position))
+        if (Manipulator == ManipulatorMode.Select || SelectedKey is not { } key || pose is null || !pose.Contains(key))
         {
             return false;
         }
@@ -1402,7 +1487,11 @@ public sealed class ViewportView : Control
 
         _drag = drag;
         _dragStartRoot = ToRoot(position);
-        _dragPivotRoot = pose.TransformPoint(key, Vec3.Zero).XY;
+        _dragStartControl = position;
+        _dragPivotRoot = GizmoAnchor(pose, key);
+        // 배율은 팔 방향(화면)으로 잰다 — 자유(가운데)는 x 팔 방향.
+        Point arm = drag == Drag.ScaleY ? yEnd : xEnd;
+        _dragScaleDirection = new Vec2((float)(arm.X - center.X), (float)(arm.Y - center.Y));
         _dragStartState = pose.GetState(key);
         _dragPendingBefore = CapturePending();
         return true;
@@ -1446,7 +1535,9 @@ public sealed class ViewportView : Control
             case Drag.ScaleX:
             case Drag.ScaleY:
             {
-                float factor = PoseEdit.ScaleFactor(_dragPivotRoot, _dragStartRoot, now);
+                var fromControl = new Vec2((float)_dragStartControl.X, (float)_dragStartControl.Y);
+                var toControl = new Vec2((float)position.X, (float)position.Y);
+                float factor = PoseEdit.ScaleAlong(_dragScaleDirection, fromControl, toControl, (float)GizmoArm);
                 float sx = _drag == Drag.ScaleY ? start.LocalScale.X : start.LocalScale.X * factor;
                 float sy = _drag == Drag.ScaleX ? start.LocalScale.Y : start.LocalScale.Y * factor;
                 next = start.WithLocalScale(new Vec3(sx, sy, start.LocalScale.Z));

@@ -63,18 +63,22 @@ public static class PoseEdit
         return (float)degrees;
     }
 
-    /// <summary>피벗까지의 거리 비. 너무 가까우면 1(0 나눗셈·폭주 방지).</summary>
-    public static float ScaleFactor(Vec2 pivot, Vec2 from, Vec2 to, float minDistance = 4f)
+    /// <summary>
+    /// 배율 손잡이의 배율 — 팔 방향으로 끈 거리를 팔 길이로 나눠 1에 더한다(팔 하나만큼 밖으로 = ×2, 안으로 = ×0).
+    /// 거리 비가 아니라 투영이라 가운데를 지나도 커지지 않고, <paramref name="min"/> 아래로는 안 내려가 뒤집히지 않는다.
+    /// 팔과 직각으로 끌면 1(아무 일도 없다).
+    /// </summary>
+    public static float ScaleAlong(Vec2 direction, Vec2 from, Vec2 to, float armLength, float min = 0.01f)
     {
-        float d0 = Distance(pivot, from);
-        float d1 = Distance(pivot, to);
+        float length = Distance(Vec2.Zero, direction);
 
-        if (d0 < minDistance || d1 < minDistance)
+        if (length < 1e-6f || armLength <= 0f)
         {
             return 1f;
         }
 
-        return d1 / d0;
+        float projected = ((to.X - from.X) * direction.X + (to.Y - from.Y) * direction.Y) / length;
+        return Math.Max(min, 1f + projected / armLength);
     }
 
     /// <summary>포즈 값 → 채널 키 값.</summary>

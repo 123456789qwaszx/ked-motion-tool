@@ -266,6 +266,78 @@ public class ViewportViewTests
     });
 
     [Fact]
+    public void 배율_매니퓰레이터는_팔_방향_투영이라_안으로_끌면_줄고_가운데를_넘어도_커지지_않는다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, MotionEditor editor) = Show();
+
+        try
+        {
+            const string node = "CharacterPortrait_ActingScale";
+            view.SelectedNode = node;
+            view.Manipulator = ManipulatorMode.Scale;
+            view.AutoKey = true;
+            view.ScrubTo(0.3);
+
+            Point centerLocal = view.GizmoCenter() ?? throw new InvalidOperationException("기즈모가 없다");
+            Point xArm = view.TranslatePoint(new Point(centerLocal.X + 60, centerLocal.Y), window)!.Value; // x 팔 끝(회전 없는 노드 = 화면 +x)
+            Point halfway = new(xArm.X - 30, xArm.Y);
+
+            window.MouseDown(xArm, MouseButton.Left);
+            window.MouseMove(halfway, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(halfway, MouseButton.Left);
+
+            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Scale)!;
+            Assert.Null(channel.Y); // x 팔만 끌었다
+            Assert.Equal(0.5f, channel.X!.Keys.Single(k => Math.Abs(k.T - 0.3f) < 1e-4).V, 2);
+
+            // 다시 팔 끝에서 가운데를 지나 반대쪽까지 — 거리 비였다면 다시 커졌을 것. 바닥(0.01)에 머문다.
+            centerLocal = view.GizmoCenter()!.Value;
+            xArm = view.TranslatePoint(new Point(centerLocal.X + 60, centerLocal.Y), window)!.Value;
+            Point beyond = new(xArm.X - 150, xArm.Y);
+            window.MouseDown(xArm, MouseButton.Left);
+            window.MouseMove(beyond, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(beyond, MouseButton.Left);
+
+            float v = channel.X!.Keys.Single(k => Math.Abs(k.T - 0.3f) < 1e-4).V;
+            Assert.InRange(v, 0.001f, 0.02f);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void 손잡이는_노드_원점이_그림_밖이어도_그림_안에_서고_무대_밖_오브젝트도_사각형이_있다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, MotionEditor editor) = Show();
+
+        try
+        {
+            foreach (string node in new[] { "CharacterPortrait_SwayPivot", "CharacterPortrait_ActingScale", "CharSlot_Track" })
+            {
+                view.SelectedNode = node;
+                view.Manipulator = ManipulatorMode.Rotate;
+                Point center = view.GizmoCenter() ?? throw new InvalidOperationException($"{node} 손잡이가 없다");
+                Quad quad = view.ObjectQuad("s1")!.Value;
+                Point topLeft = view.ToScreen(quad.TopLeft);
+                Point bottomRight = view.ToScreen(quad.BottomRight);
+                Assert.InRange(center.X, topLeft.X - 0.5, bottomRight.X + 0.5);
+                Assert.InRange(center.Y, topLeft.Y - 0.5, bottomRight.Y + 0.5);
+            }
+
+            // 무대 밖으로 보낸 오브젝트도 잘리지 않는다 — 사각형이 있고 클릭으로 고른다.
+            editor.SetObjectPlacement(null, "s1", 1500f, 0f, 0f, 1f, 1f);
+            Quad outside = view.ObjectQuad("s1")!.Value;
+            Assert.True(view.ToScreen(outside.Center).X > view.StageRect.Right);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 회전_매니퓰레이터는_고리를_끌어_z_회전_키를_놓는다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, MotionEditor editor) = Show();

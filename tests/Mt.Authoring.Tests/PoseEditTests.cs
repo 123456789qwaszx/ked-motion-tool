@@ -30,15 +30,19 @@ public class PoseEditTests
     }
 
     [Fact]
-    public void 회전은_반시계_양수이고_감긴다_배율은_거리_비다()
+    public void 회전은_반시계_양수이고_감긴다_배율은_팔_방향_투영이라_가운데를_넘어도_뒤집히지_않는다()
     {
         var pivot = new Vec2(0f, 0f);
         Assert.Equal(90f, PoseEdit.AngleDelta(pivot, new Vec2(1f, 0f), new Vec2(0f, 1f)), 3);
         Assert.Equal(-90f, PoseEdit.AngleDelta(pivot, new Vec2(0f, 1f), new Vec2(1f, 0f)), 3);
         Assert.Equal(-170f, PoseEdit.AngleDelta(pivot, new Vec2(1f, 0f), new Vec2(-0.9848f, -0.1736f)), 1);
 
-        Assert.Equal(2f, PoseEdit.ScaleFactor(pivot, new Vec2(10f, 0f), new Vec2(20f, 0f)), 4);
-        Assert.Equal(1f, PoseEdit.ScaleFactor(pivot, new Vec2(1f, 0f), new Vec2(20f, 0f)));
+        var alongX = new Vec2(3f, 0f); // 방향만 본다(길이 무관)
+        Assert.Equal(2f, PoseEdit.ScaleAlong(alongX, new Vec2(60f, 0f), new Vec2(120f, 0f), 60f), 4); // 팔 하나만큼 밖 = ×2
+        Assert.Equal(0.5f, PoseEdit.ScaleAlong(alongX, new Vec2(60f, 0f), new Vec2(30f, 0f), 60f), 4); // 반 팔 안 = ×0.5
+        Assert.Equal(0.01f, PoseEdit.ScaleAlong(alongX, new Vec2(60f, 0f), new Vec2(-60f, 0f), 60f), 4); // 가운데를 지나도 바닥에서 멈춘다
+        Assert.Equal(1f, PoseEdit.ScaleAlong(alongX, new Vec2(60f, 0f), new Vec2(60f, 40f), 60f), 4); // 직각은 1
+        Assert.Equal(1f, PoseEdit.ScaleAlong(Vec2.Zero, new Vec2(60f, 0f), new Vec2(0f, 0f), 60f), 4);
     }
 
     [Fact]
