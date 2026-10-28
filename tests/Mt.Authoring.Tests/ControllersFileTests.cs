@@ -74,12 +74,15 @@ public class ControllersFileTests
     {
         DepthTuningFile depth = BuiltinTuning.Depth;
 
-        foreach (float level in new[] { 0f, 5f, 10f, 14f, 16f, 20f })
+        foreach (float level in new[] { 0f, 5f, 10f, 14f, 16f, 20f, 30f, 40f }) // 20 너머는 커브 할선 연장(슬라이더 끝 40)
         {
             Assert.True(depth.TryScaleOf(level, out float scale));
             Assert.True(depth.TryLevelOf(scale, out float back));
             Assert.Equal(level, back, 2);
         }
+
+        Assert.Equal(40f, DepthTuningFile.MaxLevel);
+        Assert.True(depth.TryScaleOf(40f, out float far) && depth.TryScaleOf(20f, out float close) && far > close); // 연장은 계속 커진다
 
         Assert.True(depth.TryScaleOf(DepthLevelLabels.Mid, out float mid));
         Assert.Equal(1.708f, mid, 2); // 게임 프리팹 Stage00 Mid의 DepthScale과 같다(PLAN-scene §7.7)

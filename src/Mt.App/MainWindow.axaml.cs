@@ -1235,8 +1235,8 @@ public partial class MainWindow : Window
 
                     if (c.Bake == ControllerBake.DepthLevel)
                     {
-                        slider = new Slider { Minimum = DepthTuningFile.MinLevel, Maximum = DepthTuningFile.MaxLevel, Width = 110, Margin = new Avalonia.Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, IsEnabled = false };
-                        ToolTip.SetTip(slider, "깊이 level — 0 far · 10 back · 14 mid · 16 front · 20 close. 놓으면 DepthScale 배율과 DepthY(얼굴 제자리, 발은 멀수록 위로)에 굽는다");
+                        slider = new Slider { Minimum = DepthTuningFile.MinLevel, Maximum = DepthTuningFile.MaxLevel, Margin = new Avalonia.Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, IsEnabled = false };
+                        ToolTip.SetTip(slider, "깊이 level — 0 far · 10 back · 14 mid · 16 front · 20 close · 40까지(close 너머는 커브 연장). 놓으면 DepthScale 배율과 DepthY(얼굴 제자리, 발은 멀수록 위로)에 굽는다");
                     }
 
                     string unit = c.Unit.Length == 0 ? "" : $" ({c.Unit})";
@@ -1315,13 +1315,27 @@ public partial class MainWindow : Window
         inner.Children.Add(title);
         inner.Children.Add(keyButton);
 
-        if (extra is not null)
+        if (extra is Slider)
         {
-            DockPanel.SetDock(extra, Dock.Left);
+            // 슬라이더 줄(깊이): 숫자 칸은 좁게 오른쪽에, 슬라이더가 남은 폭을 다 쓴다 — 세밀하게 끌 수 있게. 칸은 줄 높이에 늘어나지 않는다.
+            box.MinWidth = 0;
+            box.Width = 48;
+            box.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(box, Dock.Right);
+            inner.Children.Add(box);
+            extra.VerticalAlignment = VerticalAlignment.Center;
             inner.Children.Add(extra);
         }
+        else
+        {
+            if (extra is not null)
+            {
+                DockPanel.SetDock(extra, Dock.Left);
+                inner.Children.Add(extra);
+            }
 
-        inner.Children.Add(box);
+            inner.Children.Add(box);
+        }
         var row = new Border { Padding = new Avalonia.Thickness(2, 1), Child = inner };
         OnCommit(box, commit);
         _channelBoxPanel.Children.Add(row);

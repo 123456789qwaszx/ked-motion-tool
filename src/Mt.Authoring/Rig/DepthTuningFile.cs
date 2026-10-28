@@ -67,10 +67,10 @@ public sealed class DepthTuningFile
         return null;
     }
 
-    /// <summary>level(0 far … 20 close)의 끝 — 깊이 컨트롤러 슬라이더의 범위.</summary>
+    /// <summary>깊이 컨트롤러 슬라이더의 범위 — 0(far) … 40. close(20) 너머는 커브의 할선 연장(코어 EvaluateUnclamped, 런타임과 같다). 소유자(2026-10-28): 더 큰 값까지.</summary>
     public const float MinLevel = DepthLevelLabels.Far;
 
-    public const float MaxLevel = DepthLevelLabels.Close;
+    public const float MaxLevel = 2f * DepthLevelLabels.Close;
 
     /// <summary>level → DepthScale(커브, 런타임과 같은 하한). 커브가 없으면 false.</summary>
     public bool TryScaleOf(float level, out float depthScale) => Level.TryResolve(level, out _, out depthScale);

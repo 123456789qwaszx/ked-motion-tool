@@ -68,7 +68,7 @@
 | 그룹 | 뜻 | 컨트롤러(노드) | 재생 mode | 값의 기준 |
 |---|---|---|---|---|
 | **자리** (placement) | 슬롯이 무대 어디에 있나 | 자리 X·Y(`CharSlot_Track`) · 슬롯 기울기(`CharSlot_SwayPivot` Z) · 자세 배율(`CharSlot_Scale` X·Y) | **absolute** | place가 잡은 자리 기준의 px·도·배. `DepthScale`이 위라 far에서는 같은 400이 화면에서 작게 간다 |
-| **깊이** (depth) | 얼마나 멀리 있나 | 깊이 level 하나 → `CharSlot_DepthScale` X·Y 배율 + `CharSlot_DepthY` Y(−820×(배율−1))로 굽는다 | **absolute** | level 0(far) … 20(close), 배율은 `depth.json` 커브(mid 14 = 1.708 · Y −580.56) |
+| **깊이** (depth) | 얼마나 멀리 있나 | 깊이 level 하나 → `CharSlot_DepthScale` X·Y 배율 + `CharSlot_DepthY` Y(−820×(배율−1))로 굽는다 | **absolute** | level 0(far) … 20(close) … 40(연장), 배율은 `depth.json` 커브(mid 14 = 1.708 · Y −580.56) |
 | **연기** (acting) | 그 자리에서 무엇을 하나 | 몸 X·Y · 기울기 · 숙임 · 떨림 X·Y · 크기 X·Y · 방향 | **relative**(휴지 자세가 항등이라 absolute여도 같다) | 슬롯 아래 로컬 — 슬롯이 (200,300)이면 몸 X −100은 화면 (100,300) |
 
 ### 2.1 종이연극의 동작 → 컨트롤러
