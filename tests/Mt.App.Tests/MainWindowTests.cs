@@ -608,13 +608,17 @@ public class MainWindowTests
                 window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.Alt);
                 Assert.False(window.Viewport.IsPlaying);
 
-                // ` 첫 프레임 · Alt+` 재생 토글
+                // ` 첫 프레임 · Alt+` 처음부터 재생(토글이 아니다 — 재생 중에 누르면 처음으로 되감는다) · Alt+Q 토글
                 window.Viewport.ScrubTo(0.3);
                 window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.None);
                 Assert.Equal(0, window.Viewport.Time, 6);
+                window.Viewport.ScrubTo(0.3);
                 window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
                 Assert.True(window.Viewport.IsPlaying);
+                Assert.Equal(0, window.Viewport.Time, 6);
                 window.KeyPressQwerty(PhysicalKey.Backquote, RawInputModifiers.Alt);
+                Assert.True(window.Viewport.IsPlaying);
+                window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.Alt);
                 Assert.False(window.Viewport.IsPlaying);
 
                 // W/E/R/Q 매니퓰레이터 — 창 어디에 포커스가 있든.

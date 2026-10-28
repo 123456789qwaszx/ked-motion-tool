@@ -269,7 +269,7 @@ public partial class MainWindow : Window
 
     // ── 전역 단축키 (마야 타임 슬라이더 관습) ───────────────────────────
     //
-    // 1 / 2 이전·다음 키 · Alt+1 / Alt+2 이전·다음 프레임 · ` 첫 프레임 · Alt+` / Alt+Q 재생 토글
+    // 1 / 2 이전·다음 키 · Alt+1 / Alt+2 이전·다음 프레임 · ` 첫 프레임 · Alt+` 처음부터 재생 · Alt+Q 재생 토글
     // Shift+W / E / F 현재 시각의 키 복사·붙여넣기·지우기 · Shift+1 / 2 인비트윈 빼기·넣기
     // 창 어디에 포커스가 있든 듣는다(터널). 글 입력 칸에서는 안 듣는다.
 
@@ -301,7 +301,7 @@ public partial class MainWindow : Window
                 break;
             case PhysicalKey.Q when alt:
             case PhysicalKey.Backquote when alt:
-                _viewport.TogglePlay();
+                _viewport.PlayFromStart();
                 break;
             case PhysicalKey.Backquote when none:
                 _viewport.Stop();
@@ -495,7 +495,7 @@ public partial class MainWindow : Window
         if (_centerGrid is { } center)
         {
             center.RowDefinitions[0].Height = new GridLength(_settings.ViewportRowStar, GridUnitType.Star);
-            center.RowDefinitions[4].Height = new GridLength(_settings.GraphRowStar, GridUnitType.Star);
+            center.RowDefinitions[2].Height = new GridLength(_settings.GraphRowStar, GridUnitType.Star);
         }
     }
 
@@ -504,10 +504,10 @@ public partial class MainWindow : Window
         _settings.LeftPanelWidth = Shell.ColumnDefinitions[0].Width.Value;
         _settings.RightPanelWidth = Shell.ColumnDefinitions[4].Width.Value;
 
-        if (_centerGrid is { } center && center.RowDefinitions[0].Height.IsStar && center.RowDefinitions[4].Height.IsStar)
+        if (_centerGrid is { } center && center.RowDefinitions[0].Height.IsStar && center.RowDefinitions[2].Height.IsStar)
         {
             _settings.ViewportRowStar = center.RowDefinitions[0].Height.Value;
-            _settings.GraphRowStar = center.RowDefinitions[4].Height.Value;
+            _settings.GraphRowStar = center.RowDefinitions[2].Height.Value;
         }
     }
 
@@ -720,13 +720,19 @@ public partial class MainWindow : Window
     /// <summary>가운데: 위 뷰포트, 트랜스포트 줄, 아래 그래프. 사이에 스플리터.</summary>
     private Control BuildCenter()
     {
-        var grid = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,Auto,4,3*") };
-        grid.RowDefinitions[0].MinHeight = 120;
-        grid.RowDefinitions[4].MinHeight = 160;
+        // 위: 뷰포트 + 트랜스포트 + 레인지 줄(한 덩어리, 아래 두 줄은 늘 제 높이) · 스플리터 · 아래: 그래프/도프 시트.
+        // 스플리터는 덩어리와 탭의 별 높이만 바꾼다 — 레인지 줄이 늘어나지 않는다.
+        var grid = new Grid { RowDefinitions = new RowDefinitions("2*,4,3*") };
+        grid.RowDefinitions[0].MinHeight = 200;
+        grid.RowDefinitions[2].MinHeight = 160;
         _centerGrid = grid;
 
+        var scene = new Grid { RowDefinitions = new RowDefinitions("*,Auto,Auto") };
+        Grid.SetRow(scene, 0);
+        grid.Children.Add(scene);
+
         Grid.SetRow(_viewport, 0);
-        grid.Children.Add(_viewport);
+        scene.Children.Add(_viewport);
 
         _playButton.Click += (_, _) => _viewport.TogglePlay();
         _playMode.SelectionChanged += (_, _) =>
@@ -759,7 +765,7 @@ public partial class MainWindow : Window
         _playButton.Content = "▶";
         _playButton.FontSize = 10;
         _playButton.Padding = new Avalonia.Thickness(6, 2);
-        ToolTip.SetTip(_playButton, "재생 / 일시정지 (Alt+` · Alt+Q)");
+        ToolTip.SetTip(_playButton, "재생 / 일시정지 (Alt+Q) · 처음부터 재생 (Alt+`)");
         Button playBack = SmallButton("◀", (_, _) =>
         {
             if (_viewport.IsPlaying)
@@ -821,7 +827,7 @@ public partial class MainWindow : Window
         transportRow.Children.Add(transportButtons);
         transportRow.Children.Add(_timeSlider);
         Grid.SetRow(transportRow, 1);
-        grid.Children.Add(transportRow);
+        scene.Children.Add(transportRow);
 
         // 레인지 슬라이더 줄: [0][범위 시작] ═바═ [범위 끝][길이] · 모드 · 속도 · fps · Auto Key.
         var rangeLeft = new StackPanel
@@ -854,10 +860,10 @@ public partial class MainWindow : Window
         rangeRow.Children.Add(rangeRight);
         rangeRow.Children.Add(_rangeSlider);
         Grid.SetRow(rangeRow, 2);
-        grid.Children.Add(rangeRow);
+        scene.Children.Add(rangeRow);
 
         var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, Background = Brushes.Transparent };
-        Grid.SetRow(splitter, 3);
+        Grid.SetRow(splitter, 1);
         grid.Children.Add(splitter);
 
         var tabs = new TabControl
@@ -869,7 +875,7 @@ public partial class MainWindow : Window
                 new TabItem { Header = "도프 시트", Content = _dope, FontSize = 12 },
             },
         };
-        Grid.SetRow(tabs, 4);
+        Grid.SetRow(tabs, 2);
         grid.Children.Add(tabs);
         return grid;
     }

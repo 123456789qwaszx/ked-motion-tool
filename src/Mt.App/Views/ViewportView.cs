@@ -815,6 +815,13 @@ public sealed class ViewportView : Control
         PlayStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>처음부터 재생(Alt+`) — 범위 시작으로 간 뒤 재생. 이미 재생 중이면 처음으로 되감는다.</summary>
+    public void PlayFromStart()
+    {
+        Stop();
+        Play();
+    }
+
     public void TogglePlay()
     {
         if (_clock.IsPlaying)
