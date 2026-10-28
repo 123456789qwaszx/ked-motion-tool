@@ -136,6 +136,47 @@ public sealed class ViewportView : Control
 
     public ManipulatorMode Manipulator { get; set; } = ManipulatorMode.Move;
 
+    // 보기 변환(네비게이션): 무대를 컨트롤에 맞춘 배율 × ViewZoom, 가운데에서 ViewPan만큼. 씬 데이터가 아니라 화면뿐이다.
+    private double _viewZoom = 1;
+    private Vector _viewPan;
+    private bool _panning;
+    private Point _panPointerStart;
+    private Vector _panStart;
+
+    public const double MinViewZoom = 0.2;
+    public const double MaxViewZoom = 10;
+
+    /// <summary>보기 배율 — 1 = 무대가 컨트롤에 맞는다(레터박스). 휠이 커서를 축으로 바꾼다.</summary>
+    public double ViewZoom => _viewZoom;
+
+    /// <summary>보기 이동(컨트롤 픽셀) — MMB 드래그.</summary>
+    public Vector ViewPan => _viewPan;
+
+    /// <summary>보기 맞춤(F) — 배율 1, 이동 0.</summary>
+    public void ResetView()
+    {
+        _viewZoom = 1;
+        _viewPan = default;
+        InvalidateVisual();
+    }
+
+    /// <summary>커서 아래의 루트 점이 제자리에 있도록 배율을 바꾼다(그래프 편집기 휠과 같은 관습).</summary>
+    public void ZoomViewAt(Point anchor, double factor)
+    {
+        double next = Math.Clamp(_viewZoom * factor, MinViewZoom, MaxViewZoom);
+
+        if (Math.Abs(next - _viewZoom) < 1e-9)
+        {
+            return;
+        }
+
+        Vec2 under = ToRoot(anchor);
+        _viewZoom = next;
+        Point moved = ToControl(under);
+        _viewPan = new Vector(_viewPan.X + anchor.X - moved.X, _viewPan.Y + anchor.Y - moved.Y);
+        InvalidateVisual();
+    }
+
     /// <summary>켜져 있으면 매니퓰레이터를 놓는 순간 키가 들어간다. 꺼져 있으면 S를 누를 때까지 "키 없는 포즈"다.</summary>
     public bool AutoKey { get; set; }
 
@@ -872,10 +913,12 @@ public sealed class ViewportView : Control
         {
             double availableWidth = Math.Max(1, Bounds.Width - Pad * 2);
             double availableHeight = Math.Max(1, Bounds.Height - Pad * 2);
-            double scale = Math.Min(availableWidth / _stageSize.X, availableHeight / _stageSize.Y);
+            double scale = Math.Min(availableWidth / _stageSize.X, availableHeight / _stageSize.Y) * _viewZoom;
             double width = _stageSize.X * scale;
             double height = _stageSize.Y * scale;
-            return new Rect(Pad + (availableWidth - width) / 2, Pad + (availableHeight - height) / 2, width, height);
+            double centerX = Bounds.Width / 2 + _viewPan.X;
+            double centerY = Bounds.Height / 2 + _viewPan.Y;
+            return new Rect(centerX - width / 2, centerY - height / 2, width, height);
         }
     }
 
@@ -1146,6 +1189,17 @@ public sealed class ViewportView : Control
         base.OnPointerPressed(e);
         Focus();
         Point position = e.GetPosition(this);
+
+        // MMB 드래그 = 보기 이동(팬). 씬·키는 안 건드린다.
+        if (e.GetCurrentPoint(this).Properties.IsMiddleButtonPressed)
+        {
+            _panning = true;
+            _panPointerStart = position;
+            _panStart = _viewPan;
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
 
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
@@ -1460,6 +1514,15 @@ public sealed class ViewportView : Control
     {
         base.OnPointerMoved(e);
 
+        if (_panning)
+        {
+            Point now = e.GetPosition(this);
+            _viewPan = new Vector(_panStart.X + now.X - _panPointerStart.X, _panStart.Y + now.Y - _panPointerStart.Y);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         switch (_drag)
         {
             case Drag.MoveFree:
@@ -1479,6 +1542,14 @@ public sealed class ViewportView : Control
     {
         base.OnPointerReleased(e);
 
+        if (_panning)
+        {
+            _panning = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
         if (_drag != Drag.None)
         {
             Drag drag = _drag;
@@ -1494,12 +1565,23 @@ public sealed class ViewportView : Control
         }
     }
 
+    /// <summary>휠 = 커서를 축으로 확대·축소(한 칸 = ×1.15).</summary>
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        ZoomViewAt(e.GetPosition(this), Math.Pow(1.15, e.Delta.Y));
+        e.Handled = true;
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
 
         switch (e.Key)
         {
+            case Key.F when e.KeyModifiers == KeyModifiers.None:
+                ResetView();
+                break;
             case Key.Home:
                 Pause();
                 ScrubTo(0);

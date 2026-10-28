@@ -156,6 +156,7 @@ public partial class MainWindow : Window
     private readonly ListBox _motionList = new() { MinHeight = 120 };
     private readonly StackPanel _channelRows = new() { Spacing = 0 };
     private readonly List<string> _outlinerOrder = new();
+    private Grid? _centerGrid;
     private readonly TextBox _outlinerSearch = new() { PlaceholderText = "검색…", FontSize = 11, Margin = new Avalonia.Thickness(2) };
     private static readonly IBrush OutlinerBackground = new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x2B));
     private static readonly IBrush OutlinerRowSelected = new SolidColorBrush(Color.FromArgb(170, 0x4B, 0x6E, 0xAF));
@@ -216,6 +217,7 @@ public partial class MainWindow : Window
         _rangeSlider.Viewport = _viewport;
         _flags.Changed += (_, _) => RefreshChannels();
         GraphHost.Child = BuildCenter();
+        ApplyLayout();
 
         _session.DocumentReplaced += (_, _) => OnDocumentReplaced();
         _session.StatusChanged += (_, _) => StatusText.Text = _session.Status;
@@ -484,6 +486,34 @@ public partial class MainWindow : Window
     internal ToolSettings Settings => _settings;
 
     /// <summary>설정 → 화면·뷰. 설정 파일에서 읽은 값을 한 번에 입힌다.</summary>
+    /// <summary>창 배치(패널 폭·뷰포트/그래프 비율)를 설정에서 입힌다. 스플리터가 바꾼 값은 저장할 때 읽는다.</summary>
+    private void ApplyLayout()
+    {
+        Shell.ColumnDefinitions[0].Width = new GridLength(_settings.LeftPanelWidth);
+        Shell.ColumnDefinitions[4].Width = new GridLength(_settings.RightPanelWidth);
+        Shell.ColumnDefinitions[0].MinWidth = ToolSettings.MinPanelWidth;
+        Shell.ColumnDefinitions[4].MinWidth = ToolSettings.MinPanelWidth;
+        Shell.ColumnDefinitions[2].MinWidth = 400;
+
+        if (_centerGrid is { } center)
+        {
+            center.RowDefinitions[0].Height = new GridLength(_settings.ViewportRowStar, GridUnitType.Star);
+            center.RowDefinitions[4].Height = new GridLength(_settings.GraphRowStar, GridUnitType.Star);
+        }
+    }
+
+    private void CaptureLayout()
+    {
+        _settings.LeftPanelWidth = Shell.ColumnDefinitions[0].Width.Value;
+        _settings.RightPanelWidth = Shell.ColumnDefinitions[4].Width.Value;
+
+        if (_centerGrid is { } center && center.RowDefinitions[0].Height.IsStar && center.RowDefinitions[4].Height.IsStar)
+        {
+            _settings.ViewportRowStar = center.RowDefinitions[0].Height.Value;
+            _settings.GraphRowStar = center.RowDefinitions[4].Height.Value;
+        }
+    }
+
     private void ApplySettings()
     {
         _refreshDepth++;
@@ -551,6 +581,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            CaptureLayout();
             _settings.Save(_settingsPath);
         }
         catch (Exception exception)
@@ -696,6 +727,9 @@ public partial class MainWindow : Window
     private Control BuildCenter()
     {
         var grid = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,Auto,4,3*") };
+        grid.RowDefinitions[0].MinHeight = 120;
+        grid.RowDefinitions[4].MinHeight = 160;
+        _centerGrid = grid;
 
         Grid.SetRow(_viewport, 0);
         grid.Children.Add(_viewport);
@@ -809,6 +843,8 @@ public partial class MainWindow : Window
             Margin = new Avalonia.Thickness(0, 0, 4, 0),
             Children = { new TextBlock { Text = "0", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, Width = 20, TextAlignment = TextAlignment.Center }, _rangeStart },
         };
+        Button fitView = SmallButton("보기 맞춤 (F)", (_, _) => _viewport.ResetView());
+        ToolTip.SetTip(fitView, "뷰포트 보기를 되돌린다 — 휠 = 커서 축으로 확대·축소 · MMB 드래그 = 이동 · F = 맞춤");
         var rangeRight = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -825,6 +861,7 @@ public partial class MainWindow : Window
                 _autoKeyToggle,
                 _onion,
                 _stageInfo,
+                fitView,
             },
         };
         var rangeRow = new DockPanel { Margin = new Avalonia.Thickness(4, 2, 4, 2) };

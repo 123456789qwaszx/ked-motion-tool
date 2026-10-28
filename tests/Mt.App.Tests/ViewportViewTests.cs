@@ -27,6 +27,55 @@ public class ViewportViewTests
     }
 
     [Fact]
+    public void 휠은_커서_아래_점을_고정한_채_확대이고_MMB_드래그는_보기_이동이며_F는_맞춤이다() => HeadlessUi.Run(() =>
+    {
+        (Window window, ViewportView view, _) = Show();
+
+        try
+        {
+            Rect before = view.StageRect;
+            var anchor = new Point(before.X + before.Width * 0.25, before.Y + before.Height * 0.25);
+            Vec2 under = view.ToRoot(anchor);
+            Point inWindow = view.TranslatePoint(anchor, window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
+
+            // 휠 위로 = 확대. 커서 아래의 루트 점은 그 자리에 남는다.
+            window.MouseWheel(inWindow, new Vector(0, 2));
+            Assert.True(view.ViewZoom > 1);
+            Assert.True(view.StageRect.Width > before.Width);
+            Point after = view.ToScreen(under);
+            Assert.Equal(anchor.X, after.X, 1);
+            Assert.Equal(anchor.Y, after.Y, 1);
+
+            // MMB 드래그 = 보기 이동(씬·키는 그대로).
+            Vector panBefore = view.ViewPan;
+            window.MouseDown(inWindow, MouseButton.Middle);
+            window.MouseMove(new Point(inWindow.X + 30, inWindow.Y - 10), RawInputModifiers.MiddleMouseButton);
+            window.MouseUp(new Point(inWindow.X + 30, inWindow.Y - 10), MouseButton.Middle);
+            Assert.Equal(30, view.ViewPan.X - panBefore.X, 3);
+            Assert.Equal(-10, view.ViewPan.Y - panBefore.Y, 3);
+
+            // F = 맞춤(배율 1 · 이동 0) — 무대가 처음 자리로.
+            view.Focus();
+            window.KeyPressQwerty(PhysicalKey.F, RawInputModifiers.None);
+            Assert.Equal(1, view.ViewZoom, 6);
+            Assert.Equal(default, view.ViewPan);
+            Assert.Equal(before, view.StageRect);
+
+            // 범위 밖으로는 안 간다.
+            for (int i = 0; i < 40; i++)
+            {
+                window.MouseWheel(inWindow, new Vector(0, 3));
+            }
+
+            Assert.Equal(ViewportView.MaxViewZoom, view.ViewZoom, 6);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void 리그를_실으면_초상이_서고_포즈가_시각을_따른다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();

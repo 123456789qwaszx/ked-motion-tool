@@ -5,7 +5,8 @@
         Width="1400" Height="860"
         MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen">
-    <!-- 뼈대만 XAML이다. 내용은 MainWindow.axaml.cs가 코드로 채운다 — VnTool과 같은 방식. -->
+    <!-- 뼈대만 XAML이다. 내용은 MainWindow.axaml.cs가 코드로 채운다 — VnTool과 같은 방식.
+         왼쪽 · 가운데 · 오른쪽 사이의 스플리터를 끌면 폭이 바뀌고 설정에 남는다. -->
     <DockPanel>
         <StackPanel x:Name="Toolbar" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="8,6" />
         <Border DockPanel.Dock="Bottom" Padding="8,4" BorderThickness="0,1,0,0" BorderBrush="#33888888">
@@ -14,12 +15,16 @@
                 <StackPanel x:Name="ProblemsPanel" Spacing="2" IsVisible="False" />
             </StackPanel>
         </Border>
-        <ScrollViewer DockPanel.Dock="Left" Width="280" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel x:Name="LeftPanel" Margin="8" Spacing="6" />
-        </ScrollViewer>
-        <ScrollViewer DockPanel.Dock="Right" Width="280" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel x:Name="RightPanel" Margin="8" Spacing="6" />
-        </ScrollViewer>
-        <Border x:Name="GraphHost" Margin="4" />
+        <Grid x:Name="Shell" ColumnDefinitions="280,4,*,4,280">
+            <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="LeftPanel" Margin="8" Spacing="6" />
+            </ScrollViewer>
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent" />
+            <Border x:Name="GraphHost" Grid.Column="2" Margin="4" />
+            <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="Transparent" />
+            <ScrollViewer Grid.Column="4" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="RightPanel" Margin="8" Spacing="6" />
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </Window>

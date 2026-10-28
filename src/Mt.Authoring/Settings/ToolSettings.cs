@@ -11,6 +11,7 @@ namespace Mt.Authoring.Settings;
 public sealed class ToolSettings
 {
     public const string FileName = "settings.json";
+    public const double MinPanelWidth = 160;
     public const int MaxRecentFiles = 8;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -39,6 +40,17 @@ public sealed class ToolSettings
 
     /// <summary>하이어아키에 컨트롤러(자리·깊이·연기) 대신 덤프의 리그 노드 26단을 보인다. 리거용 — 기본은 끔.</summary>
     public bool ShowRigNodes { get; set; }
+
+    /// <summary>창 배치 — 왼쪽(씬·모션) 패널 폭(px). 스플리터로 끌면 저장된다.</summary>
+    public double LeftPanelWidth { get; set; } = 280;
+
+    /// <summary>창 배치 — 오른쪽(인스펙터·채널 박스) 패널 폭(px).</summary>
+    public double RightPanelWidth { get; set; } = 280;
+
+    /// <summary>창 배치 — 뷰포트 : 그래프/도프 시트 높이 비율(별 단위).</summary>
+    public double ViewportRowStar { get; set; } = 2;
+
+    public double GraphRowStar { get; set; } = 3;
 
     /// <summary>시간 표시 — 마야처럼 프레임이 기본.</summary>
     public Graph.TimeDisplay TimeDisplay { get; set; } = Graph.TimeDisplay.Frames;
@@ -83,6 +95,10 @@ public sealed class ToolSettings
             settings.SnapStep = settings.SnapStep > 0 ? settings.SnapStep : 1.0 / 60.0;
             settings.OnionSkinFrames = Math.Clamp(settings.OnionSkinFrames, 0, 12);
             settings.AutoSaveMinutes = Math.Clamp(settings.AutoSaveMinutes, 0, 120);
+            settings.LeftPanelWidth = Math.Clamp(settings.LeftPanelWidth, MinPanelWidth, 800);
+            settings.RightPanelWidth = Math.Clamp(settings.RightPanelWidth, MinPanelWidth, 800);
+            settings.ViewportRowStar = settings.ViewportRowStar > 0 ? settings.ViewportRowStar : 2;
+            settings.GraphRowStar = settings.GraphRowStar > 0 ? settings.GraphRowStar : 3;
             return settings;
         }
         catch (JsonException exception)
