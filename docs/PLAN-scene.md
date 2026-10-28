@@ -265,6 +265,36 @@ CanvasGroup 13개(alpha 0/1 섞임 — 가시성은 alpha로).
 
 **7.4에 더하는 질문**: 7. 배경 사이징 공식(런타임 `BackgroundRig` 사이징 정책)을 알려 주시거나, 역산값(`폭 = 높이 × 종횡비`, preserveAspect 0)으로 가도 되는지. 8. 새 오브젝트 기본 id를 `s1`·`bg_main`처럼 Yarn 슬롯 키 꼴로 바꿀지.
 
+### 7.8 런타임 확인 — `ked-presentation-runtime`(`4b27e23`)·`ked-stage-runtime`(`ec9ada2`) 코드로 푼 질문
+
+소유자가 샷 관련 스크립트를 주었고 두 런타임 저장소를 읽었다. 7.4의 질문 가운데 **1·3·7은 코드가 답한다.**
+
+| 질문 | 답 | 근거 |
+|---|---|---|
+| 1. 내장할 덤프 | **툴 픽스처 = 현재 익스포터 산출물 그대로다.** `rig-schemas.json` SHA-256 `f9457cf9…`가 세 곳(툴 픽스처 · presentation-runtime `ExportedTuning/` · stage-runtime `ExportedTuning/`) 모두 같다. 내장할 묶음은 `ExportedTuning/`의 `base-resolution.json` · `rig-schemas.json` · `portrait-dimensions.json` · `presets/depth.json` · `presets/focus-tuning.json` · `presets/role-anchor.json`(+ 원본 커밋·`export-report.json`의 `exportedAtUtc` 2026-08-21). 나머지(`ease-golden`·`mask-motion`·`screen-*`·`surface-layout`·`visual-focus`)는 툴 범위 밖. | `sha256sum` · `export-report.json` |
+| 3. 샷을 입히는 자리 | **`StageZoom_Root.localScale = (1 + 0.05·zoom)` (피벗 가운데) · `StagePan_Root.anchoredPosition = panInRigSpace` · 계산 공간(RigSpaceRoot) = `StageShot_Root`.** Pan이 Zoom 위에 있으므로 점 p → `pan + scale·p` — 지금 툴의 보기 변환(`root·scale + pan`)과 **같은 식**이다. 트리로 옮기면 값은 안 바뀌고 마스크 클리핑만 따라온다. | `PresentationCameraRootApplier.Apply` · `PresentationUIRoot.ShotResponseStage.cs` |
+| 7. 배경 사이징 | **캐릭터와 같은 정책**(`CharRigImageSizingMode.HeightFitPreserveAspect`: `sizeDelta = (부모 높이 × 종횡비, 0)`, `preserveAspect = true`). 툴의 `PortraitSizingReduction` 경로를 `BackgroundSprite_Root/Image`에 그대로 쓰면 된다. 7.7의 "stretch 보정" 추정은 틀렸다 — 같은 식이다. 배경 슬롯은 `SetupBackgroundRigCommandSpec` 기본 `Stage00/Far`, 부모는 `GetDepthContent(stage, layer)` = `Stage{NN}Depth_{Layer}_Content`. | `SetBackgroundSpriteCommandBgR.sizingMode` · `CharRigImageSizingPolicy` · `BackgroundRigSlotResolver` |
+
+**새로 드러난 것 — 깊이 층의 샷 응답(패럴랙스).** `FramingTransform`·`FramingScale`은 항등이 아니다: 샷이 움직이면 `StageDepthLayerBinder`가 층마다 `PresentationResponseProfile`로 **pan 따라가기·focus 산개·zoom 상쇄/강조**를 입힌다(`PresentationResponseMath`):
+
+```
+destPos   = base + sign(base − focus) ⊙ focusSpreadPixelsPerZoom × (scale − 1) + pan ⊙ panResponse
+destScale = baseScale × scale ^ zoomScaleResponse
+Far  : spread(−8,0) pan(−0.04,0) zoom −0.15     Back : (−4,0) (−0.02,0) −0.08
+Mid  : 0            0            0              Front: (4,0)  (0.02,0)  0.04
+Close: (16,0)       (0.2,0)      0.16
+```
+
+샷이 기본(zoom 0·pan 0)이면 전부 항등이라 코어 가정이 맞고, **샷이 들어가면 Mid 외의 층은 코어 폴드와 다르게 보인다**(코어 `StageState`에는 이 축이 없다 — `StageStateComparer`도 Framing 노드를 캡처할 때만 본다). 툴은 카메라를 보기 전용으로 두므로 **프리비즈에서 카메라를 움직일 때 이 식을 Framing 노드에 넣으면 게임과 같은 패럴랙스가 보인다.** 값은 코드 상수(런타임 소유)라 툴은 같은 상수를 데이터로 갖고 원본 파일을 적는다. 코어에는 넣지 않는다(반입본 불변).
+
+**익스포터에 요청할 수 있는 것(질문 2의 구체화)**: `PresentationTuningExporter.ExportRigSchemas`가 `CaptureRig(rigKind, prefabPath, root, ids)`로 리그를 캡처하므로, 같은 함수로 `PresentationUIRoot` 프리팹을 `rigKind: "stage"`로 캡처해 덤프에 더할 수 있다(`Refs` 열거형이 곧 노드 id 목록). 그 전까지 툴은 `tools/prefab-tree.py` 산출을 내장한다.
+
+**이름 규칙 확인**: 캐릭터는 `{slot}_{노드}`(`BuildCharacterRigRoot`), 배경은 `{rigKey}_{노드}`(`ResolvedRolePrefix`, `rigRootName` 기본 `BackgroundRig`). 툴 키 `{id}/{노드}`와 1:1.
+
+**VnTool 선례**: `vnstoryeditor_avalonia`는 `Assets/DefaultTuning/**/*.json`을 `EmbeddedResource`(LogicalName `DefaultTuning/…`)로 넣고 `AuthoringSession.CreateDefaultTuning()`이 프로젝트 옆 규약 폴더로 풀어 쓴다. 이 툴도 같은 꼴로 간다 — 다만 폴더로 풀지 않고 **메모리에서 바로 싣는다**(덤프 파일이 없는 상태가 기본이므로). 문서에는 `rigSchemas: { path: "builtin:ExportedTuning@<원본 커밋>", sha256 }`.
+
+**7.4 갱신**: 남은 질문은 **2(익스포터에 stage 추가 여부) · 4(새 문서 기본) · 5(Yarn 내보내기) · 6(메뉴 축소) · 8(기본 id 꼴)**. 나머지는 코드가 정했다.
+
 ## 결정 (2026-10-28, 소유자)
 
 - 모션의 주인은 **rigKind**. 공통 스키마를 가진 리그끼리는 모션을 공유할 수 있다 → 툴은 "rigKind가 같거나 채널 노드가 전부 있으면" 그 오브젝트에 입혀 보인다(`ScenePreview.CanWear`).
