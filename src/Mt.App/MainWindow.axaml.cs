@@ -99,7 +99,7 @@ public partial class MainWindow : Window
     private readonly ContextMenu _hierarchyMenu = new();
     private object? _menuTarget;
     private string? _dragObjectId;
-    private Point _dragStart;
+    private Avalonia.Point _dragStart;
     private bool _dragging;
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
     private static readonly IBrush PlacementNodeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
@@ -1692,7 +1692,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Point now = e.GetPosition(_hierarchy);
+        Avalonia.Point now = e.GetPosition(_hierarchy);
 
         if (Math.Abs(now.X - _dragStart.X) + Math.Abs(now.Y - _dragStart.Y) > 6)
         {
@@ -1720,7 +1720,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>그 자리의 가장 깊은(안쪽) 항목 — 그려진 위치로 찾는다(렌더러 히트 테스트 없이).</summary>
-    private TreeViewItem? DeepestItemAt(Point at)
+    private TreeViewItem? DeepestItemAt(Avalonia.Point at)
     {
         _hierarchy.UpdateLayout();
         TreeViewItem? best = null;
@@ -1728,12 +1728,12 @@ public partial class MainWindow : Window
 
         foreach (TreeViewItem item in _hierarchyParents.Keys)
         {
-            if (!item.IsEffectivelyVisible || item.TranslatePoint(new Point(0, 0), _hierarchy) is not { } origin)
+            if (!item.IsEffectivelyVisible || item.TranslatePoint(new Avalonia.Point(0, 0), _hierarchy) is not { } origin)
             {
                 continue;
             }
 
-            if (!new Rect(origin, item.Bounds.Size).Contains(at))
+            if (!new Avalonia.Rect(origin, item.Bounds.Size).Contains(at))
             {
                 continue;
             }
@@ -2076,7 +2076,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>테스트 손잡이 — 항목의 창 좌표 가운데(드래그 테스트용). 접혀 있으면 조상을 펼친다.</summary>
-    internal Point? HierarchyItemCenter(string? objectId, string? nodeId, string? stage = null, string? layer = null)
+    internal Avalonia.Point? HierarchyItemCenter(string? objectId, string? nodeId, string? stage = null, string? layer = null)
     {
         TreeViewItem? item = objectId is null
             ? _hierarchyParents.Keys.FirstOrDefault(i => i.Tag is HierarchyFolder f && f.Stage == stage && f.Layer == layer)
@@ -2094,7 +2094,7 @@ public partial class MainWindow : Window
 
         _hierarchy.UpdateLayout();
         // 항목의 첫 줄(헤더) 안 — 자식 영역은 그 아래다.
-        return item.TranslatePoint(new Point(Math.Min(60, item.Bounds.Width / 2), 10), this);
+        return item.TranslatePoint(new Avalonia.Point(Math.Min(60, item.Bounds.Width / 2), 10), this);
     }
 
     internal void CommitObjectPlacementFromForm(float x, float y, float rotationZ, float scaleX, float scaleY)
