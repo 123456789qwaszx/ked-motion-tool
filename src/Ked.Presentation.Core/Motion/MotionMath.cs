@@ -7,6 +7,7 @@ namespace Ked.Presentation.Core
     // 성분마다 CurveFunctions.Evaluate를 부르므로 AnimationCurve.Evaluate와 같은 값이다
     // (CurveFunctionsAnimationCurveParityTests).
     //
+    // mode는 채널이 아니라 **호출부(커맨드)**가 준다 — 같은 클립을 relative로도 absolute로도 재생한다.
     // relative의 뜻은 종류마다 다르다: 위치·회전은 start + v, 배율은 start × v.
     // 그래서 중립값(Neutral)이 위치·회전은 0, 배율은 1이고, 없는 성분은 중립값으로 친다 — 시작값이 그대로 남는다.
     //
@@ -14,7 +15,7 @@ namespace Ked.Presentation.Core
     // ─────────────────────────────────────────────────────────────────
     public static class MotionMath
     {
-        /// <summary>relative 채널의 "아무 변화 없음" 값. 위치·회전 0, 배율 1. 첫 키(그리고 restore의 마지막 키)가 이 값이어야 한다.</summary>
+        /// <summary>relative에서 "아무 변화 없음"인 값. 위치·회전 0, 배율 1. 없는 성분은 이 값으로 샘플된다.</summary>
         public static float Neutral(MotionChannelKind kind)
             => kind == MotionChannelKind.Scale ? 1f : 0f;
 
@@ -36,15 +37,16 @@ namespace Ked.Presentation.Core
         /// 시작값 위에 채널을 얹은 실제 값. 한 함수가 모션의 모양을 전부 정한다.
         ///   Relative : 위치·회전 start + v · 배율 start × v (없는 성분은 중립값이라 start 그대로)
         ///   Absolute : v, 없는 성분은 start 유지
+        /// 첫 키가 중립값이 아니면 첫 프레임부터 그만큼 움직인다("지금 값 +140에서 시작") — 그것도 뜻이다.
         /// </summary>
-        public static Vec3 Compose(in MotionChannel channel, Vec3 start, float seconds)
-            => Apply(channel, start, Sample(channel, seconds));
+        public static Vec3 Compose(in MotionChannel channel, MotionChannelMode mode, Vec3 start, float seconds)
+            => Apply(channel, mode, start, Sample(channel, seconds));
 
         /// <summary>
         /// 채널의 종점 — 마지막 키를 합성한 값. 규칙이 "마지막 키 Time = 길이"를 보장하므로
         /// Compose(duration)과 같지만, 길이를 몰라도 되게 키에서 직접 읽는다.
         /// </summary>
-        public static Vec3 EndValue(in MotionChannel channel, Vec3 start)
+        public static Vec3 EndValue(in MotionChannel channel, MotionChannelMode mode, Vec3 start)
         {
             float neutral = Neutral(channel.Kind);
 
@@ -53,12 +55,12 @@ namespace Ked.Presentation.Core
                 channel.HasY ? channel.Y[channel.Y.Length - 1].Value : neutral,
                 channel.HasZ ? channel.Z[channel.Z.Length - 1].Value : neutral);
 
-            return Apply(channel, start, last);
+            return Apply(channel, mode, start, last);
         }
 
-        private static Vec3 Apply(in MotionChannel channel, Vec3 start, Vec3 v)
+        private static Vec3 Apply(in MotionChannel channel, MotionChannelMode mode, Vec3 start, Vec3 v)
         {
-            if (channel.Mode == MotionChannelMode.Relative)
+            if (mode == MotionChannelMode.Relative)
                 return channel.Kind == MotionChannelKind.Scale ? Vec3.Scale(start, v) : start + v;
 
             return new Vec3(
@@ -72,9 +74,9 @@ namespace Ked.Presentation.Core
         /// (restore는 남기는 것이 없다 — 호출부가 End를 보고 부르지 않는다).
         /// 종류가 StageNodeClaimKind로 가는 자리는 여기 하나다.
         /// </summary>
-        public static StageNodeClaim ClaimFor(in MotionChannel channel, string nodeKey, Vec3 start)
+        public static StageNodeClaim ClaimFor(in MotionChannel channel, MotionChannelMode mode, string nodeKey, Vec3 start)
         {
-            Vec3 end = EndValue(channel, start);
+            Vec3 end = EndValue(channel, mode, start);
 
             return channel.Kind switch
             {

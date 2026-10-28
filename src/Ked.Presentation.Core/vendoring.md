@@ -6,8 +6,8 @@
 
 | 항목 | 값 |
 |---|---|
-| 원본 | `ked-stage-runtime` `dev` @ `ec9ada2` |
-| 반입일 | 2026-10-27 |
+| 원본 | `ked-stage-runtime` `motion/motions-2` @ `05d0c8f` (motions/2 — `dev`에 합쳐지면 그 커밋으로 갱신) |
+| 반입일 | 2026-10-28 |
 | 범위 | `Ease/`·`Motion/`·`Primitives/`·`Reduce/`·`State/`·`Tokens/`·`Transforms/`·`Tuning/` 소스와 `Documentation~/` |
 | 제외 | `Tests/`·`*.meta`·`*.asmdef` |
 | 테스트 | 순수 테스트(유니티·런타임·DOTween 참조 없는 것)만 `tests/Ked.Presentation.Core.Tests/EditMode/`로 |

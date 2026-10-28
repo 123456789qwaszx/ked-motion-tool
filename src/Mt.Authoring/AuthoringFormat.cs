@@ -9,11 +9,17 @@ namespace Mt.Authoring;
 /// </summary>
 public static class AuthoringFormat
 {
-    /// <summary>저작 원본 파일의 스키마.</summary>
-    public const string AuthoringSchema = "motion-authoring/1";
+    /// <summary>저작 원본 파일의 스키마. 2: 채널 mode가 없고 모션에 previewMode가 있다(motions/2와 함께).</summary>
+    public const string AuthoringSchema = "motion-authoring/2";
 
-    /// <summary>내보내기 산출물의 스키마 — 무대 런타임 <c>MotionLibrary</c>가 읽는 그것.</summary>
-    public const string ExportSchema = "motions/1";
+    /// <summary>옛 저작 원본 — 읽을 수 있다. 채널 <c>mode</c>는 버리고 <c>defaultMode</c>는 previewMode로 옮긴다.</summary>
+    public const string AuthoringSchemaV1 = "motion-authoring/1";
+
+    /// <summary>내보내기 산출물의 스키마 — 무대 런타임 <c>MotionLibrary</c>가 읽는 그것. 채널에 mode가 없다.</summary>
+    public const string ExportSchema = "motions/2";
+
+    /// <summary>옛 산출물 — 읽을 수 있다. 채널 <c>mode</c>는 무시한다(뜻은 커맨드가 정한다).</summary>
+    public const string ExportSchemaV1 = "motions/1";
 
     /// <summary>저작 원본 파일 확장자.</summary>
     public const string AuthoringExtension = ".motion-authoring.json";

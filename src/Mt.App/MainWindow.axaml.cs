@@ -579,11 +579,11 @@ public partial class MainWindow : Window
         AddMotion(name, rig, seconds, end);
     }
 
-    /// <summary>테스트 손잡이 — 채널을 바로 더한다(UI에는 "채널 추가"가 없다: 채널 박스·매니퓰레이터가 첫 키에서 만든다). mode를 안 주면 모션의 mode.</summary>
-    internal void AddChannelFromForm(string node, MotionChannelKind kind, MotionChannelMode? mode = null)
+    /// <summary>테스트 손잡이 — 채널을 바로 더한다(UI에는 "채널 추가"가 없다: 채널 박스·매니퓰레이터가 첫 키에서 만든다).</summary>
+    internal void AddChannelFromForm(string node, MotionChannelKind kind)
     {
         MotionAsset motion = _graph.Motion ?? throw new InvalidOperationException("먼저 모션을 고른다.");
-        _session.Editor.AddChannel(motion.Name, node, kind, mode);
+        _session.Editor.AddChannel(motion.Name, node, kind);
     }
 
     /// <summary>테스트 손잡이 — 채널 박스 칸에 값을 넣고 Enter.</summary>
@@ -1323,8 +1323,8 @@ public partial class MainWindow : Window
         RightPanel.Children.Add(Labeled("이름", _motionName));
         RightPanel.Children.Add(Labeled("길이(초)", _motionDuration));
         RightPanel.Children.Add(Labeled("끝", _motionEnd));
-        RightPanel.Children.Add(Labeled("mode", _motionDefaultMode));
-        ToolTip.SetTip(_motionDefaultMode, "relative = 키 값을 덤프의 시작값에 더함(배율은 곱함) · absolute = 키 값 그대로. 모션 하나에 하나 — 모든 채널에 같이 적히고(motions/1은 채널마다 적는다) 키 값은 바뀌지 않는다");
+        RightPanel.Children.Add(Labeled("미리보기 mode", _motionDefaultMode));
+        ToolTip.SetTip(_motionDefaultMode, "뷰포트가 키 값을 읽는 렌즈 — relative = 시작값 + 키(배율은 ×) · absolute = 키 그대로. 파일(motions/2)에는 안 나간다: 재생은 대본의 <<motion slot 이름 relative|absolute>>가 정한다(생략 = relative). 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때도 이 렌즈를 쓴다");
         RightPanel.Children.Add(_motionNotes);
 
         OnCommit(_motionName, text => WithMotion(m =>
@@ -1345,9 +1345,9 @@ public partial class MainWindow : Window
         });
         _motionDefaultMode.SelectionChanged += (_, _) => WithMotion(m =>
         {
-            if (_motionDefaultMode.SelectedIndex >= 0 && (MotionChannelMode)_motionDefaultMode.SelectedIndex != m.DefaultMode)
+            if (_motionDefaultMode.SelectedIndex >= 0 && (MotionChannelMode)_motionDefaultMode.SelectedIndex != m.PreviewMode)
             {
-                _session.Editor.SetMode(m.Name, (MotionChannelMode)_motionDefaultMode.SelectedIndex);
+                _session.Editor.SetPreviewMode(m.Name, (MotionChannelMode)_motionDefaultMode.SelectedIndex);
             }
         });
         OnCommit(_motionNotes, text => WithMotion(m => { if ((m.Notes ?? "") != text) _session.Editor.SetNotes(m.Name, text); }));
@@ -2506,7 +2506,7 @@ public partial class MainWindow : Window
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Cursor = new Cursor(StandardCursorType.Hand),
             };
-            ToolTip.SetTip(title, $"{node}\n{kind} · {channel.Mode}\n클릭: 이 채널의 커브만 · Shift/Ctrl: 더하기");
+            ToolTip.SetTip(title, $"{node}\n{kind}\n클릭: 이 채널의 커브만 · Shift/Ctrl: 더하기");
             title.PointerPressed += (_, e) => ShowCurves(axesOfChannel, additive: e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control));
             header.Children.Add(title);
             _channelRows.Children.Add(header);
@@ -2628,7 +2628,7 @@ public partial class MainWindow : Window
             _motionName.Text = motion?.Name ?? "";
             _motionDuration.Text = motion is null ? "" : motion.Duration.ToString("0.###", CultureInfo.InvariantCulture);
             _motionEnd.SelectedIndex = motion is null ? -1 : (int)motion.End;
-            _motionDefaultMode.SelectedIndex = motion is null ? -1 : (int)motion.DefaultMode;
+            _motionDefaultMode.SelectedIndex = motion is null ? -1 : (int)motion.PreviewMode;
             _motionNotes.Text = motion?.Notes ?? "";
         }
         finally
@@ -2678,9 +2678,9 @@ public partial class MainWindow : Window
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             row.Children.Add(new TextBlock
             {
-                Text = "⚠ " + problem,
+                Text = (problem.Blocking ? "⚠ " : "△ ") + problem,
                 FontSize = 11,
-                Foreground = Brushes.OrangeRed,
+                Foreground = problem.Blocking ? Brushes.OrangeRed : Brushes.Goldenrod,
                 TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = VerticalAlignment.Center,
                 MaxWidth = 700,
@@ -2725,7 +2725,7 @@ public partial class MainWindow : Window
         }
 
         rig ??= _viewport.SelectedObject?.Rig ?? SceneObject.DefaultRig;
-        _session.Editor.AddMotion(name, rig, duration, end, end == MotionEnd.Restore ? MotionChannelMode.Relative : MotionChannelMode.Absolute);
+        _session.Editor.AddMotion(name, rig, duration, end);
         _motionList.SelectedItem = name;
     }
 

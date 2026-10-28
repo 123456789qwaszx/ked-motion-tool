@@ -7,7 +7,7 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Serialization;
 
 /// <summary>
-/// 산출물 <c>motions.json</c>(스키마 <c>motions/1</c>)의 정규 쓰기와 관용 읽기.
+/// 산출물 <c>motions.json</c>(스키마 <c>motions/2</c>)의 정규 쓰기와 관용 읽기.
 ///
 /// <b>쓰기는 바이트까지 정해져 있다</b> (무대 런타임 <c>docs/motion-contract.md</c> §7): 필드 순서 ·
 /// 2칸 들여쓰기 · 한 키 한 줄 · invariant "R" · 음수 0은 0 · UTF-8(BOM 없음) · LF · 끝 개행 하나.
@@ -16,7 +16,7 @@ namespace Mt.Authoring.Serialization;
 /// (<c>Samples/Dialogue/motions.json</c>)과의 바이트 비교 테스트다.
 ///
 /// <b>읽기는 런타임 로더(<c>MotionLibrary</c>)만큼 관용적이다</b>: 빈 성분 배열은 "없음", 토큰은
-/// 대소문자·공백 무시, end·mode는 필수(기본값 없음). 어긋난 모션은 사유와 함께 건너뛴다 —
+/// 대소문자·공백 무시, end는 필수(기본값 없음). 채널에 mode는 없다 — motions/1의 mode는 무시한다(뜻은 커맨드가 정한다). 어긋난 모션은 사유와 함께 건너뛴다 —
 /// 조용히 빠뜨리지 않는다. 검증(<c>MotionRules</c>)은 여기서 하지 않는다; 호출부가 한다.
 /// </summary>
 public static class MotionsJson
@@ -42,8 +42,7 @@ public static class MotionsJson
             {
                 MotionChannel ch = channels[c];
                 sb.Append(c > 0 ? ",\n" : "\n");
-                sb.Append("        { \"node\": \"").Append(ch.Node).Append("\", \"kind\": \"").Append(KindToken(ch.Kind))
-                  .Append("\", \"mode\": \"").Append(ch.Mode == MotionChannelMode.Relative ? "relative" : "absolute").Append('"');
+                sb.Append("        { \"node\": \"").Append(ch.Node).Append("\", \"kind\": \"").Append(KindToken(ch.Kind)).Append('"');
                 AppendComponent(sb, "x", ch.X);
                 AppendComponent(sb, "y", ch.Y);
                 AppendComponent(sb, "z", ch.Z);
@@ -89,7 +88,11 @@ public static class MotionsJson
             return false;
         }
 
-        if (!string.Equals(file.Schema, AuthoringFormat.ExportSchema, StringComparison.Ordinal))
+        if (string.Equals(file.Schema, AuthoringFormat.ExportSchemaV1, StringComparison.Ordinal))
+        {
+            problems.Add($"schema '{file.Schema}' — 채널의 mode는 무시한다(motions/2: relative/absolute는 motion 커맨드가 정한다). 키 값은 그대로 읽는다.");
+        }
+        else if (!string.Equals(file.Schema, AuthoringFormat.ExportSchema, StringComparison.Ordinal))
         {
             problems.Add($"schema '{file.Schema}' (기대 '{AuthoringFormat.ExportSchema}'). 읽기는 시도한다.");
         }
@@ -146,17 +149,10 @@ public static class MotionsJson
                 return false;
             }
 
-            if (!TryParseMode(c.Mode, out MotionChannelMode mode))
-            {
-                problems.Add($"모션 '{name}' 무시 — 채널 {i}: mode는 relative|absolute 여야 한다 ('{c.Mode}') — 기본값은 없다.");
-                return false;
-            }
-
             channels[i] = new MotionChannel
             {
                 Node = c.Node ?? "",
                 Kind = kind,
-                Mode = mode,
                 X = ToKeys(c.X),
                 Y = ToKeys(c.Y),
                 Z = ToKeys(c.Z),
@@ -212,16 +208,6 @@ public static class MotionsJson
             case "restore": end = MotionEnd.Restore; return true;
             case "commit": end = MotionEnd.Commit; return true;
             default: end = default; return false;
-        }
-    }
-
-    private static bool TryParseMode(string? token, out MotionChannelMode mode)
-    {
-        switch ((token ?? "").Trim().ToLowerInvariant())
-        {
-            case "relative": mode = MotionChannelMode.Relative; return true;
-            case "absolute": mode = MotionChannelMode.Absolute; return true;
-            default: mode = default; return false;
         }
     }
 

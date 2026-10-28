@@ -72,10 +72,10 @@ public class MotionsJsonTests
     {
         const string json = """
             {
-              "schema": "motions/1",
+              "schema": "motions/2",
               "motions": [
                 { "name": "a", "rig": "character", "duration": 1, "end": "Restore",
-                  "channels": [ { "node": "N", "kind": " POSITION ", "mode": "relative", "x": [], "y": [ { "t": 0, "v": 0 }, { "t": 1, "v": 0 } ] } ] }
+                  "channels": [ { "node": "N", "kind": " POSITION ", "x": [], "y": [ { "t": 0, "v": 0 }, { "t": 1, "v": 0 } ] } ] }
               ]
             }
             """;
@@ -94,17 +94,15 @@ public class MotionsJsonTests
     }
 
     [Fact]
-    public void end와_mode는_필수다_빠진_모션은_사유와_함께_건너뛴다()
+    public void end는_필수이고_빠진_모션은_사유와_함께_건너뛴다_채널에_mode는_없다()
     {
         const string json = """
             {
-              "schema": "motions/1",
+              "schema": "motions/2",
               "motions": [
                 { "name": "no_end", "rig": "character", "duration": 1, "channels": [] },
-                { "name": "no_mode", "rig": "character", "duration": 1, "end": "commit",
-                  "channels": [ { "node": "N", "kind": "euler", "z": [ { "t": 0, "v": 0 }, { "t": 1, "v": 1 } ] } ] },
                 { "name": "ok", "rig": "character", "duration": 1, "end": "commit",
-                  "channels": [ { "node": "N", "kind": "euler", "mode": "absolute", "z": [ { "t": 0, "v": 0 }, { "t": 1, "v": 1 } ] } ] }
+                  "channels": [ { "node": "N", "kind": "euler", "z": [ { "t": 0, "v": 0 }, { "t": 1, "v": 1 } ] } ] }
               ]
             }
             """;
@@ -112,9 +110,31 @@ public class MotionsJsonTests
         Assert.True(MotionsJson.TryRead(json, out List<MotionClip> clips, out List<string> problems));
 
         Assert.Equal("ok", Assert.Single(clips).Name);
-        Assert.Equal(2, problems.Count);
-        Assert.Contains(problems, p => p.Contains("no_end", StringComparison.Ordinal) && p.Contains("end는", StringComparison.Ordinal));
-        Assert.Contains(problems, p => p.Contains("no_mode", StringComparison.Ordinal) && p.Contains("mode는", StringComparison.Ordinal));
+        string problem = Assert.Single(problems);
+        Assert.Contains("no_end", problem, StringComparison.Ordinal);
+        Assert.Contains("end는", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 옛_motions_1은_읽히고_채널의_mode는_무시한다_그리고_알린다()
+    {
+        const string json = """
+            {
+              "schema": "motions/1",
+              "motions": [
+                { "name": "old", "rig": "character", "duration": 1, "end": "commit",
+                  "channels": [ { "node": "N", "kind": "position", "mode": "absolute", "x": [ { "t": 0, "v": 140 }, { "t": 1, "v": 360 } ] } ] }
+              ]
+            }
+            """;
+
+        Assert.True(MotionsJson.TryRead(json, out List<MotionClip> clips, out List<string> problems));
+
+        Assert.Equal(140f, Assert.Single(clips).Channels[0].X[0].Value);
+        string note = Assert.Single(problems);
+        Assert.Contains("motions/1", note, StringComparison.Ordinal);
+        Assert.Contains("mode", note, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"mode\"", MotionsJson.Write(clips), StringComparison.Ordinal);
     }
 
     [Fact]

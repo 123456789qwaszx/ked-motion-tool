@@ -5,9 +5,8 @@ namespace Mt.Authoring.Model;
 /// <summary>
 /// 저작본 ↔ 코어 클립. 수학·검증은 코어 것이므로 여기서는 모양만 바꾼다.
 ///
-/// 내보낼 때 relative 채널의 전 구간 중립값 성분은 뺀다 — "아무 변화 없음"이라 빼도 뜻이 같고,
-/// Unity 내보내기(<c>MotionClipExporter</c>)가 같은 규칙을 쓰므로 두 생산자의 산출물이 갈리지 않는다.
-/// absolute는 "이 값으로"라는 뜻이 있으므로 그대로 둔다.
+/// 키가 있는 성분은 전부 나간다 — 파일(motions/2)은 mode를 모르므로 "전 구간 중립값인 성분은 무변"이라는 판단을
+/// 낼 때 할 수 없다(absolute로 쓰면 그 값으로 가는 뜻이 있다). Unity 내보내기도 같은 규칙이다.
 /// </summary>
 public static class MotionAssetCodec
 {
@@ -20,16 +19,14 @@ public static class MotionAssetCodec
         for (int i = 0; i < channels.Length; i++)
         {
             ChannelAsset c = asset.Channels[i];
-            float neutral = MotionMath.Neutral(c.Kind);
 
             channels[i] = new MotionChannel
             {
                 Node = c.Node,
                 Kind = c.Kind,
-                Mode = c.Mode,
-                X = ToKeys(c.X, c.Mode, neutral),
-                Y = ToKeys(c.Y, c.Mode, neutral),
-                Z = ToKeys(c.Z, c.Mode, neutral),
+                X = ToKeys(c.X),
+                Y = ToKeys(c.Y),
+                Z = ToKeys(c.Z),
             };
         }
 
@@ -43,7 +40,7 @@ public static class MotionAssetCodec
         };
     }
 
-    /// <summary>가져온 키는 전부 <see cref="TangentMode.Free"/>다 — 파일의 탄젠트 값을 그대로 지킨다.</summary>
+    /// <summary>가져온 키는 전부 <see cref="TangentMode.Free"/>다 — 파일의 탄젠트 값을 그대로 지킨다. 미리보기 mode는 relative(커맨드의 생략값과 같다).</summary>
     public static MotionAsset FromClip(MotionClip clip)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -54,7 +51,7 @@ public static class MotionAssetCodec
             Rig = clip.Rig ?? "",
             Duration = clip.Duration,
             End = clip.End,
-            DefaultMode = GuessDefaultMode(clip),
+            PreviewMode = MotionModeToken.Default,
         };
 
         if (clip.Channels is not null)
@@ -65,7 +62,6 @@ public static class MotionAssetCodec
                 {
                     Node = ch.Node ?? "",
                     Kind = ch.Kind,
-                    Mode = ch.Mode,
                     X = FromKeys(ch.X),
                     Y = FromKeys(ch.Y),
                     Z = FromKeys(ch.Z),
@@ -76,27 +72,9 @@ public static class MotionAssetCodec
         return asset;
     }
 
-    /// <summary>relative 성분이 전 구간 중립값(탄젠트 0)인가 — 내보낼 때 빠진다. 화면은 이것을 흐리게 보인다.</summary>
-    public static bool IsNeutralConstant(ChannelAsset channel, Axis axis)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        ComponentCurve? curve = channel.Get(axis);
-
-        return channel.Mode == MotionChannelMode.Relative
-            && curve is not null
-            && curve.Keys.Count > 0
-            && IsConstant(curve, MotionMath.Neutral(channel.Kind));
-    }
-
-    private static CurveKey[]? ToKeys(ComponentCurve? curve, MotionChannelMode mode, float neutral)
+    private static CurveKey[]? ToKeys(ComponentCurve? curve)
     {
         if (curve is null || curve.Keys.Count == 0)
-        {
-            return null;
-        }
-
-        if (mode == MotionChannelMode.Relative && IsConstant(curve, neutral))
         {
             return null;
         }
@@ -126,31 +104,5 @@ public static class MotionAssetCodec
         }
 
         return curve;
-    }
-
-    // Unity 내보내기의 IsConstant와 같은 판정: 값은 허용 오차 안, 탄젠트는 정확히 0.
-    private static bool IsConstant(ComponentCurve curve, float value)
-    {
-        foreach (KeyAsset k in curve.Keys)
-        {
-            if (Math.Abs(k.V - value) > MotionRules.Tolerance || k.InTangent != 0f || k.OutTangent != 0f)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    // 채널 과반의 mode를 기본값으로 — 저작 편의일 뿐 산출물에는 영향이 없다.
-    private static MotionChannelMode GuessDefaultMode(MotionClip clip)
-    {
-        if (clip.Channels is null || clip.Channels.Length == 0)
-        {
-            return MotionChannelMode.Relative;
-        }
-
-        int absolute = clip.Channels.Count(c => c.Mode == MotionChannelMode.Absolute);
-        return absolute * 2 > clip.Channels.Length ? MotionChannelMode.Absolute : MotionChannelMode.Relative;
     }
 }

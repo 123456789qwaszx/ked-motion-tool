@@ -149,7 +149,7 @@ public class DopeSheetRowsTests
         Assert.Equal(DopeRowLevel.Node, rows[0].Level);
         Assert.Equal("CharacterPortrait_SwayPivot", rows[0].Label);
         Assert.Equal(DopeRowLevel.Channel, rows[1].Level);
-        Assert.Equal("rotate · abs", rows[1].Label); // 화면 이름은 rotate, 파일 규약은 euler
+        Assert.Equal("rotate", rows[1].Label); // 화면 이름은 rotate, 파일 규약은 euler
         Assert.Equal(new[] { "x", "y", "z" }, rows.Skip(2).Select(r => r.Label));
         Assert.All(rows.Skip(2), r => Assert.NotNull(r.Curve));
 
@@ -276,10 +276,9 @@ public class KeyClipboardTests
         Assert.Equal(new[] { 0f, 0.3f, 0.6f, 0.9f }, keys.Select(k => (float)Math.Round(k.T, 4)));
         Assert.Equal(-18f, keys[2].V);
 
-        // bow에 nod의 y 채널을 붙이면 채널·성분이 생긴다(모션 기본 mode).
+        // bow에 nod의 y 채널을 붙이면 채널·성분이 생긴다.
         List<KeyRef> intoBow = editor.PasteKeys("bow", clipboard, 0f);
         ChannelAsset created = editor.Document.Find("bow")!.FindChannel(Y.Node, Y.Kind)!;
-        Assert.Equal(MotionChannelMode.Absolute, created.Mode);
         Assert.Equal(2, created.Y!.Keys.Count);
         Assert.Equal(0f, created.Y.Keys[0].T);
         Assert.Equal(2, intoBow.Count);

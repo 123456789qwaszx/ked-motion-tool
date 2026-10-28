@@ -92,8 +92,7 @@ public class MotionFixesTests
     public void 문구에서_돕는_손을_고른다()
     {
         Assert.Equal(new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey, MotionFix.KeyAtDuration }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 마지막 키 시각이 길이와 다르다 (0.5 ≠ 1)")));
-        Assert.Equal(new[] { MotionFix.FirstKeysToNeutral }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: X: relative 채널의 첫 키 값이 중립값 0이 아니다 (3)")));
-        Assert.Equal(new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: restore 모션의 마지막 키 값이 중립값 0이 아니다 (5) — 남기려면 commit")));
+        Assert.Equal(new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: restore인데 마지막 키 값이 중립값 0이 아니다 (5) — 끝에서 시작값으로 튄다. 남기려면 commit", Blocking: false)));
         Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "채널이 하나 이상이어야 한다")));
     }
 
@@ -114,18 +113,27 @@ public class MotionFixesTests
     }
 
     [Fact]
-    public void 길이를_마지막_키에_맞추기_첫_키_중립_마지막_키_중립_commit()
+    public void 길이를_마지막_키에_맞추기_그리고_restore_마지막_키_경고는_막지_않고_돕는_손이_있다()
     {
         var editor = new MotionEditor(Fixtures.NodBowDocument());
         editor.SetDuration("nod", 0.5f);
         Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.DurationToLastKey));
         Assert.Equal(0.6f, editor.Document.Find("nod")!.Duration, 4);
 
+        // 첫 키가 중립값이 아닌 것은 뜻이다("지금 값 +3에서 시작") — 문제도 경고도 아니다.
         editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 0, new KeyAsset { T = 0f, V = 3f });
-        editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 2, new KeyAsset { T = 0.6f, V = 5f });
-        Assert.NotEmpty(MotionValidator.Validate(editor.Document));
+        Assert.Empty(MotionValidator.Validate(editor.Document));
 
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.FirstKeysToNeutral));
+        // restore인데 마지막 키가 남는다 — 경고(내보내기는 된다).
+        editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 2, new KeyAsset { T = 0.6f, V = 5f });
+        MotionProblem warning = Assert.Single(MotionValidator.Validate(editor.Document));
+        Assert.False(warning.Blocking);
+        Assert.Contains("튄다", warning.Message, StringComparison.Ordinal);
+        Assert.Empty(MotionValidator.Blocking(MotionValidator.Validate(editor.Document)));
+        Assert.True(MotionExport.TryExport(editor.Document, null, out string json, out IReadOnlyList<MotionProblem> blocking));
+        Assert.Empty(blocking);
+        Assert.Contains("\"v\": 5", json, StringComparison.Ordinal);
+
         Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.LastKeysToNeutral));
         Assert.Empty(MotionValidator.Validate(editor.Document));
 
@@ -133,10 +141,9 @@ public class MotionFixesTests
         Assert.Equal(MotionEnd.Commit, editor.Document.Find("nod")!.End);
         Assert.False(MotionFixes.Apply(editor, "nod", MotionFix.EndToCommit));
 
-        // bow(absolute)를 restore로 바꾸면 relative가 필요하다 — 채널을 relative로.
-        editor.SetEnd("bow", MotionEnd.Restore);
-        Assert.True(MotionFixes.Apply(editor, "bow", MotionFix.ChannelsToRelative));
-        Assert.All(editor.Document.Find("bow")!.Channels, c => Assert.Equal(MotionChannelMode.Relative, c.Mode));
+        // commit이면 마지막 키가 무엇이든 경고가 없다.
+        editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 2, new KeyAsset { T = 0.6f, V = 5f });
+        Assert.Empty(MotionValidator.Validate(editor.Document));
     }
 
     [Fact]
@@ -160,8 +167,9 @@ public class MotionFixesTests
         Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.KeyAtDuration));
         keys = Y.Resolve(shorter.Document.Find("nod")!)!.Keys;
         Assert.Equal(new[] { 0f, 0.3f, 0.5f }, keys.Select(k => (float)Math.Round(k.T, 4)));
-        // 길이를 줄이면 새 끝 키는 곡선 위 값이라 중립값이 아니다 — 길이 문제는 사라지고 restore 규칙만 남는다(다음 돕는 손의 몫).
+        // 길이를 줄이면 새 끝 키는 곡선 위 값이라 중립값이 아니다 — 길이 문제는 사라지고 restore 경고만 남는다(다음 돕는 손의 몫).
         MotionProblem remaining = Assert.Single(MotionValidator.Validate(shorter.Document));
+        Assert.False(remaining.Blocking);
         Assert.Contains("중립값", remaining.Message, StringComparison.Ordinal);
         Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.LastKeysToNeutral));
         Assert.Empty(MotionValidator.Validate(shorter.Document));

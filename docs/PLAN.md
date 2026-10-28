@@ -75,8 +75,8 @@ relative/absolute · restore/commit · 길이 · 키 · 탄젠트. 가져오기/
 
 ### 2.4 검증 (M1·M5)
 - `MotionRules`를 **편집 중 계속** 돌린다. 어긋난 것은 패널에 런타임과 같은 문구로. 내보내기는 0건일 때만
-- 돕는 손: "첫 키를 중립값으로" · "마지막 키를 중립값으로"(restore) · "길이를 마지막 키에 맞추기" · "끝 키를 길이로 옮기기"
-- relative 성분이 전 구간 중립값이면 흐리게 표시하고 내보낼 때 뺀다(Unity 내보내기와 같은 규칙)
+- 돕는 손: "마지막 키를 중립값으로"(restore 경고) · "길이를 마지막 키에 맞추기" · "끝 키를 길이로 옮기기" · "끝을 commit으로"
+- (motions/2) 키가 있는 성분은 전부 내보낸다 — 파일이 mode를 모르므로 중립 상수를 뺄 수 없다. restore인데 마지막 키가 중립값이 아니면 **경고**(막지 않는다)
 
 ---
 
@@ -121,25 +121,25 @@ tests: Ked.Presentation.Core.Tests(그대로) · Mt.Authoring.Tests(xunit) · Mt
 
 ## 5. 데이터
 
-### 5.1 제작 원본 — `*.motion-authoring.json` (schema `motion-authoring/1`)
+### 5.1 제작 원본 — `*.motion-authoring.json` (schema `motion-authoring/2`)
 
 ```
 { schema, rigSchemas: { path, sha256 }, baseResolution: { path },
   preview: { portrait: "assets/harin_a_01.png" },
-  motions: [ { name, rig, duration, end, defaultMode,
-               channels: [ { node, kind, mode,
+  motions: [ { name, rig, duration, end, previewMode,
+               channels: [ { node, kind,
                              x|y|z: { keys: [ { t, v, inTangent, outTangent, tangent: "auto|flat|linear|free", broken: bool } ] } } ],
                notes } ] }
 ```
-키의 수치는 `motions/1`과 같고, `tangent`·`broken`·`defaultMode`·`notes`·`preview`가 제작 정보다. 내보내기는 그것을 벗긴다.
+키의 수치는 `motions/2`와 같고, `tangent`·`broken`·`previewMode`(뷰포트의 렌즈 — relative/absolute는 재생 커맨드가 정하므로 파일에 안 나간다)·`notes`·`preview`·`scenes`가 제작 정보다. 내보내기는 그것을 벗긴다. 옛 `motion-authoring/1`은 읽힌다(채널 `mode` 버림, `defaultMode` → `previewMode`).
 
-### 5.2 내보내기 — `motions/1` (규약 그대로)
+### 5.2 내보내기 — `motions/2` (규약 그대로)
 
 **정규 직렬화를 규약에 올린다.** 필드 순서·2칸 들여쓰기·invariant `"R"` 포맷·UTF-8(BOM 없음)·LF — Unity 내보내기(`MotionClipExporter.ToJson`)가 지금 내는 그 모양. 두 생산자가 같은 키에서 **같은 바이트**를 내야 "둘 중 무엇으로 만들었는지가 파일에 남지 않는다"(§6). `motion-contract.md`에 §7로 적는다.
 
 ### 5.3 가져오기
 
-`motions/1`을 읽어 제작 원본으로 올린다(탄젠트 모드는 `free`). Unity로 만든 `nod`·`bow`를 툴에서 열어 이어 만드는 길이고, 반대도 된다.
+`motions/2`(와 옛 `motions/1` — `mode`는 무시하고 알린다)를 읽어 제작 원본으로 올린다(탄젠트 모드는 `free`). Unity로 만든 `nod`·`bow`를 툴에서 열어 이어 만드는 길이고, 반대도 된다.
 
 ---
 
@@ -177,7 +177,7 @@ M2가 **가장 어렵고 가장 중요하다.** 여기서 "마야 같다"가 결
 |---|---|---|
 | **카메라·깊이·shot** | 모션에 카메라 채널(zoom·pan)과 의도 채널(focus 프리셋·ScreenPoint) | 소유권 규칙 — `ShotIntentState`를 매 프레임 전부 쓰는 응답 시스템과 두 쓰는 사람이 생긴다. `PLAN_stage-seam.md` §5 2단계. 툴에는 깊이 층·카메라 뷰가 필요하다 |
 | **다중 스프라이트 리그** | 머리·몸·팔이 따로 — 새 `rigKind` | 무대 런타임의 빌더·초상·리듀서 폴드. 규약·툴은 노드가 늘 뿐 |
-| **mode를 커맨드가 정함** | 모션은 값만 갖고 `motion` 커맨드 인자가 relative/absolute를 정한다(소유자 요청 2026-10-28). relative = 지금 값 + 키 값(첫 키가 0이 아니어도 된다) | `motions/2`(채널 `mode` 제거) · 코어 `MotionRules`의 relative 첫 키 중립·restore 규칙 완화 · 런타임 `motion(slot, name, mode)` 파서 표와 `MotionCommandCharR`. 툴은 그때까지 모션당 mode 하나를 모든 채널에 적는다(`PLAN-scene.md` 상태 S9) |
+| ~~**mode를 커맨드가 정함**~~ — **했다(2026-10-28, motions/2)** | 모션은 값만 갖고 `motion slot 이름 [relative\|absolute]`가 정한다. relative = 지금 값 + 키(첫 키가 0이 아니어도 된다) | 무대 `motion/motions-2` @ `05d0c8f`(코어 `MotionChannel.Mode` 제거 · `MotionModeToken` · 중립값 규칙 제거 · restore는 재생이 시작값을 되씀), 재생 반입본 `motion/motions-2` @ `6d72458`, 이 툴은 코어 재반입 + `motions/2` + 미리보기 mode |
 | **연출 클립** | 컷인·배경 연출·감정 이모지·복합 화면전환 — 여러 리그·효과·시간차 | 모션 규약 밖이다(모션은 리그 노드의 변환뿐). 별 규약(`scene-clip/1`?)과 별 커맨드. 툴의 타임라인은 재사용된다 |
 
 v1 설계가 이것들을 막지 않는지 M1에서 한 번 더 본다 — 채널이 "노드 × 속성"이라는 것, 시간이 초라는 것, 리그가 데이터라는 것 셋이 열쇠다.

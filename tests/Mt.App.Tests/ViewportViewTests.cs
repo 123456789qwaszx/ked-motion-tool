@@ -235,7 +235,6 @@ public class ViewportViewTests
             Assert.Null(channel.X);
             Assert.Null(channel.Y);
             Assert.Equal(90f, channel.Z!.Keys[0].V, 1);
-            Assert.Equal(MotionChannelMode.Relative, channel.Mode);
         }
         finally
         {

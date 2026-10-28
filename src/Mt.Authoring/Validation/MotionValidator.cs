@@ -3,8 +3,11 @@ using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Validation;
 
-/// <summary>검증 문제 하나. 모션 이름이 비어 있으면 문서 수준의 문제다.</summary>
-public sealed record MotionProblem(string MotionName, string Message)
+/// <summary>
+/// 검증 문제 하나. 모션 이름이 비어 있으면 문서 수준의 문제다.
+/// <see cref="Blocking"/>이 false면 **경고**다 — 내보내기를 막지 않는다(규칙이 아니라 "튄다"는 알림).
+/// </summary>
+public sealed record MotionProblem(string MotionName, string Message, bool Blocking = true)
 {
     public override string ToString()
         => string.IsNullOrEmpty(MotionName) ? Message : $"'{MotionName}': {Message}";
@@ -14,7 +17,9 @@ public sealed record MotionProblem(string MotionName, string Message)
 /// 편집 중 계속 돌리는 검증. 규칙은 코어 <see cref="MotionRules"/> 한 벌뿐이다 — 런타임 로더와 Unity 내보내기가
 /// 같은 규칙을 쓰므로 "툴에서는 되는데 재생에서 사라지는" 모션이 안 생긴다. 문구도 코어의 것을 그대로 보인다.
 ///
-/// 여기서 더 보는 것은 문서 수준뿐이다: 같은 이름 둘, 리그 덤프에 없는 rigKind.
+/// 여기서 더 보는 것은 문서 수준(같은 이름 둘, 리그 덤프에 없는 rigKind)과 **경고** 하나다:
+/// restore인데 마지막 키가 중립값이 아니면 재생이 끝에서 시작값을 되써 튄다 — 규칙(motions/2)은 막지 않으므로
+/// 경고로만 보이고 내보내기는 된다. 첫 키가 중립값이 아닌 것은 알리지 않는다 — "지금 값 +140에서 시작"은 뜻이다.
 /// </summary>
 public static class MotionValidator
 {
@@ -66,8 +71,33 @@ public static class MotionValidator
         if (!MotionRules.TryValidate(clip, nodeIds, out string reason))
         {
             problems.Add(new MotionProblem(motion.Name, reason));
+            return problems;
+        }
+
+        if (motion.End == MotionEnd.Restore)
+        {
+            for (int i = 0; i < motion.Channels.Count; i++)
+            {
+                ChannelAsset channel = motion.Channels[i];
+                float neutral = MotionMath.Neutral(channel.Kind);
+
+                foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
+                {
+                    if (channel.Get(axis) is { Keys.Count: > 0 } curve && Math.Abs(curve.Keys[^1].V - neutral) > MotionRules.Tolerance)
+                    {
+                        problems.Add(new MotionProblem(
+                            motion.Name,
+                            $"채널 {i}: {axis}: restore인데 마지막 키 값이 중립값 {neutral}이 아니다 ({curve.Keys[^1].V}) — 끝에서 시작값으로 튄다. 남기려면 commit",
+                            Blocking: false));
+                    }
+                }
+            }
         }
 
         return problems;
     }
+
+    /// <summary>내보내기를 막는 것만.</summary>
+    public static IEnumerable<MotionProblem> Blocking(IEnumerable<MotionProblem> problems)
+        => problems.Where(p => p.Blocking);
 }

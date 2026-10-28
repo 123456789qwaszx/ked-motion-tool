@@ -366,7 +366,7 @@ public sealed class ViewportView : Control
             {
                 if (channel.Get(axis) is not null)
                 {
-                    values.Add((axis, PoseEdit.KeyValueFor(channel.Kind, channel.Mode, PoseEdit.Component(channel.Kind, start, axis), PoseEdit.Component(channel.Kind, posed, axis))));
+                    values.Add((axis, PoseEdit.KeyValueFor(channel.Kind, motion.PreviewMode, PoseEdit.Component(channel.Kind, start, axis), PoseEdit.Component(channel.Kind, posed, axis))));
                 }
             }
 
@@ -413,7 +413,7 @@ public sealed class ViewportView : Control
 
     public void EndHoldScrub() => _holdScrub = false;
 
-    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 채널 mode를 따른다.</summary>
+    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 모션의 미리보기 mode를 따른다.</summary>
     private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
         MotionAsset? motion = Motion;
@@ -426,7 +426,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        MotionChannelMode mode = motion.FindChannel(node, kind)?.Mode ?? motion.DefaultMode;
+        MotionChannelMode mode = motion.PreviewMode;
         RectNodeState start = _template.GetState(key);
         RectNodeState posed = pose.GetState(key);
         var values = new List<(Axis, float)>();

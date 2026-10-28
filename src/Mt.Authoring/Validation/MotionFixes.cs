@@ -8,10 +8,7 @@ namespace Mt.Authoring.Validation;
 /// <summary>규칙 위반을 한 번에 고치는 돕는 손(계획 2.4). 각각 편집기 명령 하나 = 되돌리기 하나.</summary>
 public enum MotionFix
 {
-    /// <summary>relative 채널의 첫 키 값을 중립값으로.</summary>
-    FirstKeysToNeutral,
-
-    /// <summary>마지막 키 값을 중립값으로(restore).</summary>
+    /// <summary>마지막 키 값을 중립값으로(restore 경고).</summary>
     LastKeysToNeutral,
 
     /// <summary>첫 키를 시각 0으로 옮긴다.</summary>
@@ -22,9 +19,6 @@ public enum MotionFix
 
     /// <summary>길이를 가장 늦은 키에 맞춘다.</summary>
     DurationToLastKey,
-
-    /// <summary>모든 채널을 relative로.</summary>
-    ChannelsToRelative,
 
     /// <summary>끝 규칙을 commit으로.</summary>
     EndToCommit,
@@ -40,12 +34,10 @@ public static class MotionFixes
 {
     public static string Label(MotionFix fix) => fix switch
     {
-        MotionFix.FirstKeysToNeutral => "첫 키를 중립값으로",
         MotionFix.LastKeysToNeutral => "마지막 키를 중립값으로",
         MotionFix.FirstKeysToZero => "첫 키를 0초로",
         MotionFix.EndKeysToDuration => "끝 키를 길이로 옮기기",
         MotionFix.DurationToLastKey => "길이를 마지막 키에 맞추기",
-        MotionFix.ChannelsToRelative => "채널을 relative로",
         MotionFix.EndToCommit => "끝을 commit으로",
         MotionFix.NameToValid => "이름 고치기 (소문자·숫자·_)",
         MotionFix.KeyAtDuration => "길이 자리에 키 넣기",
@@ -73,19 +65,9 @@ public static class MotionFixes
             return new[] { MotionFix.FirstKeysToZero };
         }
 
-        if (m.Contains("relative 채널의 첫 키 값이 중립값", StringComparison.Ordinal))
-        {
-            return new[] { MotionFix.FirstKeysToNeutral };
-        }
-
-        if (m.Contains("restore 모션의 마지막 키 값이 중립값", StringComparison.Ordinal))
+        if (m.Contains("restore인데 마지막 키 값이 중립값", StringComparison.Ordinal))
         {
             return new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit };
-        }
-
-        if (m.Contains("restore 모션의 채널은 relative여야 한다", StringComparison.Ordinal))
-        {
-            return new[] { MotionFix.ChannelsToRelative, MotionFix.EndToCommit };
         }
 
         return Array.Empty<MotionFix>();
@@ -134,23 +116,6 @@ public static class MotionFixes
                 editor.SetEnd(motionName, MotionEnd.Commit);
                 return true;
 
-            case MotionFix.ChannelsToRelative:
-            {
-                var edits = motion.Channels.Where(c => c.Mode != MotionChannelMode.Relative).ToList();
-
-                if (edits.Count == 0)
-                {
-                    return false;
-                }
-
-                foreach (ChannelAsset channel in edits)
-                {
-                    editor.SetChannelMode(motionName, channel.Node, channel.Kind, MotionChannelMode.Relative);
-                }
-
-                return true;
-            }
-
             default:
             {
                 var edits = new List<(CurveRef Curve, IEnumerable<KeyAsset> Keys)>();
@@ -167,7 +132,7 @@ public static class MotionFixes
                         }
 
                         List<KeyAsset> keys = curve.Keys.Select(Clone).ToList();
-                        bool changed = ApplyToCurve(fix, keys, channel.Mode, motion, neutral);
+                        bool changed = ApplyToCurve(fix, keys, motion, neutral);
 
                         if (changed)
                         {
@@ -187,22 +152,13 @@ public static class MotionFixes
         }
     }
 
-    private static bool ApplyToCurve(MotionFix fix, List<KeyAsset> keys, MotionChannelMode mode, MotionAsset motion, float neutral)
+    private static bool ApplyToCurve(MotionFix fix, List<KeyAsset> keys, MotionAsset motion, float neutral)
     {
         KeyAsset first = keys[0];
         KeyAsset last = keys[^1];
 
         switch (fix)
         {
-            case MotionFix.FirstKeysToNeutral:
-                if (mode != MotionChannelMode.Relative || Math.Abs(first.V - neutral) <= MotionRules.Tolerance)
-                {
-                    return false;
-                }
-
-                first.V = neutral;
-                return true;
-
             case MotionFix.LastKeysToNeutral:
                 if (Math.Abs(last.V - neutral) <= MotionRules.Tolerance)
                 {

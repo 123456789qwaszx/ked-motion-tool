@@ -793,13 +793,13 @@ namespace Ked.Presentation.Core.Tests
         // ── motion — 채널마다 마지막 키가 클레임 ─────────────────────
 
         private static MotionChannel MotionChannelOf(
-            string node, MotionChannelKind kind, MotionChannelMode mode, float duration,
+            string node, MotionChannelKind kind, float duration,
             (float v0, float v1)? x = null, (float v0, float v1)? y = null, (float v0, float v1)? z = null)
         {
             CurveKey[] Keys((float v0, float v1)? c)
                 => c.HasValue ? new[] { new CurveKey(0f, c.Value.v0, 0f, 0f), new CurveKey(duration, c.Value.v1, 0f, 0f) } : null;
 
-            return new MotionChannel { Node = node, Kind = kind, Mode = mode, X = Keys(x), Y = Keys(y), Z = Keys(z) };
+            return new MotionChannel { Node = node, Kind = kind, X = Keys(x), Y = Keys(y), Z = Keys(z) };
         }
 
         private static StageReducerTuning TuningWithMotions(params MotionClip[] clips)
@@ -810,32 +810,43 @@ namespace Ked.Presentation.Core.Tests
         }
 
         [Test]
-        public void motion은_채널마다_마지막_키를_접는다_relative는_더하고_absolute는_그_값이다()
+        public void motion은_채널마다_마지막_키를_접는다_mode는_세_번째_인자다_relative는_더하고_absolute는_그_값이다()
         {
-            MotionClip walkTilt = new()
+            MotionClip walk = new()
             {
-                Name = "walk_tilt", Rig = "character", Duration = 0.5f, End = MotionEnd.Commit,
-                Channels = new[]
-                {
-                    // 걷기: 배치 축을 지금 자리에서 +80 (relative) — 중간에 어디를 지나든 끝은 +80
-                    MotionChannelOf("CharSlot_Track_X", MotionChannelKind.Position, MotionChannelMode.Relative, 0.5f, x: (0f, 80f)),
-                    // 기울기: 연기 축을 15도로 (absolute) — 시작값이 무엇이든 15
-                    MotionChannelOf("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, MotionChannelMode.Absolute, 0.5f, z: (3f, 15f)),
-                },
+                Name = "walk", Rig = "character", Duration = 0.5f, End = MotionEnd.Commit,
+                // 걷기: 배치 축 +80. 클립은 mode를 모른다 — 커맨드가 정한다.
+                Channels = new[] { MotionChannelOf("CharSlot_Track_X", MotionChannelKind.Position, 0.5f, x: (0f, 80f)) },
             };
 
-            StageReducerTuning tuning = TuningWithMotions(walkTilt);
+            MotionClip tilt = new()
+            {
+                Name = "tilt", Rig = "character", Duration = 0.5f, End = MotionEnd.Commit,
+                // 기울기: 연기 축 3 → 15도.
+                Channels = new[] { MotionChannelOf("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, 0.5f, z: (3f, 15f)) },
+            };
+
+            StageReducerTuning tuning = TuningWithMotions(walk, tilt);
 
             StageState state = Fold(tuning,
                 Cmd("slot", "c1"),
-                Cmd("left", "c1", "1u"),               // Track_X = -40
-                Cmd("char_rotate_to", "c1", "40"),     // SwayPivot z = 40
-                Cmd("motion", "c1", "walk_tilt"),
-                Cmd("motion", "c1", "walk_tilt"));     // 두 번 — relative는 누적, absolute는 그대로
+                Cmd("left", "c1", "1u"),                        // Track_X = -40
+                Cmd("char_rotate_to", "c1", "40"),              // SwayPivot z = 40
+                Cmd("motion", "c1", "walk"),                    // 생략 = relative
+                Cmd("motion", "c1", "walk", "relative"),        // 두 번 — relative는 누적
+                Cmd("motion", "c1", "tilt", "absolute"));       // absolute — 시작값이 무엇이든 15
 
             Assert.That(state.Unhandled, Is.Empty);
             Assert.That(state.Nodes.GetState("c1/CharSlot_Track_X").AnchoredPosition.X, Is.EqualTo(-40f + 160f).Within(Eps));
             Assert.That(state.Nodes.GetState("c1/CharacterPortrait_SwayPivot").LocalEulerAngles.Z, Is.EqualTo(15f).Within(Eps));
+
+            // 같은 tilt를 relative로 — 40 + 15 = 55. 모르는 mode 낱말은 Unhandled.
+            StageState relative = StageReducer.Apply(state, Cmd("motion", "c1", "tilt", "relative"), tuning);
+            Assert.That(relative.Nodes.GetState("c1/CharacterPortrait_SwayPivot").LocalEulerAngles.Z, Is.EqualTo(55f).Within(Eps));
+
+            StageState bad = StageReducer.Apply(state, Cmd("motion", "c1", "tilt", "offset"), tuning);
+            Assert.That(bad.Unhandled.Count, Is.EqualTo(1));
+            StringAssert.Contains("mode", bad.Unhandled[0].Reason);
         }
 
         [Test]
@@ -844,20 +855,21 @@ namespace Ked.Presentation.Core.Tests
             MotionClip nod = new()
             {
                 Name = "nod", Rig = "character", Duration = 0.6f, End = MotionEnd.Restore,
-                Channels = new[] { MotionChannelOf("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, MotionChannelMode.Relative, 0.6f, y: (0f, 0f)) },
+                Channels = new[] { MotionChannelOf("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, 0.6f, y: (0f, -18f)) },
             };
 
             MotionClip grow = new()
             {
                 Name = "grow", Rig = "character", Duration = 0.4f, End = MotionEnd.Commit,
-                Channels = new[] { MotionChannelOf("CharSlot_Scale", MotionChannelKind.Scale, MotionChannelMode.Relative, 0.4f, x: (1f, 1.5f), y: (1f, 1.5f)) },
+                Channels = new[] { MotionChannelOf("CharSlot_Scale", MotionChannelKind.Scale, 0.4f, x: (1f, 1.5f), y: (1f, 1.5f)) },
             };
 
             StageState scaled = Fold(TuningWithMotions(grow), Cmd("slot", "c1"), Cmd("scale_by", "c1", "2"), Cmd("motion", "c1", "grow"));
             Assert.That(scaled.Nodes.GetState("c1/CharSlot_Scale").LocalScale.XY, Is.EqualTo(new Vec2(3f, 3f)), "2 × 1.5");
 
+            // restore는 마지막 키가 무엇이든 무변이다 — 재생이 끝에서 시작값을 되쓴다.
             StageState before = Fold(TuningWithMotions(nod), Cmd("slot", "c1"));
-            StageState after = StageReducer.Apply(before, Cmd("motion", "c1", "nod"), TuningWithMotions(nod));
+            StageState after = StageReducer.Apply(before, Cmd("motion", "c1", "nod", "absolute"), TuningWithMotions(nod));
 
             Assert.That(after.Unhandled, Is.Empty);
             Assert.That(after.Nodes.GetState("c1/CharacterPortrait_Track_Move_Y").AnchoredPosition,
@@ -872,8 +884,8 @@ namespace Ked.Presentation.Core.Tests
                 Name = "bad", Rig = "character", Duration = 0.5f, End = MotionEnd.Commit,
                 Channels = new[]
                 {
-                    MotionChannelOf("CharSlot_Track_X", MotionChannelKind.Position, MotionChannelMode.Relative, 0.5f, x: (0f, 80f)),
-                    MotionChannelOf("NoSuchNode", MotionChannelKind.Position, MotionChannelMode.Relative, 0.5f, x: (0f, 80f)),
+                    MotionChannelOf("CharSlot_Track_X", MotionChannelKind.Position, 0.5f, x: (0f, 80f)),
+                    MotionChannelOf("NoSuchNode", MotionChannelKind.Position, 0.5f, x: (0f, 80f)),
                 },
             };
 

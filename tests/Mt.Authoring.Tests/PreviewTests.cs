@@ -52,24 +52,31 @@ public class MotionPreviewTests
     }
 
     [Fact]
-    public void relative_배율은_곱이고_absolute_위치는_그_값이며_없는_노드는_건너뛴다()
+    public void 미리보기_mode가_relative면_배율은_곱이고_absolute면_위치는_그_값이며_없는_노드는_건너뛴다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", "character", 1f, MotionEnd.Commit);
-        editor.AddChannel("a", "CharSlot_Scale", MotionChannelKind.Scale, MotionChannelMode.Relative);
+        editor.AddMotion("a", "character", 1f, MotionEnd.Commit, MotionChannelMode.Relative);
+        editor.AddChannel("a", "CharSlot_Scale", MotionChannelKind.Scale);
         editor.SetKeys("a", "CharSlot_Scale", MotionChannelKind.Scale, Axis.X, new[] { Fixtures.Key(0f, 1f), Fixtures.Key(1f, 2f) });
-        editor.AddChannel("a", "CharSlot_Track_X", MotionChannelKind.Position, MotionChannelMode.Absolute);
+        editor.AddChannel("a", "CharSlot_Track_X", MotionChannelKind.Position);
         editor.SetKeys("a", "CharSlot_Track_X", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 100f), Fixtures.Key(1f, 300f) });
-        editor.AddChannel("a", "NoSuchNode", MotionChannelKind.Position, MotionChannelMode.Absolute);
+        editor.AddChannel("a", "NoSuchNode", MotionChannelKind.Position);
         editor.SetKeys("a", "NoSuchNode", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 1f), Fixtures.Key(1f, 2f) });
 
         RectNodeTree template = RigFile.BuildTree("character");
-        RectNodeTree pose = MotionPreview.Pose(template, editor.Document.Find("a")!, 1);
+        float trackStart = template.GetState("CharSlot_Track_X").AnchoredPosition.X;
+        RectNodeTree relative = MotionPreview.Pose(template, editor.Document.Find("a")!, 1);
 
-        Assert.Equal(2f, pose.GetState("CharSlot_Scale").LocalScale.X, 4);
-        Assert.Equal(1f, pose.GetState("CharSlot_Scale").LocalScale.Y, 4); // 없는 성분은 그대로
-        Assert.Equal(300f, pose.GetState("CharSlot_Track_X").AnchoredPosition.X, 4);
-        Assert.False(pose.Contains("NoSuchNode"));
+        Assert.Equal(2f, relative.GetState("CharSlot_Scale").LocalScale.X, 4);
+        Assert.Equal(1f, relative.GetState("CharSlot_Scale").LocalScale.Y, 4); // 없는 성분은 그대로
+        Assert.Equal(trackStart + 300f, relative.GetState("CharSlot_Track_X").AnchoredPosition.X, 4); // relative: 시작값 + 키
+        Assert.False(relative.Contains("NoSuchNode"));
+
+        // 같은 키를 absolute 렌즈로 — 값 그대로. 키는 안 바뀐다(mode는 커맨드가 정하는 것, 여기서는 뷰포트의 렌즈).
+        editor.SetPreviewMode("a", MotionChannelMode.Absolute);
+        RectNodeTree absolute = MotionPreview.Pose(template, editor.Document.Find("a")!, 1);
+        Assert.Equal(300f, absolute.GetState("CharSlot_Track_X").AnchoredPosition.X, 4);
+        Assert.Equal(2f, absolute.GetState("CharSlot_Scale").LocalScale.X, 4);
     }
 }
 

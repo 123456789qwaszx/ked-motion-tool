@@ -234,7 +234,7 @@ public class GraphEditorViewTests
         try
         {
             // 두 번째 커브(배율, 1~1.2)를 더한다 — 절대 보기에선 -18~0 옆에서 납작하다.
-            editor.AddChannel("nod", "CharSlot_Scale", MotionChannelKind.Scale, MotionChannelMode.Relative);
+            editor.AddChannel("nod", "CharSlot_Scale", MotionChannelKind.Scale);
             editor.SetKeys("nod", "CharSlot_Scale", MotionChannelKind.Scale, Axis.X, new[] { TestDocuments.Key(0f, 1f), TestDocuments.Key(0.3f, 1.2f), TestDocuments.Key(0.6f, 1f) });
             var sx = new CurveRef("CharSlot_Scale", MotionChannelKind.Scale, Axis.X);
 

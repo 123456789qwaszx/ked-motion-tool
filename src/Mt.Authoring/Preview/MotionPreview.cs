@@ -10,7 +10,7 @@ namespace Mt.Authoring.Preview;
 /// 종점 <see cref="MotionMath.EndValue"/>. 그래서 뷰포트가 보여 주는 포즈 = 런타임이 재생하는 포즈다.
 ///
 /// 끝 규칙도 런타임과 같다: 길이를 지나면 restore는 시작 상태(남기는 것이 없다), commit은 마지막 키(클레임)다.
-/// 내보내기와 같은 변환(<see cref="MotionAssetCodec.ToClip"/>)을 지나므로 relative 전 구간 중립값 성분은 여기서도 빠진다.
+/// relative/absolute는 모션의 <see cref="MotionAsset.PreviewMode"/>(뷰포트의 렌즈)다 — 재생에서는 motion 커맨드의 인자가 그 자리다.
 /// </summary>
 public static class MotionPreview
 {
@@ -77,7 +77,7 @@ public static class MotionPreview
 
             RectNodeState state = tree.GetState(key);
             Vec3 start = MotionMath.StartOf(channel, state);
-            Vec3 value = ended ? MotionMath.EndValue(channel, start) : MotionMath.Compose(channel, start, t);
+            Vec3 value = ended ? MotionMath.EndValue(channel, motion.PreviewMode, start) : MotionMath.Compose(channel, motion.PreviewMode, start, t);
             tree.SetState(key, Apply(channel.Kind, state, value));
         }
 

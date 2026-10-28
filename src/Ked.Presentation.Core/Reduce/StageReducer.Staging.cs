@@ -182,9 +182,10 @@ namespace Ked.Presentation.Core
             => TryGetSpawnedSlot(state, cmd, out _, out reason);
 
         /// <summary>
-        /// motion(slot, name) — restore면 무변(gesture와 같다), commit이면 채널마다 **마지막 키**를 그 노드의
+        /// motion(slot, name, mode?) — restore면 무변(gesture와 같다), commit이면 채널마다 **마지막 키**를 그 노드의
         /// 클레임으로 접는다. 종점이 평가 결과가 아니라 키 값이라 샘플링이 필요 없다 — "이징은 종점에 관여하지
-        /// 않는다"가 모션에서도 그대로 선다. relative 채널은 현재 상태 위에(위치·회전 덧셈, 배율 곱셈), absolute는 그 값으로.
+        /// 않는다"가 모션에서도 그대로 선다. mode는 세 번째 인자(생략 = relative): relative는 현재 상태 위에
+        /// (위치·회전 덧셈, 배율 곱셈), absolute는 그 값으로. 클립은 mode를 모른다(motions/2).
         ///
         /// 재생(MotionCommandCharR.ClaimTarget)과 같은 함수(MotionMath.ClaimFor)를 지난다 —
         /// 장부 게시·트윈 종점·상태 폴드가 같은 값을 본다.
@@ -211,6 +212,12 @@ namespace Ked.Presentation.Core
                 return false;
             }
 
+            if (!MotionModeToken.TryParse(cmd.Arg(2), out MotionChannelMode mode))
+            {
+                reason = $"모션 '{name}': mode는 relative|absolute 여야 한다 ('{cmd.Arg(2)}')";
+                return false;
+            }
+
             // 채널이 가리키는 노드가 하나라도 없으면 통째로 거부한다 — 반만 접힌 모션은 거짓 정지 프레임이다.
             for (int i = 0; i < clip.Channels.Length; i++)
             {
@@ -231,7 +238,7 @@ namespace Ked.Presentation.Core
                 string nodeKey = StageState.NodeKeyOf(slotKey, channel.Node);
 
                 Vec3 start = MotionMath.StartOf(channel, state.Nodes.GetState(nodeKey));
-                state.Apply(MotionMath.ClaimFor(channel, nodeKey, start));
+                state.Apply(MotionMath.ClaimFor(channel, mode, nodeKey, start));
             }
 
             return true;

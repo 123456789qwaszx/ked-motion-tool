@@ -68,7 +68,6 @@ public class PoseEditTests
         Assert.Equal(before + 1, editor.Revision);
         Assert.Equal(2, keys.Count);
         ChannelAsset channel = editor.Document.Find("a")!.FindChannel("N", MotionChannelKind.Position)!;
-        Assert.Equal(MotionChannelMode.Absolute, channel.Mode);
         Assert.Equal(20f, channel.Y!.Keys[0].V);
 
         editor.KeyComponents("a", "N", MotionChannelKind.Position, 0.5f, new[] { (Axis.Y, 25f) }, TangentMode.Auto);

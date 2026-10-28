@@ -2,7 +2,7 @@ using Ked.Presentation.Core;
 using NUnit.Framework;
 
 // 모션 샘플링·합성·클레임 — 정본이 코어라는 것을 값으로 못 박는다.
-// 재생 샘플러·툴 프리뷰·리듀서가 전부 이 함수를 지난다.
+// 재생 샘플러·툴 프리뷰·리듀서가 전부 이 함수를 지난다. mode는 채널이 아니라 호출부가 준다(motions/2).
 public class MotionMathTests
 {
     private const float Eps = 1e-4f;
@@ -13,13 +13,16 @@ public class MotionMathTests
     // 0초 5 → 1초 7
     private static CurveKey[] From5To7 => new[] { new CurveKey(0f, 5f, 0f, 0f), new CurveKey(1f, 7f, 0f, 0f) };
 
-    private static MotionChannel Channel(MotionChannelKind kind, MotionChannelMode mode, CurveKey[] x = null, CurveKey[] y = null, CurveKey[] z = null)
-        => new() { Node = "CharacterPortrait_Track_Move", Kind = kind, Mode = mode, X = x, Y = y, Z = z };
+    private const MotionChannelMode Rel = MotionChannelMode.Relative;
+    private const MotionChannelMode Abs = MotionChannelMode.Absolute;
+
+    private static MotionChannel Channel(MotionChannelKind kind, CurveKey[] x = null, CurveKey[] y = null, CurveKey[] z = null)
+        => new() { Node = "CharacterPortrait_Track_Move", Kind = kind, X = x, Y = y, Z = z };
 
     [Test]
     public void 샘플은_성분마다_CurveFunctions이고_없는_성분은_0이다()
     {
-        MotionChannel ch = Channel(MotionChannelKind.Position, MotionChannelMode.Relative, y: Rise10);
+        MotionChannel ch = Channel(MotionChannelKind.Position, y: Rise10);
 
         for (int i = 0; i <= 8; i++)
         {
@@ -35,7 +38,7 @@ public class MotionMathTests
     [Test]
     public void 범위_밖은_끝값으로_클램프된다()
     {
-        MotionChannel ch = Channel(MotionChannelKind.Position, MotionChannelMode.Relative, x: Rise10);
+        MotionChannel ch = Channel(MotionChannelKind.Position, x: Rise10);
 
         Assert.AreEqual(0f, MotionMath.Sample(ch, -1f).X, Eps);
         Assert.AreEqual(10f, MotionMath.Sample(ch, 5f).X, Eps);
@@ -44,23 +47,40 @@ public class MotionMathTests
     [Test]
     public void relative는_시작값에_더하고_없는_성분은_시작값을_둔다()
     {
-        MotionChannel ch = Channel(MotionChannelKind.Position, MotionChannelMode.Relative, x: Rise10);
+        MotionChannel ch = Channel(MotionChannelKind.Position, x: Rise10);
         Vec3 start = new(100f, 50f, 0f);
 
-        Vec3 v = MotionMath.Compose(ch, start, 1f);
+        Vec3 v = MotionMath.Compose(ch, Rel, start, 1f);
 
         Assert.AreEqual(110f, v.X, Eps);
         Assert.AreEqual(50f, v.Y, Eps, "Y는 없다 → 시작값");
     }
 
     [Test]
+    public void 같은_채널을_relative로도_absolute로도_읽는다_첫_키가_중립값이_아니면_첫_프레임부터_움직인다()
+    {
+        // 0프레임 x=140 → 1초 x=360. absolute면 140→360, relative면 지금 값+140 → 지금 값+360 (소유자 정의).
+        CurveKey[] from140 = { new CurveKey(0f, 140f, 0f, 0f), new CurveKey(1f, 360f, 0f, 0f) };
+        MotionChannel ch = Channel(MotionChannelKind.Position, x: from140);
+        Vec3 start = new(20f, 0f, 0f);
+
+        Assert.AreEqual(140f, MotionMath.Compose(ch, Abs, start, 0f).X, Eps);
+        Assert.AreEqual(360f, MotionMath.Compose(ch, Abs, start, 1f).X, Eps);
+        Assert.AreEqual(160f, MotionMath.Compose(ch, Rel, start, 0f).X, Eps, "지금 값 + 140");
+        Assert.AreEqual(380f, MotionMath.Compose(ch, Rel, start, 1f).X, Eps);
+        Assert.IsTrue(MotionModeToken.TryParse(null, out MotionChannelMode omitted) && omitted == Rel, "생략은 relative");
+        Assert.IsTrue(MotionModeToken.TryParse(" ABSOLUTE ", out MotionChannelMode abs) && abs == Abs);
+        Assert.IsFalse(MotionModeToken.TryParse("offset", out _));
+    }
+
+    [Test]
     public void absolute는_값_그_자체이고_없는_성분은_시작값을_둔다()
     {
-        MotionChannel ch = Channel(MotionChannelKind.Euler, MotionChannelMode.Absolute, z: From5To7);
+        MotionChannel ch = Channel(MotionChannelKind.Euler, z: From5To7);
         Vec3 start = new(1f, 2f, 30f);
 
-        Vec3 v0 = MotionMath.Compose(ch, start, 0f);
-        Vec3 v1 = MotionMath.Compose(ch, start, 1f);
+        Vec3 v0 = MotionMath.Compose(ch, Abs, start, 0f);
+        Vec3 v1 = MotionMath.Compose(ch, Abs, start, 1f);
 
         Assert.AreEqual(5f, v0.Z, Eps, "t=0부터 키 값이다 — 시작값 30은 무시된다");
         Assert.AreEqual(7f, v1.Z, Eps);
@@ -73,10 +93,10 @@ public class MotionMathTests
     {
         // 1 → 1.5 (relative 배율의 첫 키는 중립값 1)
         CurveKey[] up = { new CurveKey(0f, 1f, 0f, 0f), new CurveKey(1f, 1.5f, 0f, 0f) };
-        MotionChannel ch = Channel(MotionChannelKind.Scale, MotionChannelMode.Relative, x: up);
+        MotionChannel ch = Channel(MotionChannelKind.Scale, x: up);
         Vec3 start = new(2f, 3f, 1f);
 
-        Vec3 v = MotionMath.Compose(ch, start, 1f);
+        Vec3 v = MotionMath.Compose(ch, Rel, start, 1f);
 
         Assert.AreEqual(3f, v.X, Eps, "2 × 1.5");
         Assert.AreEqual(3f, v.Y, Eps, "Y는 없다 → ×1");
@@ -89,14 +109,14 @@ public class MotionMathTests
     [Test]
     public void 끝값은_마지막_키를_합성한_것이고_길이에서의_Compose와_같다()
     {
-        MotionChannel offset = Channel(MotionChannelKind.Position, MotionChannelMode.Relative, x: Rise10, y: Rise10);
-        MotionChannel absolute = Channel(MotionChannelKind.Scale, MotionChannelMode.Absolute, x: From5To7);
+        MotionChannel offset = Channel(MotionChannelKind.Position, x: Rise10, y: Rise10);
+        MotionChannel absolute = Channel(MotionChannelKind.Scale, x: From5To7);
         Vec3 start = new(3f, 4f, 1f);
 
-        Assert.AreEqual(MotionMath.Compose(offset, start, 1f), MotionMath.EndValue(offset, start));
-        Assert.AreEqual(MotionMath.Compose(absolute, start, 1f), MotionMath.EndValue(absolute, start));
-        Assert.AreEqual(13f, MotionMath.EndValue(offset, start).X, Eps);
-        Assert.AreEqual(1f, MotionMath.EndValue(absolute, start).Z, Eps, "Scale의 z는 시작값 그대로");
+        Assert.AreEqual(MotionMath.Compose(offset, Rel, start, 1f), MotionMath.EndValue(offset, Rel, start));
+        Assert.AreEqual(MotionMath.Compose(absolute, Abs, start, 1f), MotionMath.EndValue(absolute, Abs, start));
+        Assert.AreEqual(13f, MotionMath.EndValue(offset, Rel, start).X, Eps);
+        Assert.AreEqual(1f, MotionMath.EndValue(absolute, Abs, start).Z, Eps, "Scale의 z는 시작값 그대로");
     }
 
     [Test]
@@ -104,9 +124,9 @@ public class MotionMathTests
     {
         Vec3 start = new(1f, 2f, 3f);
 
-        StageNodeClaim pos = MotionMath.ClaimFor(Channel(MotionChannelKind.Position, MotionChannelMode.Relative, x: Rise10), "c1/N", start);
-        StageNodeClaim scale = MotionMath.ClaimFor(Channel(MotionChannelKind.Scale, MotionChannelMode.Absolute, x: From5To7, y: From5To7), "c1/N", start);
-        StageNodeClaim euler = MotionMath.ClaimFor(Channel(MotionChannelKind.Euler, MotionChannelMode.Absolute, z: From5To7), "c1/N", start);
+        StageNodeClaim pos = MotionMath.ClaimFor(Channel(MotionChannelKind.Position, x: Rise10), Rel, "c1/N", start);
+        StageNodeClaim scale = MotionMath.ClaimFor(Channel(MotionChannelKind.Scale, x: From5To7, y: From5To7), Abs, "c1/N", start);
+        StageNodeClaim euler = MotionMath.ClaimFor(Channel(MotionChannelKind.Euler, z: From5To7), Abs, "c1/N", start);
 
         Assert.AreEqual(StageNodeClaimKind.AnchoredPosition, pos.Kind);
         Assert.AreEqual(new Vec2(11f, 2f), pos.Value.XY);
@@ -127,8 +147,8 @@ public class MotionMathTests
             .WithLocalScale(new Vec3(2f, 3f, 1f))
             .WithLocalEuler(new Vec3(0f, 0f, 45f));
 
-        Assert.AreEqual(new Vec3(10f, 20f, 0f), MotionMath.StartOf(Channel(MotionChannelKind.Position, MotionChannelMode.Relative), state));
-        Assert.AreEqual(new Vec3(2f, 3f, 1f), MotionMath.StartOf(Channel(MotionChannelKind.Scale, MotionChannelMode.Relative), state));
-        Assert.AreEqual(new Vec3(0f, 0f, 45f), MotionMath.StartOf(Channel(MotionChannelKind.Euler, MotionChannelMode.Relative), state));
+        Assert.AreEqual(new Vec3(10f, 20f, 0f), MotionMath.StartOf(Channel(MotionChannelKind.Position), state));
+        Assert.AreEqual(new Vec3(2f, 3f, 1f), MotionMath.StartOf(Channel(MotionChannelKind.Scale), state));
+        Assert.AreEqual(new Vec3(0f, 0f, 45f), MotionMath.StartOf(Channel(MotionChannelKind.Euler), state));
     }
 }

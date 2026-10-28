@@ -46,7 +46,9 @@ public class MotionDocumentJsonTests
         string json = MotionDocumentJson.Write(editor.Document);
 
         Assert.Contains("\"end\": \"commit\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"defaultMode\": \"absolute\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"previewMode\": \"absolute\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"defaultMode\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"schema\": \"motion-authoring/2\"", json, StringComparison.Ordinal);
         Assert.Contains("\"kind\": \"euler\"", json, StringComparison.Ordinal);
         Assert.Contains("\"tangent\": \"auto\"", json, StringComparison.Ordinal);
         Assert.Contains("\"broken\": true", json, StringComparison.Ordinal);
@@ -91,12 +93,36 @@ public class MotionDocumentJsonTests
     public void 빈_성분_목록은_없음으로_읽는다()
     {
         string json = """
-            { "schema": "motion-authoring/1",
+            { "schema": "motion-authoring/2",
               "motions": [ { "name": "a", "rig": "character", "duration": 1, "end": "restore",
-                             "channels": [ { "node": "N", "kind": "position", "mode": "relative", "x": { "keys": [] } } ] } ] }
+                             "channels": [ { "node": "N", "kind": "position", "x": { "keys": [] } } ] } ] }
             """;
 
         MotionDocument read = MotionDocumentJson.Read(json);
         Assert.Null(read.Find("a")!.Channels[0].X);
+    }
+
+    [Fact]
+    public void 옛_판_motion_authoring_1은_읽히고_defaultMode는_previewMode가_되며_채널_mode는_버린다()
+    {
+        string json = """
+            { "schema": "motion-authoring/1",
+              "motions": [ { "name": "a", "rig": "character", "duration": 1, "end": "commit", "defaultMode": "absolute",
+                             "channels": [ { "node": "N", "kind": "position", "mode": "relative",
+                                             "x": { "keys": [ { "t": 0, "v": 140 }, { "t": 1, "v": 360 } ] } } ] } ] }
+            """;
+
+        MotionDocument read = MotionDocumentJson.Read(json);
+
+        Assert.Equal(AuthoringFormat.AuthoringSchema, read.Schema);
+        MotionAsset a = read.Find("a")!;
+        Assert.Equal(MotionChannelMode.Absolute, a.PreviewMode);
+        Assert.Null(a.LegacyDefaultMode);
+        Assert.Equal(140f, a.Channels[0].X!.Keys[0].V); // 키 값은 그대로 — 뜻만 커맨드로 갔다
+
+        string written = MotionDocumentJson.Write(read);
+        Assert.Contains("\"schema\": \"motion-authoring/2\"", written, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"defaultMode\"", written, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"mode\"", written, StringComparison.Ordinal);
     }
 }

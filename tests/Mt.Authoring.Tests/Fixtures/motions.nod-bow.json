@@ -1,14 +1,14 @@
 {
-  "schema": "motions/1",
+  "schema": "motions/2",
   "motions": [
     { "name": "nod", "rig": "character", "duration": 0.6, "end": "restore",
       "channels": [
-        { "node": "CharacterPortrait_Track_Move_Y", "kind": "position", "mode": "relative",
+        { "node": "CharacterPortrait_Track_Move_Y", "kind": "position",
           "y": [ { "t": 0, "v": 0, "inTangent": 0, "outTangent": 0 }, { "t": 0.3, "v": -18, "inTangent": 0, "outTangent": 0 }, { "t": 0.6, "v": 0, "inTangent": 0, "outTangent": 0 } ] }
       ] },
     { "name": "bow", "rig": "character", "duration": 0.4, "end": "commit",
       "channels": [
-        { "node": "CharacterPortrait_SwayPivot", "kind": "euler", "mode": "absolute",
+        { "node": "CharacterPortrait_SwayPivot", "kind": "euler",
           "x": [ { "t": 0, "v": 0, "inTangent": 0, "outTangent": 0 }, { "t": 0.4, "v": 0, "inTangent": 0, "outTangent": 0 } ],
           "y": [ { "t": 0, "v": 0, "inTangent": 0, "outTangent": 0 }, { "t": 0.4, "v": 0, "inTangent": 0, "outTangent": 0 } ],
           "z": [ { "t": 0, "v": 0, "inTangent": 0, "outTangent": 0 }, { "t": 0.4, "v": 8, "inTangent": 0, "outTangent": 0 } ] }

@@ -8,6 +8,10 @@ namespace Ked.Presentation.Core
     // 모션 검증 — 내보내기(에디터)와 런타임 로더와 저작 도구가 같은 규칙을 써야 한다.
     // 한쪽만 알면 "툴에서는 되는데 재생에서 사라지는" 모션이 생긴다(CurveKindRules와 같은 사정).
     //
+    // 규칙은 **모양**만 본다(이름·길이·노드·종류·성분·키 시각). 값의 뜻(relative/absolute)은 재생하는 커맨드가
+    // 정하므로 "첫 키가 중립값"·"restore의 마지막 키가 중립값" 같은 값 규칙은 없다 — 튀는 모션은 작가의 선택이고
+    // 저작 도구가 경고한다.
+    //
     // 어긋난 모션은 호출부가 로그 + 무시한다 — 조용히 빠뜨리지 않는다.
     // ─────────────────────────────────────────────────────────────────
     public static class MotionRules
@@ -111,12 +115,6 @@ namespace Ked.Presentation.Core
                 return false;
             }
 
-            if (!Enum.IsDefined(typeof(MotionChannelMode), channel.Mode))
-            {
-                reason = $"mode는 offset 또는 absolute여야 한다 ({(int)channel.Mode})";
-                return false;
-            }
-
             if (channel.Kind != MotionChannelKind.Euler && channel.Z != null)
             {
                 reason = $"{channel.Kind}에는 Z 성분이 없다";
@@ -129,22 +127,12 @@ namespace Ked.Presentation.Core
                 return false;
             }
 
-            // restore는 "아무것도 남기지 않는다"는 보증이다 — absolute 채널은 끝에서 시작값으로 튈 수밖에 없으니 금지.
-            if (end == MotionEnd.Restore && channel.Mode != MotionChannelMode.Relative)
-            {
-                reason = "restore 모션의 채널은 relative여야 한다 (absolute는 끝에서 튄다)";
-                return false;
-            }
-
-            float neutral = MotionMath.Neutral(channel.Kind);
-
-            return TryValidateComponent("X", channel.X, channel.Mode, end, neutral, duration, out reason)
-                && TryValidateComponent("Y", channel.Y, channel.Mode, end, neutral, duration, out reason)
-                && TryValidateComponent("Z", channel.Z, channel.Mode, end, neutral, duration, out reason);
+            return TryValidateComponent("X", channel.X, duration, out reason)
+                && TryValidateComponent("Y", channel.Y, duration, out reason)
+                && TryValidateComponent("Z", channel.Z, duration, out reason);
         }
 
-        private static bool TryValidateComponent(
-            string label, CurveKey[] keys, MotionChannelMode mode, MotionEnd end, float neutral, float duration, out string reason)
+        private static bool TryValidateComponent(string label, CurveKey[] keys, float duration, out string reason)
         {
             reason = null;
 
@@ -178,20 +166,6 @@ namespace Ked.Presentation.Core
                     reason = $"{label}: 키 시각이 오름차순이 아니다 (index {i})";
                     return false;
                 }
-            }
-
-            // relative는 "지금 자리에서" 시작한다 — 첫 키가 중립값(위치·회전 0, 배율 1)이 아니면 첫 프레임이 튄다.
-            if (mode == MotionChannelMode.Relative && Math.Abs(keys[0].Value - neutral) > Tolerance)
-            {
-                reason = $"{label}: relative 채널의 첫 키 값이 중립값 {neutral}이 아니다 ({keys[0].Value})";
-                return false;
-            }
-
-            // restore는 마지막 키도 중립값이어야 한다 — 선언과 키가 어긋나면 끝에서 튀고, 리듀서의 무변과도 갈린다.
-            if (end == MotionEnd.Restore && Math.Abs(keys[keys.Length - 1].Value - neutral) > Tolerance)
-            {
-                reason = $"{label}: restore 모션의 마지막 키 값이 중립값 {neutral}이 아니다 ({keys[keys.Length - 1].Value}) — 남기려면 commit";
-                return false;
             }
 
             return true;

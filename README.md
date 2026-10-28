@@ -1,6 +1,6 @@
 # ked-motion-tool
 
-캐릭터 모션 전용 저작 도구. 무대 런타임(`ked-stage-runtime`)이 읽는 `motions.json`(`motions/1`)을
+캐릭터 모션 전용 저작 도구. 무대 런타임(`ked-stage-runtime`)이 읽는 `motions.json`(`motions/2`)을
 마야급 커브 편집으로 만든다. 계획 전체는 [`docs/PLAN.md`](docs/PLAN.md).
 
 - **v1**: 초상화 한 장을 리그 축(`Track_Move_*`·`SwayPivot`…)으로 움직이는 단순 캐릭터 모션. 그래프
@@ -35,7 +35,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 | 프로젝트 | 역할 |
 |---|---|
 | `src/Ked.Presentation.Core` | 무대 런타임의 연출 코어 복사본. 모션 규약·수학·검증·리그 수학의 유일한 출처. 출처와 동기화 절차는 [`vendoring.md`](src/Ked.Presentation.Core/vendoring.md) |
-| `src/Mt.Authoring` | 저작 도메인. Avalonia를 모른다. `Model/`(저작 원본 `*.motion-authoring.json`) · `Editing/MotionEditor`(모든 편집의 통로, 스냅샷 undo) · `Serialization/`(`MotionDocumentJson` 저작 원본, `MotionsJson` 산출물 `motions/1` 정규 쓰기·관용 읽기) · `Validation/`(코어 `MotionRules`로 편집 중 검증, 0건일 때만 내보내기) · `Rig/RigSchemaFile`(리그 덤프 + SHA-256) |
+| `src/Mt.Authoring` | 저작 도메인. Avalonia를 모른다. `Model/`(저작 원본 `*.motion-authoring.json`) · `Editing/MotionEditor`(모든 편집의 통로, 스냅샷 undo) · `Serialization/`(`MotionDocumentJson` 저작 원본, `MotionsJson` 산출물 `motions/2` 정규 쓰기·관용 읽기) · `Validation/`(코어 `MotionRules`로 편집 중 검증, 0건일 때만 내보내기) · `Rig/RigSchemaFile`(리그 덤프 + SHA-256) |
 | `src/Mt.App` | 그리기와 입력. `Views/ViewportView`(무대 — 포즈는 `Mt.Authoring/Preview`의 코어 수학, 재생 시계·스크럽·어니언 스킨) · `Views/DopeSheetView`(도프 시트) · `Views/GraphEditorView`(그래프 에디터 — 드래그 중간값은 렌더만, 놓는 순간이 편집 하나) · `MainWindow`(셸: 모션·채널 목록, 인스펙터, 파일) · `Services/DocumentSession`(경로·리그 덤프·저장·내보내기). 좌표 변환·히트 테스트·탄젠트 산수는 `Mt.Authoring/Graph`의 순수 함수다 |
 
 ## 그래프 에디터 (마야 그래프 에디터 그대로)
@@ -121,7 +121,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 - **월드 축·격자**: 루트 공간(가운데 원점·y 위·px). 빨강 x·초록 y 축, 가는 선 1u(기준 폭/48 = 40px), 굵은 선 5u, 무대 프레임. 항상 보인다.
 - **모션의 주인은 rigKind**다. 고른 오브젝트의 리그가 모션의 리그와 같거나 채널의 노드를 전부 가지면(공통 스키마) 그 오브젝트에 입혀 보인다. 아니면 "이 리그에 안 맞는다"로 표시된다.
 - **깊이**: 덤프 옆 `presets/depth.json`(ExportedTuning)이 있으면 레이어(far·back·mid·front·close)가 깊이(DepthY·DepthScale)가 된다. 런타임 size 폴드와 같은 코어 함수(`SetDepthStageReduction`, focus 보존 bust)를 지나므로 보이는 깊이 = 정지 프레임의 깊이다. 없으면 레이어는 그리는 순서만 정한다.
-- 채널 종류는 화면에서 `position · scale · rotate`로 부른다(파일 규약은 `euler` 그대로). mode(`relative`/`absolute`)는 **모션 하나에 하나**(인스펙터 "mode") — 모든 채널에 같이 적힌다(`motions/1`은 채널마다 적으므로). 채널마다 다른 mode는 UI에서 고를 수 없다(파일에 그렇게 적혀 있으면 아웃라이너 툴팁에 보인다).
+- 채널 종류는 화면에서 `position · scale · rotate`로 부른다(파일 규약은 `euler` 그대로). **채널에 mode는 없다**(`motions/2`): relative/absolute는 대본의 `<<motion slot 이름 relative|absolute>>`(생략 = relative)가 정한다. 인스펙터의 **미리보기 mode**는 뷰포트가 키 값을 읽는 렌즈일 뿐이고 파일에 안 나간다 — relative면 시작값 + 키(배율은 ×), absolute면 키 그대로. 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때도 이 렌즈를 쓴다. 옛 `motions/1`·`motion-authoring/1`은 읽히고(채널 `mode` 무시, `defaultMode` → 미리보기 mode) 키 값은 그대로다.
 - 씬은 하나만 쓴다(저작본 `scenes[]`와 편집기 명령은 여럿을 담을 수 있지만 UI는 활성 씬 하나만 보인다 — 모션 추출용이라 전환 UI는 뺐다).
 - **배역**: 채널 박스의 배역 콤보 — 덤프 옆 `presets/focus.json`(또는 `focus-tuning.json`)의 entries 키. 깊이 폴드의 focus 보존이 그 배역의 오프셋(base + defaultOffset + bust)을 쓴다 — 런타임 cast와 같은 뜻. 표가 없으면 base 오프셋 없이(0).
 - **부모 바꾸기는 월드 자세를 지킨다**(유니티 Set Parent 기본): 드래그·부모 콤보·"부모에서 떼기" 모두 오프셋 X/Y·Rot Z·Scale X/Y를 새 부모 공간으로 환산해 보이는 자리·각·크기가 그대로다(위치는 `CharSlot_Track`, 회전은 `CharSlot_SwayPivot`, 배율은 `CharSlot_Scale`의 부모 공간 기준). 드래그 중 놓을 자리는 헤더 앞 `⇥`로 보인다.
@@ -132,7 +132,7 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 ## 뷰포트
 
 - **채널 박스**(마야): 오른쪽에 하이어아키에서 고른 리그 노드의 **Translate X/Y · Rotate X/Y/Z · Scale X/Y** — 리그 노드는 유니티 계층 하나라 이 값 전부를 가진다. 칸의 값은 지금 시각의 포즈(키 없는 포즈 포함)다. 값을 넣으면(`+=3`·`-=1`·`*=2`·`/=2`는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: **Auto Key**거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 칸 색: 빨강 = 이 시각에 키, 연한 빨강 = 어딘가에 키, 주황 = 키 없는 포즈. 이름 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기), **●** = 그 성분을 지금 값으로 지금 키(마야 Key Selected). 채널·성분은 첫 키에서 생긴다.
-- **매니퓰레이터**: 하이어아키에서 노드를 고르고 **W** 이동 · **E** 회전 · **R** 배율 · **Q** 선택. 기즈모의 축 끝은 한 축만, 가운데는 자유. 놓는 순간 **Auto Key**면 키가 들어가고(바뀐 성분만), 아니면 "키 없는 포즈"로 남아 **S**로 키를 놓거나 **Esc**/시각 이동으로 버린다. 그 시각에 이미 키가 있으면 바로 덮어쓴다. 채널·성분이 없으면 모션의 mode로 만든다.
+- **매니퓰레이터**: 하이어아키에서 노드를 고르고 **W** 이동 · **E** 회전 · **R** 배율 · **Q** 선택. 기즈모의 축 끝은 한 축만, 가운데는 자유. 놓는 순간 **Auto Key**면 키가 들어가고(바뀐 성분만), 아니면 "키 없는 포즈"로 남아 **S**로 키를 놓거나 **Esc**/시각 이동으로 버린다. 그 시각에 이미 키가 있으면 바로 덮어쓴다. 채널·성분이 없으면 만든다.
 - 리그 덤프(`rig-schemas.json`)로 세운 트리 위에 초상 PNG 한 장. 사이징은 런타임 `HeightFitPreserveAspect`와 같다. 깊이 mid, 카메라 없음(v1).
 - 포즈 = 코어 `MotionMath.Compose`. 길이를 지나면 restore는 시작 상태, commit은 마지막 키 — 재생도 그 규칙을 보여 준다.
 - **Alt+`** 재생/일시정지 · **`** 첫 프레임 · **Home/End** 처음/끝 · **←/→** 한 프레임(24fps). 타임 슬라이더·그래프의 현재 시각과 하나다.
@@ -143,8 +143,8 @@ tests: Ked.Presentation.Core.Tests(NUnit, 원본 그대로) · Mt.Authoring.Test
 
 - 설정은 `%APPDATA%/ked-motion-tool/settings.json`(스냅·스냅 간격·새 키 탄젠트·어니언 프레임·Auto Key·시간 표시(프레임/초)·자동 저장 간격·최근 파일 8개). 창을 닫을 때 저장. 테마는 마야처럼 어두운 색 고정.
 - 자동 저장은 문서 옆 `<이름>.autosave.motion-authoring.json`(기본 5분, 바뀐 것이 있을 때만). 저장 상태는 건드리지 않는다.
-- 아래 문제 칸의 각 줄에 **돕는 손** 버튼: 끝 키를 길이로 · 길이를 마지막 키에 · 길이 자리에 키 넣기 · 첫/마지막 키를 중립값으로 · 첫 키를 0초로 · 채널을 relative로 · 끝을 commit으로. 각각 되돌리기 한 번.
-- relative 채널의 전 구간 중립값 성분은 그래프에서 흐리게 보이고 내보내기에서 빠진다(Unity 내보내기와 같은 규칙).
+- 아래 문제 칸의 각 줄에 **돕는 손** 버튼: 끝 키를 길이로 · 길이를 마지막 키에 · 길이 자리에 키 넣기 · 마지막 키를 중립값으로 · 첫 키를 0초로 · 끝을 commit으로 · 이름 고치기. 각각 되돌리기 한 번. 빨강 ⚠는 규칙(내보내기를 막는다), 노랑 △는 경고 — "restore인데 마지막 키가 중립값이 아니다(끝에서 시작값으로 튄다)"뿐이고 내보내기는 된다. 첫 키가 중립값이 아닌 것은 알리지 않는다 — "지금 값 +140에서 시작"은 뜻이다.
+- 키가 있는 성분은 전부 내보낸다(상수 중립값도). 파일이 mode를 모르므로 "무변"인지 "그 값으로"인지 낼 때 정할 수 없다 — Unity 내보내기와 같은 규칙.
 
 ## 빌드·테스트
 
@@ -159,7 +159,7 @@ dotnet run --project src/Mt.App/Mt.App.csproj
 
 ## 규약 출처
 
-- 산출물 규약: `ked-stage-runtime/docs/motion-contract.md` (`motions/1`, 정규 직렬화 §7)
+- 산출물 규약: `ked-stage-runtime/docs/motion-contract.md` (`motions/2` — mode는 커맨드가 정한다, 정규 직렬화 §7)
 - 리그 노드: `rig-schemas.json` (무대 런타임의 `Ked.Presentation.Core.RigSchemaLoader`로 읽는다)
 - 산출물 등가의 심판: 무대 런타임의 유니티 `MotionClipExporter` — 같은 입력이면 바이트까지 같아야 한다
 

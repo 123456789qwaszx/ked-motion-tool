@@ -16,10 +16,11 @@ namespace Ked.Presentation.Core
     }
 
     /// <summary>
-    /// 채널 값이 시작값에 대한 변화인지(relative), 그 자체인지(absolute).
-    /// 배치 축은 "지금 자리에서"가 자연스럽고(relative), 연기 축은 "이 포즈로"가 자연스럽다(absolute).
+    /// 키 값을 시작값에 대한 변화로 읽을지(relative), 그 자체로 읽을지(absolute).
+    /// **모션이 아니라 쓰는 쪽(motion 커맨드의 세 번째 인자)이 정한다** — 파일(motions/2)에는 값만 있다.
+    /// 같은 모션을 배치 축에는 "지금 자리에서"(relative)로, 연기 축에는 "이 포즈로"(absolute)로 쓸 수 있다.
     /// relative의 뜻은 종류마다 다르다 — 위치·회전은 **덧셈**, 배율은 **곱셈**(MotionMath.Neutral: 0 · 0 · 1).
-    /// 채널마다 정한다 — 파일에 기본값은 없다. 빠지면 로더가 거부한다.
+    /// 토큰은 MotionModeToken이 읽고, 생략하면 relative다.
     /// </summary>
     public enum MotionChannelMode
     {
@@ -33,8 +34,9 @@ namespace Ked.Presentation.Core
     public enum MotionEnd
     {
         /// <summary>
-        /// 아무것도 남기지 않는다 — 흔들기·끄덕임. 모든 채널이 relative이고 마지막 키가 중립값이어야 한다(규칙이 검증).
-        /// 그래서 끝에서 튀지 않고, 리듀서는 무변으로 접고, 장부에 게시할 것이 없다(gesture와 같다).
+        /// 아무것도 남기지 않는다 — 흔들기·끄덕임. 끝나면 노드가 **시작값으로 돌아간다**(재생이 시작값을 되쓴다).
+        /// 리듀서는 무변으로 접고, 장부에 게시할 것이 없다(gesture와 같다). 마지막 키가 중립값이 아니면 끝에서
+        /// 튄다 — 규칙이 막지 않는다(mode를 모르면 중립값의 뜻이 없다). 저작 도구가 경고한다.
         /// </summary>
         Restore,
 
@@ -47,7 +49,8 @@ namespace Ked.Presentation.Core
 
     /// <summary>
     /// 모션의 채널 하나 — 노드 하나의 속성 하나를 시간에 따라 움직인다.
-    /// 성분(X·Y·Z)은 따로 키를 갖고, null인 성분은 "건드리지 않는다"(시작값 유지).
+    /// 성분(X·Y·Z)은 따로 키를 갖고, null인 성분은 "건드리지 않는다"(시작값 유지). 값은 **mode를 모른다** —
+    /// relative/absolute는 재생하는 커맨드가 정한다(MotionChannelMode).
     /// 키의 Time은 **초**다(이징 곡선의 정규화 0~1과 다르다). 마지막 키의 Time = 클립 길이.
     ///
     /// readonly가 아닌 이유: 커맨드 스펙([Serializable])에 실려 유니티 직렬화를 타야 한다 — CurveKey와 같은 사정.
@@ -59,7 +62,6 @@ namespace Ked.Presentation.Core
         public string Node;
 
         public MotionChannelKind Kind;
-        public MotionChannelMode Mode;
 
         public CurveKey[] X;
         public CurveKey[] Y;

@@ -203,7 +203,6 @@ public class MainWindowTests
                 window.MouseUp(target, MouseButton.Left);
 
                 ChannelAsset channel = window.Session.Editor.Document.Find("wave")!.FindChannel("CharacterPortrait_Track_Move_X", MotionChannelKind.Position)!;
-                Assert.Equal(MotionChannelMode.Relative, channel.Mode);
                 Assert.Single(channel.X!.Keys);
                 Assert.True(channel.X.Keys[0].V > 0);
                 Assert.Equal(3, window.Dope.Rows.Count);
@@ -338,7 +337,7 @@ public class MainWindowTests
                 window.SetChannelBoxValue(MotionChannelKind.Euler, Axis.Z, "15");
                 MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
                 ChannelAsset rotate = nod.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!;
-                Assert.Equal(MotionChannelMode.Relative, rotate.Mode);
+                Assert.Equal(MotionChannelMode.Relative, nod.PreviewMode);
                 Assert.Equal(15.0, rotate.Z!.Keys.Single(k => Math.Abs(k.T - 0.25f) < 1e-4).V, 3);
                 Assert.Equal("15", window.ChannelBoxValue(MotionChannelKind.Euler, Axis.Z));
 

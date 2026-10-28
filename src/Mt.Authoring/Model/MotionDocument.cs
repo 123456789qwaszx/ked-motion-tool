@@ -5,7 +5,7 @@ namespace Mt.Authoring.Model;
 /// <summary>
 /// 저작 원본 한 벌 (<c>*.motion-authoring.json</c>, 스키마 <see cref="AuthoringFormat.AuthoringSchema"/>).
 ///
-/// 산출물(<c>motions/1</c>)에 들어가지 않는 제작 정보 — 탄젠트 모드·끊김·모션 기본 mode·메모·미리보기 —를
+/// 산출물(<c>motions/2</c>)에 들어가지 않는 제작 정보 — 탄젠트 모드·끊김·미리보기 mode·메모·미리보기 —를
 /// 함께 든다. 내보내기는 그것을 벗기고 <see cref="MotionAsset"/>을 코어 <see cref="MotionClip"/>으로 바꾼다.
 ///
 /// 전부 가변 클래스다. 편집은 <see cref="Editing.MotionEditor"/>만 하고, 되돌리기는 문서 전체 스냅샷이다
@@ -88,8 +88,16 @@ public sealed class MotionAsset
 
     public MotionEnd End { get; set; } = MotionEnd.Restore;
 
-    /// <summary>새 채널의 mode 기본값. 파일(산출물)에는 채널마다 명시돼 나간다 — 이 값은 저작 편의다.</summary>
-    public MotionChannelMode DefaultMode { get; set; } = MotionChannelMode.Relative;
+    /// <summary>
+    /// 뷰포트가 키 값을 어떻게 보여 줄지 — relative(시작값 + 키, 배율은 ×) 또는 absolute(키 그대로).
+    /// 산출물에는 **안 나간다**: motions/2에서 mode는 재생하는 커맨드(<c>motion slot 이름 relative|absolute</c>)가 정한다.
+    /// 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때도 이 렌즈를 쓴다(PoseEdit.KeyValueFor).
+    /// </summary>
+    public MotionChannelMode PreviewMode { get; set; } = MotionChannelMode.Relative;
+
+    /// <summary>motion-authoring/1의 <c>defaultMode</c> — 읽을 때 <see cref="PreviewMode"/>로 옮기고 비운다. 쓰지 않는다.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("defaultMode")]
+    public MotionChannelMode? LegacyDefaultMode { get; set; }
 
     public List<ChannelAsset> Channels { get; set; } = new();
 
@@ -104,7 +112,6 @@ public sealed class ChannelAsset
 {
     public string Node { get; set; } = "";
     public MotionChannelKind Kind { get; set; }
-    public MotionChannelMode Mode { get; set; }
 
     public ComponentCurve? X { get; set; }
     public ComponentCurve? Y { get; set; }

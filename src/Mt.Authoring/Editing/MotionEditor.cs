@@ -587,7 +587,7 @@ public sealed class MotionEditor
         string rig,
         float duration,
         MotionEnd end = MotionEnd.Restore,
-        MotionChannelMode defaultMode = MotionChannelMode.Relative)
+        MotionChannelMode previewMode = MotionChannelMode.Relative)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(rig);
@@ -602,7 +602,7 @@ public sealed class MotionEditor
             throw new InvalidOperationException($"모션 '{name}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
         }
 
-        var motion = new MotionAsset { Name = name, Rig = rig, Duration = duration, End = end, DefaultMode = defaultMode };
+        var motion = new MotionAsset { Name = name, Rig = rig, Duration = duration, End = end, PreviewMode = previewMode };
         Mutate(MotionChangeKind.Structure, () => Document.Motions.Add(motion));
         return motion;
     }
@@ -652,31 +652,17 @@ public sealed class MotionEditor
         Mutate(MotionChangeKind.Metadata, () => motion.End = end);
     }
 
-    public void SetDefaultMode(string name, MotionChannelMode mode)
-    {
-        MotionAsset motion = Require(name);
-        Mutate(MotionChangeKind.Metadata, () => motion.DefaultMode = mode);
-    }
-
-    /// <summary>모션의 mode를 하나로 — 기본 mode와 모든 채널의 mode를 한 번에 바꾼다(한 번의 되돌리기). 키 값은 그대로다.</summary>
-    public void SetMode(string name, MotionChannelMode mode)
+    /// <summary>뷰포트의 렌즈(relative/absolute) — 키 값은 그대로이고 산출물에도 안 나간다(mode는 motion 커맨드가 정한다).</summary>
+    public void SetPreviewMode(string name, MotionChannelMode mode)
     {
         MotionAsset motion = Require(name);
 
-        if (motion.DefaultMode == mode && motion.Channels.All(c => c.Mode == mode))
+        if (motion.PreviewMode == mode)
         {
             return;
         }
 
-        Mutate(MotionChangeKind.Metadata, () =>
-        {
-            motion.DefaultMode = mode;
-
-            foreach (ChannelAsset channel in motion.Channels)
-            {
-                channel.Mode = mode;
-            }
-        });
+        Mutate(MotionChangeKind.Metadata, () => motion.PreviewMode = mode);
     }
 
     public void SetNotes(string name, string? notes)
@@ -687,8 +673,7 @@ public sealed class MotionEditor
 
     // ── 채널 ──────────────────────────────────────────────────────────
 
-    /// <param name="mode">null이면 모션의 기본 mode.</param>
-    public ChannelAsset AddChannel(string name, string node, MotionChannelKind kind, MotionChannelMode? mode = null)
+    public ChannelAsset AddChannel(string name, string node, MotionChannelKind kind)
     {
         ArgumentNullException.ThrowIfNull(node);
         MotionAsset motion = Require(name);
@@ -698,7 +683,7 @@ public sealed class MotionEditor
             throw new InvalidOperationException($"모션 '{name}'에 채널 {node}/{kind}가 이미 있다 — 같은 노드·종류는 하나뿐이다.");
         }
 
-        var channel = new ChannelAsset { Node = node, Kind = kind, Mode = mode ?? motion.DefaultMode };
+        var channel = new ChannelAsset { Node = node, Kind = kind };
         Mutate(MotionChangeKind.Structure, () => motion.Channels.Add(channel));
         return channel;
     }
@@ -708,13 +693,6 @@ public sealed class MotionEditor
         MotionAsset motion = Require(name);
         ChannelAsset channel = RequireChannel(motion, node, kind);
         Mutate(MotionChangeKind.Structure, () => motion.Channels.Remove(channel));
-    }
-
-    public void SetChannelMode(string name, string node, MotionChannelKind kind, MotionChannelMode mode)
-    {
-        MotionAsset motion = Require(name);
-        ChannelAsset channel = RequireChannel(motion, node, kind);
-        Mutate(MotionChangeKind.Metadata, () => channel.Mode = mode);
     }
 
     // ── 키 ────────────────────────────────────────────────────────────
@@ -854,7 +832,7 @@ public sealed class MotionEditor
 
             if (channel is null)
             {
-                channel = new ChannelAsset { Node = node, Kind = kind, Mode = motion.DefaultMode };
+                channel = new ChannelAsset { Node = node, Kind = kind };
                 motion.Channels.Add(channel);
             }
 
@@ -874,7 +852,7 @@ public sealed class MotionEditor
     }
 
     /// <summary>
-    /// 포즈 하나를 여러 채널에 한 번의 조작으로 키 — 마야 "포즈 들고 스크럽 뒤 S". 없는 채널·성분은 모션 기본 mode로 만든다.
+    /// 포즈 하나를 여러 채널에 한 번의 조작으로 키 — 마야 "포즈 들고 스크럽 뒤 S". 없는 채널·성분은 만든다.
     /// </summary>
     public List<KeyRef> KeyPose(
         string name, float time, IEnumerable<(string Node, MotionChannelKind Kind, IReadOnlyList<(Axis Axis, float Value)> Values)> items, TangentMode tangent)
@@ -897,7 +875,7 @@ public sealed class MotionEditor
 
                 if (channel is null)
                 {
-                    channel = new ChannelAsset { Node = node, Kind = kind, Mode = motion.DefaultMode };
+                    channel = new ChannelAsset { Node = node, Kind = kind };
                     motion.Channels.Add(channel);
                 }
 
@@ -957,7 +935,7 @@ public sealed class MotionEditor
 
                 if (channel is null)
                 {
-                    channel = new ChannelAsset { Node = curveRef.Node, Kind = curveRef.Kind, Mode = motion.DefaultMode };
+                    channel = new ChannelAsset { Node = curveRef.Node, Kind = curveRef.Kind };
                     motion.Channels.Add(channel);
                 }
 
