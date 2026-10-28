@@ -38,6 +38,8 @@ public class SceneTests
         Assert.Equal("assets/harin.png", back.Objects[0].Portrait);
         Assert.False(back.Objects[1].Visible);
         Assert.Contains("\"layer\": \"far\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"prefix\"", json, StringComparison.Ordinal); // 계산 전용 속성은 파일에 없다
+        Assert.DoesNotContain("\"activeSceneAsset\"", json, StringComparison.Ordinal);
         Assert.Equal(new[] { "bg", "c1" }, back.DrawOrder().Select(o => o.Id)); // far 먼저
     }
 

@@ -79,6 +79,7 @@ public sealed class SceneObject
     public bool Visible { get; set; } = true;
 
     /// <summary>노드 키 접두사 — 코어 <c>StageState.NodeKeyOf</c>와 같은 꼴.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public string Prefix => Id + "/";
 
     public string KeyOf(string nodeId) => Prefix + nodeId;

@@ -36,6 +36,7 @@ public sealed class MotionDocument
         => name is null ? null : Scenes.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal));
 
     /// <summary>보여 줄 씬 — ActiveScene, 없으면 첫 씬, 그것도 없으면 null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public SceneAsset? ActiveSceneAsset => FindScene(ActiveScene) ?? Scenes.FirstOrDefault();
 
     /// <summary>씬이 없으면 캐릭터 하나짜리 기본 씬을 둔다(예전 Preview.Portrait는 c1의 초상이 된다). 있으면 아무것도 안 한다.</summary>
