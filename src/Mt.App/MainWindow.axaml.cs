@@ -1605,7 +1605,8 @@ public partial class MainWindow : Window
 
         foreach (SceneObject o in scene.TopLevel())
         {
-            for (string? id = StageNodes.ContentOf(o.Stage, o.Layer); id is not null && parentOf.ContainsKey(id); id = parentOf[id])
+            // Content에서 루트까지 올라가며 표시한다. __root는 자기 자신을 부모로 가리키므로 거기서 멈춘다.
+            for (string id = StageNodes.ContentOf(o.Stage, o.Layer); id != RigSchemaLoader.RootKey && parentOf.ContainsKey(id); id = parentOf[id])
             {
                 occupied.Add(id);
             }
