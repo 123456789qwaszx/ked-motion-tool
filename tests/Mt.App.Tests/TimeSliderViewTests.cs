@@ -21,8 +21,8 @@ public class TimeSliderViewTests
     private static (Window Window, TimeSliderView Slider, ViewportView Viewport, MotionEditor Editor) Show()
     {
         MotionEditor editor = TestDocuments.Nod();
-        var viewport = new ViewportView { Height = 200 };
-        var slider = new TimeSliderView();
+        var viewport = new ViewportView { Height = 200, SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
+        var slider = new TimeSliderView { SnapStep = 1.0 / 60 };
         var panel = new StackPanel { Children = { viewport, slider } };
         var window = new Window { Width = 900, Height = 400, Content = panel };
         window.Show();

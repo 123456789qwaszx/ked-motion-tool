@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Settings;
@@ -27,7 +28,7 @@ public sealed class ToolSettings
     public bool SnapEnabled { get; set; } = true;
 
     /// <summary>초. 기본 1/60.</summary>
-    public double SnapStep { get; set; } = 1.0 / 60.0;
+    public double SnapStep { get; set; } = TimeSnap.DefaultStep;
 
     public TangentMode DefaultTangent { get; set; } = TangentMode.Auto;
 
@@ -101,7 +102,7 @@ public sealed class ToolSettings
             settings.RecentFiles ??= new List<string>();
             settings.CollapsedChannelBoxGroups ??= new List<string>();
             settings.InspectorTab = Math.Clamp(settings.InspectorTab, 0, 2);
-            settings.SnapStep = settings.SnapStep > 0 ? settings.SnapStep : 1.0 / 60.0;
+            settings.SnapStep = settings.SnapStep > 0 ? settings.SnapStep : TimeSnap.DefaultStep;
             settings.AutoSaveMinutes = Math.Clamp(settings.AutoSaveMinutes, 0, 120);
             settings.LeftPanelWidth = Math.Clamp(settings.LeftPanelWidth, MinPanelWidth, 800);
             settings.RightPanelWidth = Math.Clamp(settings.RightPanelWidth, MinPanelWidth, 800);

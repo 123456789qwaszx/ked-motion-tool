@@ -412,4 +412,11 @@ public class TimeTextTests
         Assert.Equal(10, TimeText.FrameTickStep(4));
         Assert.Equal(100, TimeText.FrameTickStep(0.4));
     }
+
+    [Fact]
+    public void 기본_시간_스냅은_한_프레임이고_설정_기본값도_같다()
+    {
+        Assert.Equal(1.0 / 24, TimeSnap.DefaultStep, 9);
+        Assert.Equal(TimeSnap.DefaultStep, new Mt.Authoring.Settings.ToolSettings().SnapStep, 9);
+    }
 }

@@ -3,12 +3,12 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Graph;
 
 /// <summary>
-/// 시간 스냅. 기본 1/60초이고 눈금은 24fps 프레임을 병기한다(<see cref="DurationToken.FramesPerSecond"/>와 같은 규약).
+/// 시간 스냅. 기본 1/24초(1프레임, 소유자 2026-10-28)이고 눈금은 24fps 프레임을 병기한다(<see cref="DurationToken.FramesPerSecond"/>와 같은 규약).
 /// 값 스냅은 없다.
 /// </summary>
 public static class TimeSnap
 {
-    public const double DefaultStep = 1.0 / 60.0;
+    public const double DefaultStep = 1.0 / 24.0;
 
     public static double FramesPerSecond => DurationToken.FramesPerSecond;
 

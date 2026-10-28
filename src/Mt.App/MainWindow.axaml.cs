@@ -51,9 +51,9 @@ public partial class MainWindow : Window
     private readonly string _settingsPath;
     private readonly DispatcherTimer _autoSaveTimer = new();
     private readonly Button _recentButton = new() { Content = "최근…", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
-    private readonly ComboBox _snapStepCombo = new() { ItemsSource = new[] { "1/60초", "1/24초(프레임)", "1/120초" }, SelectedIndex = 0, FontSize = 11 };
+    private readonly ComboBox _snapStepCombo = new() { ItemsSource = new[] { "1/24초 (1프레임)", "1/60초", "1/120초" }, SelectedIndex = 0, FontSize = 11 };
     private readonly ComboBox _autoSaveCombo = new() { ItemsSource = new[] { "끔", "1분", "5분", "10분" }, SelectedIndex = 2, FontSize = 11 };
-    private static readonly double[] SnapSteps = { 1.0 / 60.0, 1.0 / 24.0, 1.0 / 120.0 };
+    private static readonly double[] SnapSteps = { 1.0 / 24.0, 1.0 / 60.0, 1.0 / 120.0 }; // 차례 = _snapStepCombo 항목
     private static readonly int[] AutoSaveMinutes = { 0, 1, 5, 10 };
 
     // 트랜스포트
@@ -179,7 +179,7 @@ public partial class MainWindow : Window
     private readonly TextBox _keyOut = new() { FontSize = 11 };
 
     // 오른쪽 — 보기
-    private readonly CheckBox _snap = new() { Content = "시간 스냅 1/60초", IsChecked = true, FontSize = 11 };
+    private readonly CheckBox _snap = new() { Content = "시간 스냅", IsChecked = true, FontSize = 11 };
     private readonly CheckBox _showRigNodes = new() { Content = "리그 노드 보기 (컨트롤러 대신 덤프 노드)", FontSize = 11 };
     private readonly CheckBox _showStageSkeleton = new() { Content = "무대 뼈대 보기 (Shot·Pan·Zoom·Mask·Framing… 전부)", FontSize = 11 };
     private readonly ComboBox _presetCombo = new() { ItemsSource = MotionPresets.All.Select(p => p.Name).ToArray(), SelectedIndex = 0, FontSize = 11, MinWidth = 120 };
@@ -962,7 +962,7 @@ public partial class MainWindow : Window
                 _session.Editor.SetTangents(_graph.MotionName!, key, k.Broken ? k.InTangent : v, v);
             }
         }));
-        _snap.Content = "시간 스냅";
+        ToolTip.SetTip(_snap, "키 배치·이동 및 타임라인 탐색 시, 시간을 지정한 간격의 배수에 맞춥니다. 간격은 설정 창의 \"시간 스냅 간격\"");
         _valueSnap.IsCheckedChanged += (_, _) =>
         {
             _graph.ValueSnapEnabled = _valueSnap.IsChecked == true;
@@ -2006,7 +2006,8 @@ public partial class MainWindow : Window
         panel.Children.Add(_showRigNodes);
         panel.Children.Add(_showStageSkeleton);
         panel.Children.Add(Header("키"));
-        Row("스냅 간격", _snapStepCombo);
+        ToolTip.SetTip(_snapStepCombo, "키 배치·이동 및 타임라인 탐색 시, 시간을 지정한 간격의 배수에 맞춥니다.");
+        Row("시간 스냅 간격", _snapStepCombo);
         Row("새 키 탄젠트", _newKeyTangent);
         panel.Children.Add(Header("표시 · 저장"));
         Row("시간 표시", _timeDisplayCombo);

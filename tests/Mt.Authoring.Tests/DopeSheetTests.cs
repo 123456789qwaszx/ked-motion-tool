@@ -80,7 +80,7 @@ public class KeyOpsTests
     [Fact]
     public void 스냅은_옮긴_뒤_시각에_적용된다()
     {
-        var edits = KeyOps.Move(Nod(), new[] { new KeyRef(Y, 1) }, 0.011f, t => (float)TimeSnap.Snap(t, TimeSnap.DefaultStep));
+        var edits = KeyOps.Move(Nod(), new[] { new KeyRef(Y, 1) }, 0.011f, t => (float)TimeSnap.Snap(t, 1.0 / 60));
         Assert.Contains(edits[0].Keys, k => Math.Abs(k.T - 19f / 60f) < 1e-4);
     }
 
@@ -297,7 +297,7 @@ public class KeyClipboardTests
         Assert.Equal(2, intoBow.Count);
 
         // 스냅.
-        editor.PasteKeys("bow", KeyClipboard.Copy(editor.Document.Find("bow")!, new[] { new KeyRef(Z, 1) })!, 0.311f, t => (float)TimeSnap.Snap(t, TimeSnap.DefaultStep));
+        editor.PasteKeys("bow", KeyClipboard.Copy(editor.Document.Find("bow")!, new[] { new KeyRef(Z, 1) })!, 0.311f, t => (float)TimeSnap.Snap(t, 1.0 / 60));
         Assert.Contains(Z.Resolve(editor.Document.Find("bow")!)!.Keys, k => Math.Abs(k.T - 19f / 60f) < 1e-4);
 
         // 대상 커브를 주면 복사한 커브가 아니라 그 커브에 붙는다 — y의 키(-18)를 x에.

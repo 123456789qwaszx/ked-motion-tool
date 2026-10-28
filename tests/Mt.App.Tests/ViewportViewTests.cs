@@ -17,7 +17,7 @@ public class ViewportViewTests
     private static (Window Window, ViewportView View, MotionEditor Editor) Show()
     {
         MotionEditor editor = TestDocuments.Nod();
-        var view = new ViewportView();
+        var view = new ViewportView { SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 900, Height = 600, Content = view };
         window.Show();
         view.SetRig(RigSchemaFile.Load(TestDocuments.FixturePath("rig-schemas.json")));
@@ -417,7 +417,7 @@ public class ViewportViewTests
     {
         MotionEditor editor = TestDocuments.Nod();
         editor.AddMotion("robot_wave", "robot", 1f);
-        var view = new ViewportView();
+        var view = new ViewportView { SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 600, Height = 400, Content = view };
         window.Show();
 

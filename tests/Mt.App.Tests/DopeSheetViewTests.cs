@@ -18,6 +18,7 @@ public class DopeSheetViewTests
     {
         MotionEditor editor = TestDocuments.Nod();
         var view = new DopeSheetView();
+        view.SnapStep = 1.0 / 60; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 900, Height = 400, Content = view };
         window.Show();
         view.Bind(editor, "nod");
