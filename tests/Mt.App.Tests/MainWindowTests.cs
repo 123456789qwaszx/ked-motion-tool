@@ -1026,12 +1026,29 @@ public class MainWindowTests
                 window.AutoKeyChecked = false;
                 window.Viewport.ScrubTo(0.25);
 
-                // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸.
+                // Auto Key OFF에서 깊이를 바꾸고 S — DepthScale X·Y와 DepthY가 한 칸으로 생기고 한 칸으로 사라진다.
+                // (첫 키라 재생 기준이 absolute로 — 채널이 없는 모션에서만 자동으로 바뀐다.)
+                window.SetControllerValue("depth", Axis.X, "20");
+                Assert.Equal(MotionChannelMode.Absolute, Step().PreviewMode);
+                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                long before = editor.Revision;
+                window.SetKeyFromShell();
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.X!.Keys.Single().V, 3);
+                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.Y!.Keys.Single().V, 3);
+                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
+                editor.Undo();
+                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                Assert.Null(Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
+                editor.Redo();
+                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
+
+                // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸(연기 축은 휴지가 항등이라 absolute 값 = 넣은 값).
                 window.SetControllerValue("body", Axis.X, "10");
                 window.SetControllerValue("body", Axis.Y, "-5");
                 Assert.True(window.Viewport.HasPending);
                 Assert.Null(Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position));
-                long before = editor.Revision;
+                before = editor.Revision;
                 window.SetKeyFromShell();
                 ChannelAsset body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
                 Assert.Equal(10f, body.X!.Keys.Single().V, 3);
@@ -1043,22 +1060,6 @@ public class MainWindowTests
                 body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
                 Assert.Equal(10f, body.X!.Keys.Single().V, 3);
                 Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);
-
-                // Auto Key OFF에서 깊이를 바꾸고 S — DepthScale X·Y와 DepthY가 한 칸으로 생기고 한 칸으로 사라진다.
-                window.SetControllerValue("depth", Axis.X, "20");
-                Assert.Equal(MotionChannelMode.Absolute, Step().PreviewMode);
-                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
-                before = editor.Revision;
-                window.SetKeyFromShell();
-                Assert.Equal(before + 1, editor.Revision);
-                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.X!.Keys.Single().V, 3);
-                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.Y!.Keys.Single().V, 3);
-                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
-                editor.Undo();
-                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
-                Assert.Null(Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
-                editor.Redo();
-                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
 
                 // Auto Key ON: 첫 키와 재생 기준 자동 변경(absolute 묶음)이 같은 칸 — 되돌리면 둘 다 돌아온다.
                 window.AddMotionFromForm("walk", "character", "0.6", MotionEnd.Commit);
