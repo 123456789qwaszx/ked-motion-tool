@@ -2062,7 +2062,7 @@ public partial class MainWindow : Window
         Row("자동 저장", _autoSaveCombo);
         panel.Children.Add(new TextBlock { Text = "바꾸는 즉시 적용되고, 창을 닫을 때 설정 파일에 남는다.", FontSize = 10, Opacity = 0.6, Margin = new Avalonia.Thickness(0, 6, 0, 0) });
 
-        _settingsWindow = new Window { Title = "설정", Width = 400, SizeToContent = SizeToContent.Height, CanResize = false, Content = panel, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        _settingsWindow = new Window { Title = "설정", Width = 400, Height = 380, CanResize = false, Content = panel };
         _settingsWindow.Closed += (_, _) =>
         {
             foreach (Panel row in _settingsRows)
@@ -2074,7 +2074,7 @@ public partial class MainWindow : Window
             _settingsWindow = null;
             SaveSettings();
         };
-        _settingsWindow.Show(this);
+        _settingsWindow.Show();
     }
 
     /// <summary>단축키 창 — 툴바 "단축키" · F1. 읽기만.</summary>
@@ -2093,10 +2093,9 @@ public partial class MainWindow : Window
             Width = 560,
             Height = 620,
             Content = new ScrollViewer { Content = text, Padding = new Avalonia.Thickness(14) },
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
         _shortcutsWindow.Closed += (_, _) => _shortcutsWindow = null;
-        _shortcutsWindow.Show(this);
+        _shortcutsWindow.Show();
     }
 
     internal const string ShortcutsText =
