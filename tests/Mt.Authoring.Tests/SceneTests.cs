@@ -339,6 +339,29 @@ public class SceneTests
     }
 
     [Fact]
+    public void 자리_있는_오브젝트도_카메라_pan_zoom을_따라_움직인다()
+    {
+        // place는 런타임에서 커맨드 순간 한 번 풀리는 것 — 그 뒤의 shot은 무대째 움직여야 한다. 샷을 먼저 넣으면 place가 pan을 되감는다.
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddSceneObject(null, "s1", "character");
+        editor.SetObjectPlace(null, "s1", "center");
+        RectNodeTree rest = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
+        Vec2 placed = rest.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
+
+        editor.SetCamera(null, 0f, 100f, -40f);
+        RectNodeTree panned = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
+        Vec2 moved = panned.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
+        Assert.Equal(placed.X + 100f, moved.X, 2);
+        Assert.Equal(placed.Y - 40f, moved.Y, 2);
+
+        editor.SetCamera(null, 20f, 0f, 0f); // 배율 2 — 자리 점이 원점에서 두 배 멀어진다
+        RectNodeTree zoomed = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
+        Vec2 scaled = zoomed.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
+        Assert.Equal(placed.X * 2f, scaled.X, 2);
+        Assert.Equal(placed.Y * 2f, scaled.Y, 2);
+    }
+
+    [Fact]
     public void 내장_깊이와_focus_표로_세우면_실제_게임_프리팹의_DepthY_DepthScale과_같다()
     {
         // 게임 진행 중 PresentataionUIRoot 프리팹(Stage00 Mid, 배역 오프셋 없음): CharSlot_DepthY (0, −580.56) · DepthScale 1.708.

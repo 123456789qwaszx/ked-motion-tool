@@ -21,7 +21,7 @@ public static class ScenePreview
     /// <param name="focus">presets/focus.json. 있으면 그 표의 focus 오프셋(base + bust, 배역 키 없이)이 깊이·place 폴드에 들어간다.</param>
     /// <param name="stage">
     /// 무대 뼈대(<c>PresentataionUIRoot</c>, rigKind "stage"). 있으면 <c>stage/</c> 접두사로 먼저 서고 오브젝트는
-    /// <c>Stage{NN}Depth_{Layer}_Content</c> 밑에 붙으며, 카메라(zoom·pan)와 층 패럴랙스가 뼈대 노드에 들어간다. 없으면 루트 직속(좌표는 같다 — 뼈대는 항등).
+    /// <c>Stage{NN}Depth_{Layer}_Content</c> 밑에 붙으며, 카메라(zoom·pan)와 층 패럴랙스가 오브젝트가 다 선 뒤 뼈대 노드에 들어간다. 없으면 루트 직속(좌표는 같다 — 뼈대는 항등).
     /// </param>
     public static RectNodeTree Build(RigSchemaFile rig, SceneAsset scene, Func<SceneObject, float>? aspectOf = null, List<SceneObject>? missing = null, DepthTuningFile? depth = null, FocusTuningFile? focus = null, RigSchemaRigDto? stage = null)
     {
@@ -34,7 +34,6 @@ public static class ScenePreview
         if (stage is not null)
         {
             RigSchemaLoader.AddRigTo(state.Nodes, stage, StageNodes.Prefix);
-            StageShotResponse.Apply(state.Nodes, scene.Camera);
         }
 
         foreach (SceneObject o in scene.DrawOrder())
@@ -63,6 +62,13 @@ public static class ScenePreview
             ApplyDepth(state, o, depth, focus);
             ApplyPlace(state, o, focus);
             ApplyPlacement(state.Nodes, o);
+        }
+
+        // 카메라(샷)는 오브젝트가 다 선 뒤에 — 런타임에서 place는 커맨드 순간 월드 좌표로 한 번 풀리고, 그 뒤 shot이 무대째 움직인다.
+        // 먼저 넣으면 place 폴드가 pan·zoom을 되감아 자리 있는 오브젝트는 화면 지점에 못 박힌다.
+        if (stage is not null)
+        {
+            StageShotResponse.Apply(state.Nodes, scene.Camera);
         }
 
         return state.Nodes;
