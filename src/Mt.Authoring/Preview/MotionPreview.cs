@@ -51,7 +51,9 @@ public static class MotionPreview
                 channels[i] = ch;
             }
         }
-        bool ended = seconds >= motion.Duration - 1e-6;
+        // 길이 자리(= 마지막 프레임)는 아직 클립 안이다 — 마지막 키의 포즈가 보인다. restore는 길이를 **지난** 뒤에야 시작 상태로 돌아간다.
+        // (전에는 길이 자리부터 되돌려서, 끝 프레임의 채널 박스가 키 값 대신 시작값을 보였다.)
+        bool ended = seconds > motion.Duration + 1e-6;
 
         if (ended && clip.End == MotionEnd.Restore)
         {

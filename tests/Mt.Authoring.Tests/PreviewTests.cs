@@ -30,6 +30,21 @@ public class MotionPreviewTests
     }
 
     [Fact]
+    public void restore라도_길이_자리는_마지막_키의_포즈이고_길이를_지나야_시작_상태다()
+    {
+        // 마지막 키가 중립값이 아닌 restore — 끝 프레임의 채널 박스가 키 값(320)을 보여야 한다. 되돌리기는 길이를 지난 뒤.
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddMotion("step", "character", 0.5f, MotionEnd.Restore, MotionChannelMode.Absolute);
+        editor.AddChannel("step", "CharSlot_Track", MotionChannelKind.Position);
+        editor.SetKeys("step", "CharSlot_Track", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.5f, 320f) });
+        RectNodeTree template = RigFile.BuildTree("character");
+        MotionAsset step = editor.Document.Find("step")!;
+
+        Assert.Equal(320f, MotionPreview.Pose(template, step, 0.5).GetState("CharSlot_Track").AnchoredPosition.X, 3);
+        Assert.Equal(0f, MotionPreview.Pose(template, step, 0.5 + 1 / 24.0).GetState("CharSlot_Track").AnchoredPosition.X, 3);
+    }
+
+    [Fact]
     public void bow는_commit이라_길이를_지나도_마지막_키가_남고_중간은_에르미트다()
     {
         MotionAsset bow = Fixtures.NodBowDocument().Find("bow")!;
