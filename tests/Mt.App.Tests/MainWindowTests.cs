@@ -930,8 +930,10 @@ public class MainWindowTests
 
                 // 글 입력 칸에 포커스가 있으면 Ctrl+Z는 글자 되돌리기 — 문서는 그대로.
                 long revision = editor.Revision;
+                window.InspectorTab = 1; // 씬 탭이 보여야 칸에 포커스가 간다
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 TextBox box = window.ObjectXBox;
-                box.Focus();
+                Assert.True(box.Focus());
                 window.KeyTextInput("5");
                 window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
                 Assert.Equal(revision, editor.Revision);
