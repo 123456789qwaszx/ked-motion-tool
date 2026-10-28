@@ -60,7 +60,16 @@ public partial class MainWindow : Window
     private readonly Button _playButton = new() { Content = "▶", FontSize = 11, Padding = new Avalonia.Thickness(8, 3) };
     private readonly ComboBox _playMode = new() { ItemsSource = new[] { "한 번", "루프", "왕복" }, SelectedIndex = 1, FontSize = 11 };
     private readonly ComboBox _playSpeed = new() { ItemsSource = new[] { "×0.25", "×0.5", "×1", "×2" }, SelectedIndex = 2, FontSize = 11 };
-    private readonly ComboBox _playStep = new() { ItemsSource = new[] { "연속 재생", "1프레임 재생" }, SelectedIndex = 0, FontSize = 11 };
+    private readonly ComboBox _playStep = new()
+    {
+        ItemsSource = new[]
+        {
+            PlayStepItem("연속", "실제 경과 시간에 해당하는 자세를 표시합니다."),
+            PlayStepItem($"프레임 맞춤 ({TimeSnap.FramesPerSecond:0} FPS)", "표시 시각을 가장 가까운 프레임에 맞춥니다. 느린 환경에서는 중간 프레임을 건너뛸 수 있습니다."),
+        },
+        SelectedIndex = 0,
+        FontSize = 11,
+    };
     private readonly TextBox _rangeStart = new() { Text = "0", Width = 56, FontSize = 11 };
     private readonly TextBox _rangeEnd = new() { Text = "1", Width = 56, FontSize = 11 };
     private readonly TextBox _animEnd = new() { Width = 56, FontSize = 11 };
@@ -399,6 +408,14 @@ public partial class MainWindow : Window
 
     /// <summary>한 프레임(24fps) — 뷰포트 ←/→와 같은 규약.</summary>
     internal static float FrameSeconds => (float)(1.0 / TimeSnap.FramesPerSecond);
+
+    /// <summary>재생 표시 콤보의 항목 — 항목마다 툴팁. 차례 = 연속(0) · 프레임 맞춤(1) = ToolSettings.PlayWholeFrames.</summary>
+    private static ComboBoxItem PlayStepItem(string text, string tip)
+    {
+        var item = new ComboBoxItem { Content = text, FontSize = 11 };
+        ToolTip.SetTip(item, tip);
+        return item;
+    }
 
     internal void PreviousKey() => _viewport.JumpToPreviousKey();
 
@@ -753,7 +770,7 @@ public partial class MainWindow : Window
                 PushSettingsToViews();
             }
         };
-        ToolTip.SetTip(_playStep, "연속: 흐른 시간 그대로 · 1프레임: 보이는 시각을 정수 프레임(24fps)에 맞춘다(마야 Real-time)");
+        ToolTip.SetTip(_playStep, "재생 표시 — 둘 다 실제 시간으로 재생한다. 연속: 실제 경과 시간에 해당하는 자세 · 프레임 맞춤: 표시 시각을 가장 가까운 프레임에 맞춘다");
         _playSpeed.SelectionChanged += (_, _) =>
         {
             if (!_refreshing && _playSpeed.SelectedIndex >= 0)
