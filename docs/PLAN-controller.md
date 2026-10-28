@@ -39,7 +39,7 @@
 | `Track_X` / `Track_Y` | `left/right` · `up/down`의 자리 | 커맨드 | ✗ |
 | `Rotation` | 슬롯 회전(`Track` 아래라 이동 방향은 무대 기준) | (예약) | ✗ |
 | `SwayPivot` | 발을 축으로 기울기(`rotate_by/reset`) [bottom pivot] | 커맨드 | **슬롯 기울기** |
-| `Scale` | 슬롯 배율(`scale_by/reset`). 연기 축 전체에 곱해져 연기 진폭도 커진다 [bottom pivot] | 커맨드 | **자세 배율** |
+| `Scale` | 슬롯 배율(`scale_by/reset`). 연기 축 전체에 곱해져 연기 진폭도 커진다 [bottom pivot] | 커맨드 | **배율**(옛 자세 배율) |
 
 ### 1.2 배역 보정 축 (1개)
 
@@ -52,8 +52,8 @@
 |---|---|---|---|
 | `Track` | 캐릭터별 기본 이동 보정(`ApplyTrackOffset`). 회전 위라 기울기와 무관 | 커맨드 | ✗ |
 | `Rotation` | 몸 전체 기울기. `Track_Move` 위라 **연기 이동이 기울기를 따라간다** | — | **기울기** |
-| `Track_Move` · `_X` · `_Y` | 연기 이동(한 축 트윈용으로 셋) | `show`가 리셋 | **몸 X·Y**(셋을 한 손잡이로) |
-| `SwayPivot` | 발을 축으로 숙이기·젖히기(`char_rotate_to`) [bottom pivot] | 커맨드 | **숙임** |
+| `Track_Move` · `_X` · `_Y` | 연기 이동(한 축 트윈용으로 셋) | `show`가 리셋 | **몸**(채널 박스 줄은 좌우·상하, `axisLabels`)(셋을 한 손잡이로) |
+| `SwayPivot` | 발을 축으로 숙이기·젖히기(`char_rotate_to`) [bottom pivot] | 커맨드 | **발 기준 회전**(옛 숙임) |
 | `Shake` | 진동 전용(`gesture`) | 커맨드 | **떨림 X·Y** |
 | `ActingScale` · `_X` · `_Y` | 연기용 확대. 최하단이라 이동량은 안 바뀐다 | `char_scale_to`·`mirror`(`_X`) | **크기 X·Y** · **방향**(`_X`) |
 
@@ -67,7 +67,7 @@
 
 | 그룹 | 뜻 | 컨트롤러(노드) | 재생 mode | 값의 기준 |
 |---|---|---|---|---|
-| **자리** (placement) | 슬롯이 무대 어디에 있나 | 자리 X·Y(`CharSlot_Track`) · 슬롯 기울기(`CharSlot_SwayPivot` Z) · 자세 배율(`CharSlot_Scale` X·Y) | **absolute** | place가 잡은 자리 기준의 px·도·배. `DepthScale`이 위라 far에서는 같은 400이 화면에서 작게 간다 |
+| **자리** (placement) | 슬롯이 무대 어디에 있나 | 자리 X·Y(`CharSlot_Track`) · 슬롯 기울기(`CharSlot_SwayPivot` Z) · 배율(`CharSlot_Scale` X·Y) | **absolute** | place가 잡은 자리 기준의 px·도·배. `DepthScale`이 위라 far에서는 같은 400이 화면에서 작게 간다 |
 | **깊이** (depth) | 얼마나 멀리 있나 | 깊이 level 하나 → `CharSlot_DepthScale` X·Y 배율 + `CharSlot_DepthY` Y(−820×(배율−1))로 굽는다 | **absolute** | level 0(far) … 20(close) … 40(연장), 배율은 `depth.json` 커브(mid 14 = 1.708 · Y −580.56) |
 | **연기** (acting) | 그 자리에서 무엇을 하나 | 몸 X·Y · 기울기 · 숙임 · 떨림 X·Y · 크기 X·Y · 방향 | **relative**(휴지 자세가 항등이라 absolute여도 같다) | 슬롯 아래 로컬 — 슬롯이 (200,300)이면 몸 X −100은 화면 (100,300) |
 
@@ -117,12 +117,12 @@
     "controllers": [
       { "id": "place",    "group": "placement", "label": "자리",       "node": "CharSlot_Track",                  "kind": "position", "axes": ["x","y"], "unit": "px" },
       { "id": "slotLean", "group": "placement", "label": "슬롯 기울기", "node": "CharSlot_SwayPivot",              "kind": "euler",    "axes": ["z"],     "unit": "deg" },
-      { "id": "stance",   "group": "placement", "label": "자세 배율",   "node": "CharSlot_Scale",                  "kind": "scale",    "axes": ["x","y"], "unit": "x" },
+      { "id": "stance",   "group": "placement", "label": "배율",       "node": "CharSlot_Scale",                  "kind": "scale",    "axes": ["x","y"], "unit": "x" },
       { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",             "kind": "scale",    "axes": ["x","y"], "unit": "level", "bake": "depthLevel", "bakeY": "CharSlot_DepthY" },
       { "id": "body",     "group": "acting",    "label": "몸",         "node": "CharacterPortrait_Track_Move",    "kind": "position", "axes": ["x","y"], "unit": "px",  "manipulator": true,
         "aliases": [ { "node": "CharacterPortrait_Track_Move_X", "axis": "x" }, { "node": "CharacterPortrait_Track_Move_Y", "axis": "y" } ] },
       { "id": "lean",     "group": "acting",    "label": "기울기",     "node": "CharacterPortrait_Rotation",      "kind": "euler",    "axes": ["z"],     "unit": "deg" },
-      { "id": "bow",      "group": "acting",    "label": "숙임",       "node": "CharacterPortrait_SwayPivot",     "kind": "euler",    "axes": ["z"],     "unit": "deg", "manipulator": true },
+      { "id": "bow",      "group": "acting",    "label": "발 기준 회전", "node": "CharacterPortrait_SwayPivot",     "kind": "euler",    "axes": ["z"],     "unit": "deg", "manipulator": true },
       { "id": "shake",    "group": "acting",    "label": "떨림",       "node": "CharacterPortrait_Shake",         "kind": "position", "axes": ["x","y"], "unit": "px" },
       { "id": "squash",   "group": "acting",    "label": "크기",       "node": "CharacterPortrait_ActingScale",   "kind": "scale",    "axes": ["x","y"], "unit": "x",   "manipulator": true,
         "aliases": [ { "node": "CharacterPortrait_ActingScale_Y", "axis": "y" } ] },

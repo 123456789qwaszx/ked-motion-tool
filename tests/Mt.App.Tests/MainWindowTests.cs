@@ -691,7 +691,7 @@ public class MainWindowTests
                 Assert.Equal(new[] { "s1  ·  character", "연기  ·  상대값", "몸  ·  position XY" }, body.TakeLast(3));
                 Assert.Equal("자리  ·  절대값", window.HierarchyPathOfController("s1", "place")[^2]);
                 Assert.Equal("깊이  ·  절대값", window.HierarchyPathOfController("s1", "depth")[^2]);
-                Assert.Equal("숙임  ·  rotate Z", window.HierarchyPathOfController("s1", "bow")[^1]);
+                Assert.Equal("발 기준 회전  ·  rotate Z", window.HierarchyPathOfController("s1", "bow")[^1]);
                 Assert.Empty(window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move"));
 
                 // 컨트롤러를 고르면 그 오브젝트 + 주 노드 + 종류의 매니퓰레이터(선택(Q)이면 그대로).

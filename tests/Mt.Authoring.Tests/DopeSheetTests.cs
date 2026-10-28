@@ -184,8 +184,8 @@ public class DopeSheetRowsTests
         ControllerRig rig = BuiltinTuning.Controllers.Rig("character")!;
         MotionDocument document = Fixtures.NodBowDocument();
 
-        Assert.Equal("연기 · 숙임", DopeSheetRows.Build(document.Find("bow")!, null, rig)[0].Label);
-        Assert.Equal("연기 · 몸 Y", DopeSheetRows.Build(document.Find("nod")!, null, rig)[0].Label); // 견본 nod는 별칭 노드 Track_Move_Y
+        Assert.Equal("연기 · 발 기준 회전", DopeSheetRows.Build(document.Find("bow")!, null, rig)[0].Label);
+        Assert.Equal("연기 · 상하", DopeSheetRows.Build(document.Find("nod")!, null, rig)[0].Label); // 견본 nod는 별칭 노드 Track_Move_Y
         Assert.Equal("CharacterPortrait_SwayPivot", DopeSheetRows.Build(document.Find("bow")!)[0].Label); // 표 없이는 노드 이름
         Assert.Equal("Other", DopeSheetRows.NodeLabel("Other", rig));
     }

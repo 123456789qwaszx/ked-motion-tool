@@ -12,14 +12,15 @@
       "controllers": [
         { "id": "place",    "group": "placement", "label": "자리",       "node": "CharSlot_Track",                 "kind": "position", "axes": ["x", "y"], "unit": "px" },
         { "id": "slotLean", "group": "placement", "label": "슬롯 기울기", "node": "CharSlot_SwayPivot",             "kind": "euler",    "axes": ["z"],      "unit": "deg" },
-        { "id": "stance",   "group": "placement", "label": "자세 배율",   "node": "CharSlot_Scale",                 "kind": "scale",    "axes": ["x", "y"], "unit": "x",   "note": "연기 진폭까지 커진다" },
+        { "id": "stance",   "group": "placement", "label": "배율",       "node": "CharSlot_Scale",                 "kind": "scale",    "axes": ["x", "y"], "unit": "x",   "note": "연기 진폭까지 커진다" },
 
         { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",            "kind": "scale",    "axes": ["x", "y"], "unit": "level", "bake": "depthLevel", "bakeY": "CharSlot_DepthY", "note": "level 0(far)…20(close)을 depth.json 커브로 배율에, 그 배율에서 −bust높이×(배율−1)을 DepthY에 굽는다(런타임 size의 focus 보존과 같은 값)" },
 
         { "id": "body",     "group": "acting",    "label": "몸",         "node": "CharacterPortrait_Track_Move",   "kind": "position", "axes": ["x", "y"], "unit": "px",  "manipulator": true,
+          "axisLabels": { "x": "좌우", "y": "상하" },
           "aliases": [ { "node": "CharacterPortrait_Track_Move_X", "axis": "x" }, { "node": "CharacterPortrait_Track_Move_Y", "axis": "y" } ] },
         { "id": "lean",     "group": "acting",    "label": "기울기",     "node": "CharacterPortrait_Rotation",     "kind": "euler",    "axes": ["z"],      "unit": "deg", "note": "몸 전체 기울기 — 연기 이동이 따라간다" },
-        { "id": "bow",      "group": "acting",    "label": "숙임",       "node": "CharacterPortrait_SwayPivot",    "kind": "euler",    "axes": ["z"],      "unit": "deg", "manipulator": true, "note": "발을 축으로" },
+        { "id": "bow",      "group": "acting",    "label": "발 기준 회전", "node": "CharacterPortrait_SwayPivot",    "kind": "euler",    "axes": ["z"],      "unit": "deg", "manipulator": true, "note": "발을 축으로" },
         { "id": "shake",    "group": "acting",    "label": "떨림",       "node": "CharacterPortrait_Shake",        "kind": "position", "axes": ["x", "y"], "unit": "px" },
         { "id": "squash",   "group": "acting",    "label": "크기",       "node": "CharacterPortrait_ActingScale",  "kind": "scale",    "axes": ["x", "y"], "unit": "x",   "manipulator": true, "note": "스프라이트만 — 이동량 불변",
           "aliases": [ { "node": "CharacterPortrait_ActingScale_Y", "axis": "y" } ] },

@@ -29,9 +29,11 @@ public sealed class Controller
 {
     public Controller(
         string id, ControllerGroup group, string label, string node, MotionChannelKind kind, IReadOnlyList<Axis> axes,
-        string unit, IReadOnlyList<ControllerAlias> aliases, ControllerBake bake, bool manipulator, string? note, string? depthYNode = null)
+        string unit, IReadOnlyList<ControllerAlias> aliases, ControllerBake bake, bool manipulator, string? note, string? depthYNode = null,
+        IReadOnlyDictionary<Axis, string>? axisLabels = null)
     {
         DepthYNode = depthYNode;
+        AxisLabels = axisLabels;
         Id = id;
         Group = group;
         Label = label;
@@ -50,6 +52,9 @@ public sealed class Controller
     public ControllerGroup Group { get; }
 
     public string Label { get; }
+
+    /// <summary>성분마다 따로 부르는 이름(표의 <c>axisLabels</c>, 예: 몸 → 좌우·상하). 없으면 "이름 X" 꼴.</summary>
+    public IReadOnlyDictionary<Axis, string>? AxisLabels { get; }
 
     /// <summary>키가 들어가는 노드(스키마 id).</summary>
     public string Node { get; }
@@ -79,9 +84,10 @@ public sealed class Controller
 
     public string? Note { get; }
 
-    /// <summary>성분 하나의 표시 이름 — 성분이 하나면 컨트롤러 이름 그대로("숙임"), 여럿이면 "몸 X".</summary>
+    /// <summary>성분 하나의 표시 이름 — 표에 axisLabels가 있으면 그것("좌우"), 성분이 하나면 컨트롤러 이름 그대로("발 기준 회전"), 여럿이면 "크기 X".</summary>
     public string AttributeLabel(Axis axis)
-        => Axes.Count == 1 ? Label : $"{Label} {axis.ToString().ToUpperInvariant()}";
+        => AxisLabels is not null && AxisLabels.TryGetValue(axis, out string? own) ? own
+            : Axes.Count == 1 ? Label : $"{Label} {axis.ToString().ToUpperInvariant()}";
 
     /// <summary>이 컨트롤러 성분의 주 커브(키를 새로 놓을 자리).</summary>
     public CurveRef Primary(Axis axis) => new(Node, Kind, axis);
@@ -382,9 +388,21 @@ public sealed class ControllersFile
                     throw new JsonException($"컨트롤러 '{c.Id}': bakeY는 depthLevel 굽기에만 둔다.");
                 }
 
+                Dictionary<Axis, string>? axisLabels = null;
+
+                foreach ((string axisToken, string axisLabel) in c.AxisLabels ?? new Dictionary<string, string>())
+                {
+                    if (!TryParseAxis(axisToken, out Axis axis) || !axes.Contains(axis) || string.IsNullOrWhiteSpace(axisLabel))
+                    {
+                        throw new JsonException($"컨트롤러 '{c.Id}': axisLabels의 '{axisToken}'는 그 컨트롤러의 성분이어야 하고 이름이 비면 안 된다.");
+                    }
+
+                    (axisLabels ??= new Dictionary<Axis, string>())[axis] = axisLabel.Trim();
+                }
+
                 controllers.Add(new Controller(
                     c.Id, group, string.IsNullOrEmpty(c.Label) ? c.Id : c.Label, c.Node, kind, axes,
-                    c.Unit ?? "", aliases, bake, c.Manipulator, c.Note, depthYNode));
+                    c.Unit ?? "", aliases, bake, c.Manipulator, c.Note, depthYNode, axisLabels));
             }
 
             rigs[rigDto.RigKind] = new ControllerRig(rigDto.RigKind, groups, controllers);
@@ -451,6 +469,7 @@ public sealed class ControllersFile
         public string? BakeY { get; set; }
         public bool Manipulator { get; set; }
         public string? Note { get; set; }
+        public Dictionary<string, string>? AxisLabels { get; set; }
     }
 
     private sealed class AliasDto

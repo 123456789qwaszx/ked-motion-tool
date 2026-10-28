@@ -31,12 +31,12 @@ public class ControllersFileTests
     {
         ControllerRig rig = BuiltinTuning.Controllers.Rig("character")!;
 
-        // 견본 nod는 Track_Move_Y에 있다 — 별칭으로 "몸 Y".
+        // 견본 nod는 Track_Move_Y에 있다 — 별칭으로 몸 Y, 표의 axisLabels로 "상하".
         Assert.True(rig.TryResolve(new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y), out Controller body, out Axis axis));
         Assert.Equal("body", body.Id);
         Assert.Equal(Axis.Y, axis);
-        Assert.Equal("연기 · 몸 Y", rig.LabelOf(new CurveRef("CharacterPortrait_Track_Move", MotionChannelKind.Position, Axis.Y)));
-        Assert.Equal("연기 · 숙임", rig.LabelOf(new CurveRef("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Z)));
+        Assert.Equal("연기 · 상하", rig.LabelOf(new CurveRef("CharacterPortrait_Track_Move", MotionChannelKind.Position, Axis.Y)));
+        Assert.Equal("연기 · 발 기준 회전", rig.LabelOf(new CurveRef("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Z)));
         Assert.Equal("자리 · 자리 X", rig.LabelOf(new CurveRef("CharSlot_Track", MotionChannelKind.Position, Axis.X)));
 
         // ActingScale_X의 scale X는 facing의 주 노드다 — squash의 별칭이 아니다.
