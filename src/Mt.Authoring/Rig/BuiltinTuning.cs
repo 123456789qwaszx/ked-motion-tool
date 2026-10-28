@@ -1,5 +1,6 @@
 using System.Reflection;
 using Ked.Presentation.Core;
+using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Rig;
 
