@@ -6,8 +6,8 @@
 
 | 항목 | 값 |
 |---|---|
-| 원본 | `ked-stage-runtime` `dev` @ `640ac60` (motions/2, 빈 모션 허용) |
-| 반입일 | 2026-10-28 |
+| 원본 | `ked-stage-runtime` `dev` @ `dc690c1` (배경 리그 제거 — `bg_*`는 캐스팅하지 않은 슬롯, 재선언은 새 리그. 그 전: `640ac60` motions/2) |
+| 반입일 | 2026-10-29 |
 | 범위 | `Ease/`·`Motion/`·`Primitives/`·`Reduce/`·`State/`·`Tokens/`·`Transforms/`·`Tuning/` 소스와 `Documentation~/` |
 | 제외 | `Tests/`·`*.meta`·`*.asmdef` |
 | 테스트 | 순수 테스트(유니티·런타임·DOTween 참조 없는 것)만 `tests/Ked.Presentation.Core.Tests/EditMode/`로 |

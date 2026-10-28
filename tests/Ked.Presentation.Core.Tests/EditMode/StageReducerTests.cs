@@ -167,22 +167,31 @@ namespace Ked.Presentation.Core.Tests
         }
 
         [Test]
-        public void 같은_슬롯_재선언은_부착만_갱신한다()
+        public void 같은_슬롯_재선언은_리그를_새로_세운다()
         {
-            // 런타임은 기존 리그를 재사용한다 — 노드가 늘면 안 된다.
+            // 런타임 SetupCharRigCommand는 매번 새 리그를 짓고, Register가 옛 리그를 부순다.
+            // 노드는 스키마 초기값·α는 스키마 α로 돌아가고, 배역(CastRegistry)은 남는다.
+            // (예전 이 테스트는 "재사용한다 — 좌표도 유지"를 고정했다. 런타임과 다른 가정이었다.)
             StageState state = Fold(
                 Cmd("slot", "c1"),
+                Cmd("cast", "c1", "tyrant"),
                 Cmd("left", "c1", "2u"),
+                Cmd("fade_in", "c1"),
                 Cmd("slot", "c1", "stage02", "back"));
 
-            Assert.That(state.Nodes.Count, Is.EqualTo(RigNodeCount));
+            Assert.That(state.Nodes.Count, Is.EqualTo(RigNodeCount), "노드가 늘지 않는다 — 같은 키를 덮는다");
 
             state.TryGetAttachment("c1", out SlotAttachment attachment);
             Assert.That(attachment.StageKey, Is.EqualTo("stage02"));
 
-            // 좌표도 유지 — 재선언이 리셋이 아니다.
-            Assert.That(state.Nodes.GetState("c1/CharSlot_Track_X").AnchoredPosition.X,
-                Is.EqualTo(-2f * PixelsPerUnit).Within(Eps));
+            Assert.That(state.Nodes.GetState("c1/CharSlot_Track_X").AnchoredPosition, Is.EqualTo(Vec2.Zero),
+                "좌표는 스키마 초기값으로");
+            Assert.That(state.Nodes.GetState("c1/CharacterPortraitSprite_Image").SizeDelta, Is.EqualTo(Vec2.Zero),
+                "초상 사이징도 새 리그의 값으로");
+            Assert.That(state.GetAlpha("c1/CharacterPortraitSprite_Root"), Is.EqualTo(0f),
+                "가시성은 스키마 α로 — 새 리그는 숨은 채 선다");
+            Assert.That(state.TryGetCharacter("c1", out string character), Is.True);
+            Assert.That(character, Is.EqualTo("tyrant"), "배역은 리그가 아니라 CastRegistry 쪽이라 남는다");
         }
 
         [Test]

@@ -44,6 +44,9 @@ namespace Ked.Presentation.Core
         /// 없으면(null) motion 커맨드는 Unhandled — 재생이 모션을 읽었다면 폴드도 같은 파일을 받아야 한다.
         /// </summary>
         public IReadOnlyDictionary<string, MotionClip> Motions;
+
+        /// <summary>background-dimensions.json — 배경(bg_*) 사이징의 종횡비. 없으면 그 축만 Unhandled.</summary>
+        public BackgroundDimensionsFileDto BackgroundDimensions;
     }
 
     /// <summary>
@@ -60,8 +63,9 @@ namespace Ked.Presentation.Core
     /// 현재 어휘(v1): slot 계열(리그 스폰) · cast/actor(배역·별칭) ·
     ///   show(리셋+앵커+사이징+가시성) · fade_in/out · slide_in/out · place/size 계열 ·
     ///   nudge/move/scale/rotate 계열 · shot 5종 · char_to 계열 ·
-    ///   초상 축(pose/face/face_swap) · motion(채널마다 마지막 키) · 시간 커맨드(pause·Nfr — 접을 것이 없다).
-    /// 명시적 한계: 배경/오버레이/이펙트/오디오/트랜지션 리그, 대사창,
+    ///   초상 축(pose/face/face_swap) · motion(채널마다 마지막 키) · 시간 커맨드(pause·Nfr — 접을 것이 없다) ·
+    ///   배경 bg_*(캐스팅하지 않은 슬롯 — spawn/slotNN/sprite/fade/move/scale).
+    /// 명시적 한계: 오버레이/이펙트/오디오/트랜지션 리그, 대사창,
     ///   절차적 연기 커맨드(목표값이 정의되지 않음).
     ///
     /// ⚠ v1 가정 — 등가성 하네스가 판정한다:
@@ -77,6 +81,7 @@ namespace Ked.Presentation.Core
     ///   StageReducer.Placement.cs place · size
     ///   StageReducer.Staging.cs   nudge · move · scale · rotate
     ///   StageReducer.Shot.cs      shot 5종
+    ///   StageReducer.Background.cs bg_* (배경 = 캐스팅하지 않은 슬롯)
     /// </summary>
     public static partial class StageReducer
     {
@@ -225,6 +230,21 @@ namespace Ked.Presentation.Core
                 case "char_to_s0": return ApplyCharTo(state, cmd, "stage00", cmd.Arg(1, "mid"), out reason);
                 case "char_to_s1": return ApplyCharTo(state, cmd, "stage01", cmd.Arg(1, "mid"), out reason);
                 case "char_to_s2": return ApplyCharTo(state, cmd, "stage02", cmd.Arg(1, "mid"), out reason);
+
+                // 배경 — 캐스팅하지 않은 슬롯. StageCommandParser.Background가 캐릭터 Spec으로 펼치는 것을 그대로 접는다.
+                // 인자 자리·생략값은 파서 표(StageCommandParser.Table)와 같다:
+                //   bg_spawn(rigKey, spriteKey) — stage00/far 고정 · bg_slotNN(rigKey, spriteKey, layer="far") ·
+                //   bg_sprite(rigKey, spriteKey) · bg_fade_in/out(rigKey, dur) · bg_move(rigKey, x, y, dur) · bg_scale(rigKey, scale, dur).
+                // bg_size·bg_place는 케이스가 없다 — 지운 어휘다. 남은 대본은 Unhandled로 드러난다.
+                case "bg_spawn":  return ApplyBackgroundSpawn(state, cmd, tuning, "stage00", "far", out reason);
+                case "bg_slot00": return ApplyBackgroundSpawn(state, cmd, tuning, "stage00", cmd.Arg(2, "far"), out reason);
+                case "bg_slot01": return ApplyBackgroundSpawn(state, cmd, tuning, "stage01", cmd.Arg(2, "far"), out reason);
+                case "bg_slot02": return ApplyBackgroundSpawn(state, cmd, tuning, "stage02", cmd.Arg(2, "far"), out reason);
+                case "bg_sprite": return ApplyBackgroundSprite(state, cmd, tuning, out reason);
+                case "bg_fade_in":  return ApplyFade(state, cmd, visible: true, out reason);
+                case "bg_fade_out": return ApplyFade(state, cmd, visible: false, out reason);
+                case "bg_move":  return ApplyMoveBy(state, cmd, tuning, out reason);
+                case "bg_scale": return ApplyPortraitScaleTo(state, cmd, out reason);
 
                 default:
                     // 시간만 쓰는 커맨드는 못 접는 게 아니라 접을 것이 없다 — 아래 참조.

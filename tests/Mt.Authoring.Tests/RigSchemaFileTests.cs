@@ -13,10 +13,11 @@ public class RigSchemaFileTests
         RigSchemaFile rig = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
 
         Assert.Contains("character", rig.RigKinds);
-        Assert.Contains("background", rig.RigKinds);
+        Assert.Contains("screenEffect", rig.RigKinds);
+        Assert.DoesNotContain("background", rig.RigKinds); // 배경은 캐스팅하지 않은 캐릭터 슬롯이 됐다(무대 dc690c1)
         Assert.Contains("CharacterPortrait_Track_Move_Y", rig.NodeIds["character"]);
         Assert.Contains("CharacterPortrait_SwayPivot", rig.NodeIds["character"]);
-        Assert.DoesNotContain("CharacterPortrait_SwayPivot", rig.NodeIds["background"]);
+        Assert.DoesNotContain("CharacterPortrait_SwayPivot", rig.NodeIds["screenEffect"]);
         Assert.True(rig.TryGetRig("character", out RigSchemaRigDto character));
         Assert.Equal(26, character.nodes.Count);
     }

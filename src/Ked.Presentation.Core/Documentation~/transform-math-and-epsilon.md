@@ -40,7 +40,7 @@ ref      = anchorLo + (anchorHi - anchorLo) * node.Pivot     ← 자기 pivot �
 - **뺌** — `localPosition.z`(미사용) · `offsetMin`/`Max`(같은 정보의 다른 표현)
 
 근거는 추측이 아니라 실제 리그 코드 조사다. 조사 대상:
-`CharacterRigBuilder`(StretchFull + `NeedsBottomPivot`) · `BackgroundRigBuilder` ·
+`CharacterRigBuilder`(StretchFull + `NeedsBottomPivot`) · `BackgroundRigBuilder`(당시, 2026-10 캐릭터 리그로 합쳐짐) ·
 `OverlayRigBuilder`(고정 앵커 (0.5,0.5) 사용) · `CharRigImageSizingPolicy`(`sizeDelta`·`pivot.x`) ·
 `OverlayRigOperations`(`sizeDelta`) · `CharacterPlacementTargetLedger`(위치·스케일·오일러 게시).
 

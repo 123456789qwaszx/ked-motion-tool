@@ -140,7 +140,7 @@
 | `manipulator` | W/E/R가 그 종류의 기본 손잡이로 고른다 |
 | `unit` `note` | 화면 표기 |
 
-표가 가리키는 노드가 리그에 없으면 상태 줄에 알린다(`ControllerRig.Validate`). 표가 없는 리그(`background`…)는 노드로 다룬다.
+표가 가리키는 노드가 리그에 없으면 상태 줄에 알린다(`ControllerRig.Validate`). 표가 없는 리그(`screenEffect`…)는 노드로 다룬다.
 리그가 늘면 그 리그의 컨트롤러를 표에 더한다.
 
 ---

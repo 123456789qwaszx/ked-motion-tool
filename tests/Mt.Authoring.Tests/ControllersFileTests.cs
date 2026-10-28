@@ -23,7 +23,7 @@ public class ControllersFileTests
         Assert.Equal(MotionChannelMode.Relative, rig.Groups[2].Mode);
         Assert.Equal(10, rig.Controllers.Count);
         Assert.Empty(rig.Validate(BuiltinTuning.RigSchemas.NodeIds["character"]));
-        Assert.Null(file.Rig("background")); // 표가 없는 리그는 노드로 다룬다
+        Assert.Null(file.Rig("screenEffect")); // 표가 없는 리그는 노드로 다룬다
     }
 
     [Fact]

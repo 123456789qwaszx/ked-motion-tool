@@ -11,8 +11,8 @@ namespace Mt.Authoring.Rig;
 /// </summary>
 public static class BuiltinTuning
 {
-    /// <summary>원본 — ked-presentation-runtime 커밋과 익스포트 시각(export-report.json).</summary>
-    public const string Source = "ked-presentation-runtime 4b27e23 · ExportedTuning 2026-08-21";
+    /// <summary>원본 — 무대 런타임 커밋과 익스포트 시각(export-report.json). rig-schemas.json은 그 커밋에서 배경 리그를 손으로 걷은 판이다.</summary>
+    public const string Source = "ked-stage-runtime dc690c1 · ExportedTuning 2026-08-21";
 
     private const string Prefix = "Defaults/";
 
@@ -23,7 +23,7 @@ public static class BuiltinTuning
     private static readonly Lazy<Vec2> BaseResolutionLazy = new(() => BaseResolutionFile.Parse(Text("ExportedTuning/base-resolution.json")));
     private static readonly Lazy<ControllersFile> ControllersLazy = new(() => ControllersFile.Parse(Text("controllers.json")));
 
-    /// <summary>리그 덤프(character · background · screenEffect).</summary>
+    /// <summary>리그 덤프(character · screenEffect). 배경은 캐스팅하지 않은 character 슬롯이다.</summary>
     public static RigSchemaFile RigSchemas => RigSchemasLazy.Value;
 
     /// <summary>무대 뼈대 — rigKind "stage" 하나. 노드 id는 유니티 이름 그대로(<c>Stage00Depth_Mid_Content</c>…), 전부 항등.</summary>

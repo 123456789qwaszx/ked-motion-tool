@@ -74,8 +74,8 @@ tools/  prefab-to-stage-rig.py(유니티 프리팹 → 무대 뼈대 JSON) · pr
 
 | 저장소 | 관계 | 지금 상태 |
 |---|---|---|
-| `ked-stage-runtime` | 코어 정본(`Assets/Ked.Presentation/Core`), `motions/2` 로더·`motion` 커맨드 보유 | `dev` @ 640ac60이 반입 기준. 배경 리그 제거는 `refactor/background-as-slot` @ dc690c1에 있고 **`dev`에는 아직 없다**(2026-10-29) — `dev`가 품으면 코어 재반입(MAINTENANCE §4.1). 툴 산출물 등가 테스트는 §7-1 |
-| `ked-presentation-runtime` | 반입본 구조의 재생 저장소. 샘플 `Assets/Samples/Dialogue/motions.json`·초상 PNG | 배경 리그 제거가 `dev`에 들어갔다(무대 `refactor/background-as-slot` @ dc690c1 반입, 2026-10-29). 데모 `motions.json`은 여전히 툴 견본 `motions.nod-bow.json`과 바이트까지 같다 — 데모 대본은 `<<motion s1 nod>>`·`<<motion s1 bow absolute>>` |
+| `ked-stage-runtime` | 코어 정본(`Assets/Ked.Presentation/Core`), `motions/2` 로더·`motion` 커맨드 보유 | `dev` @ dc690c1이 반입 기준(2026-10-29 — 배경 리그 제거: `bg_*`는 캐스팅하지 않은 `character` 슬롯, 덤프의 리그는 `character`·`screenEffect` 둘). 툴은 리듀서 디스패치를 쓰지 않아 동작 변화는 없다. 툴 산출물 등가 테스트는 §7-1 |
+| `ked-presentation-runtime` | 반입본 구조의 재생 저장소. 샘플 `Assets/Samples/Dialogue/motions.json`·초상 PNG | 배경 리그 제거가 `dev`에 들어갔다(무대 dc690c1 반입, 2026-10-29). 데모 `motions.json`은 여전히 툴 견본 `motions.nod-bow.json`과 바이트까지 같다 — 데모 대본은 `<<motion s1 nod>>`·`<<motion s1 bow absolute>>` |
 | `VNStoryEditor_avalonia`(VnTool) | 작가용 시나리오 툴. 2026-10-28에 무대 프리뷰·에셋 탐색기·연출 커맨드 편집 UI를 제거했다. 연출 저작은 별도 툴이 맡기로 | `dev` @ 3c2d922. 이 툴과 데이터 교환 없음(앞으로 `motions.json`의 이름 목록만 읽을 가능성) |
 
 ## 6. 최근에 바뀐 것 (사용 피드백 반영, 2026-10-28)

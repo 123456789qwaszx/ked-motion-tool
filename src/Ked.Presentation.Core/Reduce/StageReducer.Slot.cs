@@ -15,12 +15,24 @@ namespace Ked.Presentation.Core
             if (!TryGetSlotKey(cmd, out string slotKey, out reason))
                 return false;
 
-            if (state.HasSlot(slotKey))
-            {
-                // 같은 슬롯 재선언: 런타임은 기존 리그를 재사용한다. 부착만 갱신한다.
-                state.SetAttachment(slotKey, new SlotAttachment(stageKey, layerKey));
-                return true;
-            }
+            return SpawnSlot(state, slotKey, tuning, stageKey, layerKey, out reason);
+        }
+
+        /// <summary>
+        /// 슬롯 하나를 세운다 — slot 계열과 bg_* 계열(StageReducer.Background.cs)이 같은 자리를 지난다.
+        /// 배경도 캐릭터 리그다: 배역을 캐스팅하지 않은 슬롯일 뿐이다.
+        ///
+        /// **같은 키 재선언은 리그를 새로 세운다.** 런타임 SetupCharRigCommand는 매번 새 리그를 짓고
+        /// CharacterRigRegistry.Register가 옛 리그를 부순다 — 노드는 스키마 초기값으로, 가시성은 스키마 α로
+        /// 돌아간다. 배역·변형·별칭은 CastRegistry 쪽이라 남는다. 그래서 여기서도 노드와 α만 되돌린다.
+        /// (예전 주석은 "런타임은 기존 리그를 재사용한다"였다 — 사실이 아니었다. 배경을 합치며 같은 키의
+        ///  `bg_spawn` 재선언을 검토하다 드러나 바로잡았다, 2026-10-29. 배경 그림만 바꾸는 것은 `bg_sprite`다.)
+        /// </summary>
+        private static bool SpawnSlot(
+            StageState state, string slotKey, StageReducerTuning tuning,
+            string stageKey, string layerKey, out string reason)
+        {
+            reason = null;
 
             if (tuning.RigSchemas == null)
             {
@@ -34,9 +46,17 @@ namespace Ked.Presentation.Core
                 return false;
             }
 
-            // v1 가정 1: 컨테이너는 항등이므로 리그를 루트 공간 직속으로 세운다.
-            RigSchemaLoader.AddRigTo(state.Nodes, rig, keyPrefix: slotKey + "/");
-            state.RegisterSlot(slotKey);
+            if (state.HasSlot(slotKey))
+            {
+                ResetSlotToSchema(state, slotKey, rig);
+            }
+            else
+            {
+                // v1 가정 1: 컨테이너는 항등이므로 리그를 루트 공간 직속으로 세운다.
+                RigSchemaLoader.AddRigTo(state.Nodes, rig, keyPrefix: slotKey + "/");
+                state.RegisterSlot(slotKey);
+            }
+
             state.SetAttachment(slotKey, new SlotAttachment(stageKey, layerKey));
 
             // 초기 가시성: 덤프의 CanvasGroup alpha.
@@ -51,6 +71,23 @@ namespace Ked.Presentation.Core
             }
 
             return true;
+        }
+
+        /// <summary>재선언 — 같은 키·같은 부모의 노드를 스키마 초기 상태로 덮는다(새로 세운 것과 같다).</summary>
+        private static void ResetSlotToSchema(StageState state, string slotKey, RigSchemaRigDto rig)
+        {
+            for (int i = 0; i < rig.nodes.Count; i++)
+            {
+                RigSchemaNodeDto node = rig.nodes[i];
+
+                if (node == null)
+                    continue;
+
+                string key = StageState.NodeKeyOf(slotKey, node.id);
+
+                if (state.Nodes.Contains(key))
+                    state.Nodes.SetState(key, RigSchemaLoader.ToState(node, key));
+            }
         }
 
         private static bool TryFindCharacterRig(RigSchemasFileDto file, out RigSchemaRigDto rig)

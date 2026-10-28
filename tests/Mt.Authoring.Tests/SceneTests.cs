@@ -24,17 +24,17 @@ public class SceneTests
         Assert.Equal(SceneLayers.Mid, s1.Layer);
         Assert.Equal("stage00", s1.Stage); // 게임·코어 slot 기본과 같다
 
-        editor.AddSceneObject(null, "bg", "background", SceneLayers.Far);
+        editor.AddSceneObject(null, "fx", "screenEffect", SceneLayers.Far);
         editor.SetObjectPlacement(null, "s1", 120f, -30f, 5f, 1.2f, 0.9f);
         editor.SetObjectPortrait(null, "s1", "assets/harin.png");
-        editor.SetObjectVisible(null, "bg", false);
+        editor.SetObjectVisible(null, "fx", false);
 
         string json = MotionDocumentJson.Write(editor.Document);
         MotionDocument read = MotionDocumentJson.Read(json);
         Assert.Equal(json, MotionDocumentJson.Write(read));
 
         SceneAsset back = read.ActiveSceneAsset!;
-        Assert.Equal(new[] { "s1", "bg" }, back.Objects.Select(o => o.Id));
+        Assert.Equal(new[] { "s1", "fx" }, back.Objects.Select(o => o.Id));
         Assert.Equal(120f, back.Objects[0].PositionX);
         Assert.Equal(0.9f, back.Objects[0].ScaleY);
         Assert.Equal("assets/harin.png", back.Objects[0].Portrait);
@@ -42,7 +42,7 @@ public class SceneTests
         Assert.Contains("\"layer\": \"far\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"prefix\"", json, StringComparison.Ordinal); // 계산 전용 속성은 파일에 없다
         Assert.DoesNotContain("\"activeSceneAsset\"", json, StringComparison.Ordinal);
-        Assert.Equal(new[] { "bg", "s1" }, back.DrawOrder().Select(o => o.Id)); // far 먼저
+        Assert.Equal(new[] { "fx", "s1" }, back.DrawOrder().Select(o => o.Id)); // far 먼저
     }
 
     [Fact]
@@ -72,14 +72,14 @@ public class SceneTests
     {
         var scene = new SceneAsset();
         scene.Objects.Add(new SceneObject { Id = "s1", Rig = "character", PositionX = 100f, PositionY = 50f, RotationZ = 10f, ScaleX = 1.5f, ScaleY = 2f });
-        scene.Objects.Add(new SceneObject { Id = "bg", Rig = "background", Layer = SceneLayers.Far });
+        scene.Objects.Add(new SceneObject { Id = "fx", Rig = "screenEffect", Layer = SceneLayers.Far });
         scene.Objects.Add(new SceneObject { Id = "nope", Rig = "robot" });
         var missing = new List<SceneObject>();
 
         RectNodeTree tree = ScenePreview.Build(RigFile, scene, _ => 0.8f, missing);
 
         Assert.True(tree.Contains("s1/CharacterPortraitSprite_Image"));
-        Assert.True(tree.Contains("bg/__root"));
+        Assert.True(tree.Contains("fx/__root"));
         Assert.False(tree.Contains("CharacterPortraitSprite_Image")); // 접두사 없는 키는 없다
         Assert.Equal("nope", Assert.Single(missing).Id);
 
@@ -102,7 +102,7 @@ public class SceneTests
         MotionDocument document = Fixtures.NodBowDocument();
         var editor = new MotionEditor(document);
         editor.AddSceneObject(null, "s2", "character");
-        editor.AddSceneObject(null, "bg", "background", SceneLayers.Far);
+        editor.AddSceneObject(null, "fx", "screenEffect", SceneLayers.Far);
         SceneAsset scene = document.ActiveSceneAsset!;
         RectNodeTree template = ScenePreview.Build(RigFile, scene);
         MotionAsset nod = document.Find("nod")!;
@@ -113,7 +113,7 @@ public class SceneTests
         Assert.Equal(template.GetState("s1/CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, pose.GetState("s1/CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 3);
 
         Assert.True(ScenePreview.CanWear(RigFile, scene.Find("s1")!, nod));
-        Assert.False(ScenePreview.CanWear(RigFile, scene.Find("bg")!, nod)); // 배경 리그에는 그 노드가 없다
+        Assert.False(ScenePreview.CanWear(RigFile, scene.Find("fx")!, nod)); // 화면 효과 리그에는 그 노드가 없다
     }
 
     [Fact]

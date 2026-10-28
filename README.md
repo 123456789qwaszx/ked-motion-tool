@@ -18,7 +18,7 @@
    ```
    dotnet run --project src/Mt.App/Mt.App.csproj
    ```
-2. **리그 덤프…** → `ked-stage-runtime/ExportedTuning/rig-schemas.json`. 옆의 `base-resolution.json`도 같이 실린다. 상태 줄에 `리그 덤프: character, background, screenEffect · 무대 1920×1080`.
+2. **리그 덤프…** → `ked-stage-runtime/ExportedTuning/rig-schemas.json`. 옆의 `base-resolution.json`도 같이 실린다. 상태 줄에 `리그 덤프: character, screenEffect · 무대 1920×1080`.
 3. **초상 PNG…** → `ked-presentation-runtime/Assets/Samples/Portraits/harin/b/01.png`. 뷰포트에 초상이 선다(없으면 자리표시 사각형).
 4. **motions.json 가져오기…** → `ked-presentation-runtime/Assets/Samples/Dialogue/motions.json`. 왼쪽 "모션"에 `nod`·`bow`가 생긴다.
 5. `nod`를 고르고 **Alt+`** — 끄덕인다. `bow`는 끝에서 8도 기운 채 남는다(commit).

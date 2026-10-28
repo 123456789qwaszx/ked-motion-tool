@@ -173,6 +173,21 @@ namespace Ked.Presentation.Core
             _variantBySlot.Remove(slotKey);
         }
 
+        /// <summary>
+        /// 슬롯의 배역을 푼다 — 런타임 CastRegistry.UncastCharRig과 같다(두 맵과 변형을 함께 비운다).
+        /// 배경 스폰이 배역 있는 슬롯을 덮을 때 쓴다(StageReducer.Background.cs).
+        /// </summary>
+        public bool ClearCast(string slotKey)
+        {
+            if (slotKey == null || !_characterBySlot.TryGetValue(slotKey, out string characterKey))
+                return false;
+
+            _characterBySlot.Remove(slotKey);
+            _slotByCharacter.Remove(characterKey);
+            _variantBySlot.Remove(slotKey);
+            return true;
+        }
+
         /// <summary>pose — 슬롯의 현재 초상 변형. 빈 값이면 기본 변형으로 되돌린다.</summary>
         public void SetVariant(string slotKey, string variantKey)
         {
@@ -216,8 +231,10 @@ namespace Ked.Presentation.Core
         /// <summary>
         /// 커맨드 대상 키 → 슬롯 키.
         ///
-        /// 해석 순서(런타임 대상 해석기와 같다): 별칭을 풀고 → 슬롯 키인가 →
-        /// 캐릭터 키인가(배역 맵). 이걸로 "@3"·"parkeunseol"·"c1"이 모두 풀린다.
+        /// 해석 순서(런타임 CharacterRigTargetResolver.ResolveRigKeyByPolicy와 같다): 별칭을 풀고 →
+        /// 캐릭터 키인가(배역 맵) → 슬롯 키인가. 이걸로 "@3"·"parkeunseol"·"c1"이 모두 풀린다.
+        /// 한 키가 슬롯 키이면서 캐스팅된 캐릭터 키이면 **캐릭터 쪽**이 이긴다 — 런타임이 그렇다.
+        /// (2026-10-29까지 여기만 슬롯 키를 먼저 봤다. 주석은 "런타임과 같다"였다.)
         /// </summary>
         public bool TryResolveSlot(string targetKey, out string slotKey)
         {
@@ -229,15 +246,15 @@ namespace Ked.Presentation.Core
             if (_aliases.TryGetValue(targetKey, out string aliased))
                 targetKey = aliased;
 
-            if (_slots.Contains(targetKey))
-            {
-                slotKey = targetKey;
-                return true;
-            }
-
             if (_slotByCharacter.TryGetValue(targetKey, out string bySlot) && _slots.Contains(bySlot))
             {
                 slotKey = bySlot;
+                return true;
+            }
+
+            if (_slots.Contains(targetKey))
+            {
+                slotKey = targetKey;
                 return true;
             }
 

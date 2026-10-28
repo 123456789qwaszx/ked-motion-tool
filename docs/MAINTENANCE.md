@@ -15,7 +15,7 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 
 - SDK는 `global.json`(10.0.100, latestFeature). 패키지 판은 `Directory.Packages.props` 한 곳(Avalonia 12.1.1 — VnTool과 같은 판).
 - `Directory.Build.props`: ImplicitUsings·Nullable·TreatWarningsAsErrors·LangVersion latest. 반입 코어만 자기 csproj에서 LangVersion 9 · netstandard2.1 · ImplicitUsings/Nullable 끔으로 되돌린다(유니티 호환).
-- CI: `.github/workflows/test.yml` — `main`·`dev` 푸시와 PR, ubuntu-latest, restore → build → test. 테스트 프로젝트 셋(Core 399 · Authoring 160 · App 67건, 2026-10-28). Windows 패키지 스모크는 아직 없다.
+- CI: `.github/workflows/test.yml` — `main`·`dev` 푸시와 PR, ubuntu-latest, restore → build → test. 테스트 프로젝트 셋(Core 414 · Authoring 183 · App 66건, 2026-10-29). Windows 패키지 스모크는 아직 없다.
 - 로컬에 SDK를 못 깔면 CI가 유일한 검증이다. `dotnet test`의 요약 줄이 **셋**(세 프로젝트) 나오는지 세고 "전부 통과"라고 말한다 — 빌드에 실패한 프로젝트는 조용히 건너뛴다.
 
 ## 2. 코드 지도 — 어디를 열면 되나
