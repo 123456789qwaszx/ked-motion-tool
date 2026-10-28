@@ -487,7 +487,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 박스_드래그가_커브를_지나면_커브가_선택되고_빈_자리_RMB_드래그는_팬이다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, _) = Show();
+        (Window window, GraphEditorView view, MotionEditor editor) = Show();
 
         try
         {
