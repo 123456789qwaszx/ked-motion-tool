@@ -1135,12 +1135,12 @@ public partial class MainWindow : Window
     {
         LeftPanel.Children.Add(Header("씬 — 오브젝트"));
         _hierarchy.SelectionChanged += (_, _) => OnHierarchySelected();
+        // 더블클릭은 노드 선택과 같다(채널 박스가 그 노드를 보인다). "채널 추가"는 없다.
         _hierarchy.DoubleTapped += (_, _) =>
         {
             if (_hierarchy.SelectedItem is TreeViewItem { Tag: HierarchyNode node })
             {
                 SelectNodeInHierarchy(node);
-                Guard("채널 추가", AddChannel);
             }
         };
         _hierarchy.ContextMenu = _hierarchyMenu;
