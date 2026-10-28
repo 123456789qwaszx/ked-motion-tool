@@ -1,0 +1,21 @@
+{
+  "schema": "motions/2",
+  "motions": [
+    { "name": "sway", "rig": "character", "duration": 0.5, "end": "restore",
+      "channels": [
+        { "node": "CharacterPortrait_SwayPivot", "kind": "euler",
+          "z": [ { "t": 0, "v": 0, "inTangent": 0, "outTangent": 40 }, { "t": 0.25, "v": 6, "inTangent": 0, "outTangent": 0 }, { "t": 0.5, "v": 0, "inTangent": -40, "outTangent": 0 } ] }
+      ] },
+    { "name": "step", "rig": "character", "duration": 0.4, "end": "commit",
+      "channels": [
+        { "node": "CharSlot_Track_X", "kind": "position",
+          "x": [ { "t": 0, "v": 10, "inTangent": 0, "outTangent": 150 }, { "t": 0.4, "v": 80, "inTangent": 50, "outTangent": 0 } ] }
+      ] },
+    { "name": "grow", "rig": "character", "duration": 0.5, "end": "commit",
+      "channels": [
+        { "node": "CharSlot_Scale", "kind": "scale",
+          "x": [ { "t": 0, "v": 1, "inTangent": 0, "outTangent": 0 }, { "t": 0.5, "v": 1.5, "inTangent": 0, "outTangent": 0 } ],
+          "y": [ { "t": 0, "v": 1, "inTangent": 0, "outTangent": 0 }, { "t": 0.25, "v": 0.9, "inTangent": 0, "outTangent": 0 }, { "t": 0.5, "v": 1.2, "inTangent": 0, "outTangent": 0 } ] }
+      ] }
+  ]
+}

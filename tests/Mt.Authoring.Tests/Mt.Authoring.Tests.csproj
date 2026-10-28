@@ -22,7 +22,8 @@
 
   <ItemGroup>
     <!-- 견본: motions.nod-bow.json은 재생 저장소 Samples/Dialogue/motions.json(Unity 내보내기 산출물) 그대로,
-         rig-schemas.json은 무대 런타임 ExportedTuning/ 그대로. 바이트 비교 대상이므로 손대지 않는다. -->
+         rig-schemas.json은 무대 런타임 ExportedTuning/ 그대로. 바이트 비교 대상이므로 손대지 않는다.
+         stage-parity/는 이쪽이 원본이고 무대 저장소 UnityParity/ToolExport~/가 사본이다(MAINTENANCE §4.7). -->
     <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

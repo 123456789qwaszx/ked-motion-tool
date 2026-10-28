@@ -74,8 +74,8 @@ tools/  prefab-to-stage-rig.py(유니티 프리팹 → 무대 뼈대 JSON) · pr
 
 | 저장소 | 관계 | 지금 상태 |
 |---|---|---|
-| `ked-stage-runtime` | 코어 정본(`Assets/Ked.Presentation/Core`), `motions/2` 로더·`motion` 커맨드 보유 | `dev` @ 640ac60이 반입 기준. 툴 산출물의 실제 적용(패리티 테스트)은 **다음 일**(§7) |
-| `ked-presentation-runtime` | 반입본 구조의 재생 저장소. 샘플 `Assets/Samples/Dialogue/motions.json`·초상 PNG | BGRig 제거 작업 중 — 소유자 지시로 **건드리지 않는다** |
+| `ked-stage-runtime` | 코어 정본(`Assets/Ked.Presentation/Core`), `motions/2` 로더·`motion` 커맨드 보유 | `dev` @ 640ac60이 반입 기준. 배경 리그 제거는 `refactor/background-as-slot` @ dc690c1에 있고 **`dev`에는 아직 없다**(2026-10-29) — `dev`가 품으면 코어 재반입(MAINTENANCE §4.1). 툴 산출물 등가 테스트는 §7-1 |
+| `ked-presentation-runtime` | 반입본 구조의 재생 저장소. 샘플 `Assets/Samples/Dialogue/motions.json`·초상 PNG | 배경 리그 제거가 `dev`에 들어갔다(무대 `refactor/background-as-slot` @ dc690c1 반입, 2026-10-29). 데모 `motions.json`은 여전히 툴 견본 `motions.nod-bow.json`과 바이트까지 같다 — 데모 대본은 `<<motion s1 nod>>`·`<<motion s1 bow absolute>>` |
 | `VNStoryEditor_avalonia`(VnTool) | 작가용 시나리오 툴. 2026-10-28에 무대 프리뷰·에셋 탐색기·연출 커맨드 편집 UI를 제거했다. 연출 저작은 별도 툴이 맡기로 | `dev` @ 3c2d922. 이 툴과 데이터 교환 없음(앞으로 `motions.json`의 이름 목록만 읽을 가능성) |
 
 ## 6. 최근에 바뀐 것 (사용 피드백 반영, 2026-10-28)
@@ -93,7 +93,7 @@ tools/  prefab-to-stage-rig.py(유니티 프리팹 → 무대 뼈대 JSON) · pr
 
 우선순위 순.
 
-1. **런타임 실제 적용(M6 일부).** 툴이 내보낸 `motions.json`을 `ked-stage-runtime` 리듀서에 통과시켜 툴 미리보기와 같은 포즈가 나오는지 보는 패리티 테스트. 이 환경에서 유니티 플레이모드는 못 돌리므로 EditMode 테스트 + 소유자 측 확인으로 나눈다. `ked-presentation-runtime`은 보류.
+1. **런타임 실제 적용(M6 일부) — 툴 쪽 끝, 무대 쪽 Unity 확인 남음.** 견본 `tests/Mt.Authoring.Tests/Fixtures/stage-parity/`(`motions.json` + 포즈 표 `poses.json`)가 두 저장소를 잇는다. 툴 쪽 `StageParityTests`(CI)가 ① 편집기로 지어 내보낸 바이트 = 견본 ② 미리보기 포즈 = 표 ③ 반입 코어 리듀서가 접은 끝 상태 = 표를 지킨다. 무대 쪽 `UnityParity/ToolExportMotionParityTests`가 같은 두 파일을 런타임 로더(`MotionLibrary`, JsonUtility)·리그 스키마·리듀서로 읽어 같은 표를 확인한다 — 무대 저장소에는 CI가 없어 소유자가 Unity Test Runner로 돌린다. 시간에 따른 재생(`MotionCommandCharR`, DOTween)은 플레이모드라 범위 밖.
 2. **VnTool 연결(M6 나머지).** VnTool 쪽 `<<motion>>` 자동완성이 `motions.json`의 이름·길이·end 목록만 읽게. 이 툴은 바뀔 것이 없다.
 3. **Windows 휴대용 패키지.** 지금 CI는 Linux 빌드·헤드리스 테스트뿐. VnTool처럼 `publish-windows.ps1` + windows-latest 스모크를 더할 때가 되면 `.github/workflows/test.yml`에 잡을 추가한다.
 4. **알려진 한계(`PLAN-undo.md` §4).** 설정 창·단축키 창은 헤드리스에서 두 번째 창이 멈춰 테스트하지 않는다(08df523). PNG 디코딩도 헤드리스에서 안 된다 — 초상 관련은 자리표시 사각형으로 검증한다.

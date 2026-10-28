@@ -84,12 +84,20 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 
 소유자 방침은 "흔적 없이": 모델 필드 · 편집기 명령 · 직렬화 키 · 화면 · 테스트 · 문서를 한 커밋에서 다 뺀다. 마이그레이션은 두지 않는다(옛 저작본이 없다). 지운 뒤 `grep`으로 식별자와 문서 언급을 한 번 더 훑는다.
 
+### 4.7 무대 등가 견본 바꾸기
+
+`tests/Mt.Authoring.Tests/Fixtures/stage-parity/`의 `motions.json`(툴 산출물)·`poses.json`(포즈 표)은 **이쪽이 원본**이고
+무대 저장소 `Assets/Ked.Presentation/Core/Tests/EditMode/UnityParity/ToolExport~/`가 사본이다(코어와 반대 방향).
+고치면 `StageParityTests`를 녹색으로 만든 뒤 두 파일을 그대로 무대 쪽에 복사하고, 그쪽 테스트 머리 주석의 출처 커밋을 고친다.
+`motions.json`은 바이트 비교 대상이라 손으로 고치지 않는다 — `StageParityTests.ParityDocument()`를 고치고 내보낸 결과로 바꾼다.
+
 ## 5. 테스트 작성 요령
 
 - **Authoring**: xunit. 편집기 테스트는 `TestDocuments.Nod()` 같은 견본으로 시작한다 — 견본은 편집기로 지어서 `CanUndo`가 이미 참이다(처음 기록이 비어 있다고 가정하지 말 것). 새 문서는 기본 씬에 `s1`이 이미 있다.
 - **App(Avalonia.Headless)**: `HeadlessUi.Run(() => …)`, 입력은 `window.MouseDown/Move/Up`·`KeyPressQwerty`·`KeyTextInput`, 좌표는 `view.TranslatePoint(local, window)`. 포즈·기즈모는 `view.GizmoCenter()`·`ObjectQuad()`·`CurrentPose()` 손잡이로 읽는다.
 - 헤드리스의 한계: PNG를 디코딩·인코딩하지 못한다(초상은 자리표시 사각형으로 검증) · 접힌 Expander·안 고른 탭 안의 컨트롤은 포커스를 못 받는다(늘 보이는 `RangeStartBox` 같은 칸을 쓴다) · 두 번째 창(설정·단축키)은 세션이 멈춘다(열지 않는다, 08df523) · 재생 시계는 실제 시간이라 `Assert.InRange`로 느슨하게.
 - 되돌리기 테스트는 `editor.Revision`·`CanUndo`·`HasPending`로 칸 수를 센다. "조작 하나 = 한 칸"을 깨는 변경은 `MainWindowTests.복합_조작은_되돌리기_한_칸이다`가 잡는다.
+- 무대 등가(`StageParityTests`)는 포즈 표를 `1e-3` 안에서 비교한다. 시작값은 표의 `start`(0이 아닌 값 — relative와 absolute가 갈리게)이고, 길이를 지난 표본이 리듀서의 끝 상태다.
 - 산출물 테스트는 바이트 비교다. 직렬화 순서·소수 표기(`R`, 정수는 소수점 없이)·`-0 → 0`·LF·끝 개행 하나를 지킨다.
 
 ## 6. 함정과 메모
