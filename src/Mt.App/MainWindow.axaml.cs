@@ -15,6 +15,7 @@ using Mt.Authoring;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
+using Mt.Authoring.Presets;
 using Mt.Authoring.Preview;
 using Mt.Authoring.Rig;
 using Mt.Authoring.Settings;
@@ -180,6 +181,7 @@ public partial class MainWindow : Window
     // 오른쪽 — 보기
     private readonly CheckBox _snap = new() { Content = "시간 스냅 1/60초", IsChecked = true, FontSize = 11 };
     private readonly CheckBox _showRigNodes = new() { Content = "리그 노드 보기 (컨트롤러 대신 덤프 노드)", FontSize = 11 };
+    private readonly ComboBox _presetCombo = new() { ItemsSource = MotionPresets.All.Select(p => p.Name).ToArray(), SelectedIndex = 0, FontSize = 11, MinWidth = 120 };
     private readonly TextBox _currentTime = new() { Text = "0", FontSize = 11, Width = 72 };
 
     private int _refreshDepth;
@@ -1576,6 +1578,23 @@ public partial class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Spacing = 4,
             Children = { addMotionButton, SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)) },
+        });
+
+        Button addPresetButton = SmallButton("프리셋에서 추가", (_, _) => Guard("프리셋에서 추가", () => AddPreset()));
+        ToolTip.SetTip(addPresetButton, "컨트롤러 표 위에 지은 연기 9종(끄덕·젓기·깡충·움찔·떨림·숙임·바운스·호흡·돌아서기)을 선택 오브젝트의 리그로 더한다 — 이름은 id(겹치면 id_2…). 표가 없는 리그는 안 된다");
+        _presetCombo.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _presetCombo.SelectedIndex >= 0)
+            {
+                ToolTip.SetTip(_presetCombo, MotionPresets.All[_presetCombo.SelectedIndex].Note);
+            }
+        };
+        ToolTip.SetTip(_presetCombo, MotionPresets.All[0].Note);
+        LeftPanel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Children = { _presetCombo, addPresetButton },
         });
     }
 
@@ -3266,6 +3285,22 @@ public partial class MainWindow : Window
         _session.Editor.AddMotion(name, rig, duration, end);
         _motionList.SelectedItem = name;
     }
+
+    /// <summary>프리셋에서 추가 — 콤보의 프리셋을 선택 오브젝트의 리그(없으면 character)로. 표가 없는 리그는 예외(상태줄).</summary>
+    private string AddPreset(string? presetId = null)
+    {
+        MotionPreset preset = presetId is null
+            ? MotionPresets.All[Math.Max(0, _presetCombo.SelectedIndex)]
+            : MotionPresets.Find(presetId) ?? throw new InvalidOperationException($"프리셋 '{presetId}'이 없다.");
+        string rig = _viewport.SelectedObject?.Rig ?? SceneObject.DefaultRig;
+        ControllerRig table = _session.ControllersOf(rig) ?? throw new InvalidOperationException($"리그 '{rig}'에 컨트롤러 표가 없다 — 프리셋은 컨트롤러 위에 지은 것이다(presets/controllers.json).");
+        string name = MotionPresets.Add(_session.Editor, preset, rig, table);
+        _motionList.SelectedItem = name;
+        return name;
+    }
+
+    /// <summary>테스트 손잡이 — "프리셋에서 추가".</summary>
+    internal string AddPresetFromForm(string presetId) => AddPreset(presetId);
 
     private void RemoveMotion()
     {

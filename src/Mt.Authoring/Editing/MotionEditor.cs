@@ -1297,8 +1297,58 @@ public sealed class MotionEditor
         Raise(MotionChangeKind.Structure);
     }
 
+    private int _batchDepth;
+
+    /// <summary>
+    /// 여러 명령을 되돌리기 한 번으로 묶는다(프리셋 추가처럼 모션·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
+    /// 기록에 남기지 않는다. 중첩은 바깥 묶음에 든다.
+    /// </summary>
+    public void Batch(MotionChangeKind kind, Action change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+
+        if (_batchDepth > 0)
+        {
+            change();
+            return;
+        }
+
+        string snapshot = MotionDocumentJson.Write(Document);
+        _batchDepth++;
+
+        try
+        {
+            change();
+        }
+        catch
+        {
+            Document = MotionDocumentJson.Read(snapshot);
+            throw;
+        }
+        finally
+        {
+            _batchDepth--;
+        }
+
+        _undo.Add(snapshot);
+
+        if (_undo.Count > MaxHistory)
+        {
+            _undo.RemoveAt(0);
+        }
+
+        _redo.Clear();
+        Raise(kind);
+    }
+
     private void Mutate(MotionChangeKind kind, Action change)
     {
+        if (_batchDepth > 0)
+        {
+            change(); // 묶음이 기록·알림을 맡는다
+            return;
+        }
+
         _undo.Add(MotionDocumentJson.Write(Document));
 
         if (_undo.Count > MaxHistory)

@@ -662,6 +662,18 @@ public class MainWindowTests
                 Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedObject!.ParentNode);
                 Assert.Equal("몸  ·  position XY", window.HierarchyPathOf(s2, null)[^2]);
 
+                // 프리셋에서 추가(C5): 선택 오브젝트의 리그로, 표가 노드를 푼다. 목록이 그 모션을 고른다. 문제 없음.
+                window.SelectInHierarchy("s1", null);
+                Assert.Equal("nod", window.AddPresetFromForm("nod"));
+                Assert.Equal("nod", window.SelectedMotion);
+                MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
+                Assert.Equal("character", nod.Rig);
+                Assert.NotNull(nod.FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!.Y);
+                Assert.Empty(window.ProblemsShown);
+                Assert.Equal("nod_2", window.AddPresetFromForm("nod"));
+                window.Session.Editor.Undo();
+                Assert.Null(window.Session.Editor.Document.Find("nod_2"));
+
                 // "리그 노드 보기"면 덤프 노드 26단이고 자식은 붙은 노드 밑. 끄면 다시 컨트롤러.
                 window.ShowRigNodes = true;
                 Assert.Empty(window.HierarchyPathOfController("s1", "body"));
