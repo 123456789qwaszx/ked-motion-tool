@@ -1604,8 +1604,12 @@ public partial class MainWindow : Window
         RefreshChannels();
     }
 
+    /// <summary>테스트 손잡이 — 자산(리그·초상·무대 크기)을 뷰포트에 다시 실은 횟수. 키 편집에서는 오르지 않아야 한다.</summary>
+    internal int AssetRefreshCount { get; private set; }
+
     private void RefreshAssets()
     {
+        AssetRefreshCount++;
         _viewport.SetRig(_session.Rig);
         _viewport.SetDepth(_session.Depth);
         _viewport.SetFocus(_session.Focus);

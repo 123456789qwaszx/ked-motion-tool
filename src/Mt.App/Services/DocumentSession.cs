@@ -19,7 +19,70 @@ public sealed class DocumentSession
     public DocumentSession()
     {
         Editor = new MotionEditor(new MotionDocument());
+        Editor.Changed += OnEditorChanged;
         UseBuiltinTuning();
+        _assetFingerprint = AssetFingerprintOf(Editor.Document);
+    }
+
+    // ── 문서 ↔ 실은 자산 ──────────────────────────────────────────────
+    //
+    // 문서가 적은 자산 참조(리그 덤프 경로·기준 해상도 경로·오브젝트별 초상)는 되돌리기·다시하기로도 바뀐다. 그때 실은 리그·깊이·focus·컨트롤러 표·
+    // 무대 크기와 뷰포트의 초상 비트맵이 문서와 어긋나지 않도록, 참조 지문을 두고 달라진 때만 다시 싣고 AssetsChanged를 올린다.
+    // 키 편집(Keys·Metadata)은 보지도 않고, 참조가 같으면 파일을 읽지 않는다.
+
+    private string _assetFingerprint = "";
+    private bool _syncingAssets;
+
+    /// <summary>테스트 손잡이 — 문서 참조를 따라 자산을 다시 실은 횟수.</summary>
+    internal int AssetSyncCount { get; private set; }
+
+    private static string AssetFingerprintOf(MotionDocument document)
+        => "rig=" + (document.RigSchemas?.Path ?? "") + "\nbase=" + (document.BaseResolution?.Path ?? "") + "\n"
+           + string.Join("\n", document.Scenes.SelectMany(scene => scene.Objects).Select(o => $"portrait {o.Id}={o.Portrait ?? ""}"));
+
+    private void OnEditorChanged(object? sender, MotionChangedEventArgs e)
+    {
+        if (_syncingAssets || e.Kind is MotionChangeKind.Keys or MotionChangeKind.Metadata)
+        {
+            return;
+        }
+
+        SyncAssetsToDocument();
+    }
+
+    private void SyncAssetsToDocument()
+    {
+        string fingerprint = AssetFingerprintOf(Editor.Document);
+
+        if (fingerprint == _assetFingerprint)
+        {
+            return;
+        }
+
+        string[] before = _assetFingerprint.Split('\n');
+        string[] after = fingerprint.Split('\n');
+        bool rigChanged = before.Length == 0 || before[0] != after[0];
+        bool baseChanged = before.Length < 2 || before[1] != after[1];
+        _assetFingerprint = fingerprint;
+
+        if (rigChanged)
+        {
+            UseBuiltinTuning();      // 참조가 사라졌으면 내장으로
+            TryLoadRigFromDocument(); // 있으면 그 덤프와 옆의 깊이·focus·컨트롤러 표
+        }
+
+        if (rigChanged || baseChanged)
+        {
+            if (!rigChanged)
+            {
+                StageSize = BaseResolutionFile.Default;
+            }
+
+            TryLoadAssetsFromDocument();
+        }
+
+        AssetSyncCount++;
+        AssetsChanged?.Invoke(this, EventArgs.Empty); // 초상은 뷰포트가 문서 참조대로 다시 싣는다
     }
 
     /// <summary>내장 기본값으로 — 덤프 파일이 없는 문서의 시작 상태.</summary>
@@ -109,6 +172,7 @@ public sealed class DocumentSession
         Replace(document, path);
         TryLoadRigFromDocument();
         TryLoadAssetsFromDocument();
+        _assetFingerprint = AssetFingerprintOf(Editor.Document);
         AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus($"열었다: {path}");
     }
@@ -150,9 +214,35 @@ public sealed class DocumentSession
     public void LoadRig(string path)
     {
         RigSchemaFile rig = RigSchemaFile.Load(path);
+        _syncingAssets = true; // 여기서 직접 싣는다 — 문서 참조 변화에 다시 반응하지 않는다
+
+        try
+        {
+            LoadRigCore(path, rig);
+        }
+        finally
+        {
+            _syncingAssets = false;
+            _assetFingerprint = AssetFingerprintOf(Editor.Document);
+        }
+    }
+
+    private void LoadRigCore(string path, RigSchemaFile rig)
+    {
         Rig = rig;
         RigPath = path;
-        Editor.SetRigSchemas(RelativeToDocument(path), rig.Sha256);
+        string? baseResolution = BaseResolutionFile.TryFindBeside(path);
+
+        // 덤프 참조와 기준 해상도 참조는 한 조작 — 되돌리기 한 칸.
+        Editor.Batch(MotionChangeKind.Document, () =>
+        {
+            Editor.SetRigSchemas(RelativeToDocument(path), rig.Sha256);
+
+            if (baseResolution is not null)
+            {
+                Editor.SetBaseResolution(RelativeToDocument(baseResolution));
+            }
+        });
 
         // 덤프 옆의 base-resolution.json·presets/depth.json을 같이 싣는다 — ExportedTuning 폴더를 통째로 복사하는 관례. 옆에 없으면 내장 기본값.
         string? depthPath = DepthTuningFile.TryFindBeside(path);
@@ -185,12 +275,9 @@ public sealed class DocumentSession
             }
         }
 
-        string? baseResolution = BaseResolutionFile.TryFindBeside(path);
-
         if (baseResolution is not null)
         {
             StageSize = BaseResolutionFile.Load(baseResolution);
-            Editor.SetBaseResolution(RelativeToDocument(baseResolution));
         }
 
         string? controllersPath = LoadControllersBeside(path);
@@ -249,7 +336,18 @@ public sealed class DocumentSession
             throw new FileNotFoundException("초상 파일이 없다.", path);
         }
 
-        Editor.SetObjectPortrait(null, objectId, path is null ? null : RelativeToDocument(path));
+        _syncingAssets = true;
+
+        try
+        {
+            Editor.SetObjectPortrait(null, objectId, path is null ? null : RelativeToDocument(path));
+        }
+        finally
+        {
+            _syncingAssets = false;
+            _assetFingerprint = AssetFingerprintOf(Editor.Document);
+        }
+
         AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus(path is null ? $"{objectId}: 초상을 뺐다." : $"{objectId}: 초상 {Path.GetFileName(path)}");
     }
@@ -288,10 +386,13 @@ public sealed class DocumentSession
 
     private void Replace(MotionDocument document, string? path)
     {
+        Editor.Changed -= OnEditorChanged;
         Editor = new MotionEditor(document);
+        Editor.Changed += OnEditorChanged;
         DocumentPath = path;
         _savedRevision = Editor.Revision;
         UseBuiltinTuning();
+        _assetFingerprint = AssetFingerprintOf(Editor.Document);
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
     }
 

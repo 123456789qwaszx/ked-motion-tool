@@ -7,6 +7,7 @@ using Ked.Presentation.Core;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
+using Mt.Authoring.Rig;
 using Mt.Authoring.Serialization;
 using Mt.Authoring.Validation;
 
@@ -1077,6 +1078,72 @@ public class MainWindowTests
                 editor.Undo();
                 Assert.Equal(MotionChannelMode.Relative, editor.Document.Find("walk")!.PreviewMode);
                 Assert.Null(editor.Document.Find("walk")!.FindChannel("CharSlot_Track", MotionChannelKind.Position));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 초상과_리그_참조를_되돌리면_실은_자산도_따라오고_키_편집은_자산을_다시_읽지_않는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                var editor = window.Session.Editor;
+                string dir = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(dir);
+                string a = Path.Combine(dir, "a.png");
+                string b = Path.Combine(dir, "b.png");
+                File.WriteAllBytes(a, new byte[] { 1 }); // 헤드리스는 PNG를 못 읽는다 — 참조와 다시 싣기만 본다
+                File.WriteAllBytes(b, new byte[] { 2 });
+
+                // 초상 A → B → Undo: 문서도 세션도 뷰포트 다시 싣기도 A로. Redo면 B.
+                window.Session.SetPortrait("s1", a);
+                window.Session.SetPortrait("s1", b);
+                SceneObject S1() => editor.Document.ActiveSceneAsset!.Find("s1")!;
+                Assert.Equal(Path.GetFullPath(b), Path.GetFullPath(window.Session.PortraitPathOf(S1())!));
+                int refreshes = window.AssetRefreshCount;
+                int syncs = window.Session.AssetSyncCount;
+                editor.Undo();
+                Assert.Equal(Path.GetFullPath(a), Path.GetFullPath(window.Session.PortraitPathOf(S1())!));
+                Assert.Equal(refreshes + 1, window.AssetRefreshCount);
+                Assert.Equal(syncs + 1, window.Session.AssetSyncCount);
+                editor.Redo();
+                Assert.Equal(Path.GetFullPath(b), Path.GetFullPath(window.Session.PortraitPathOf(S1())!));
+                Assert.Equal(refreshes + 2, window.AssetRefreshCount);
+
+                // 키·메타 편집과 그 되돌리기는 자산을 다시 읽지 않는다.
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                refreshes = window.AssetRefreshCount;
+                syncs = window.Session.AssetSyncCount;
+                editor.SetDuration("nod", 1f);
+                editor.Undo();
+                editor.Redo();
+                Assert.Equal(refreshes, window.AssetRefreshCount);
+                Assert.Equal(syncs, window.Session.AssetSyncCount);
+
+                // 리그 덤프 참조: 실었다가 되돌리면 내장 리그·내장 깊이로, 다시하면 그 덤프와 옆의 깊이 커브로 — 한 칸.
+                string rig = TestDocuments.FixturePath("rig-schemas.json");
+                window.Session.LoadRig(rig);
+                Assert.False(window.Session.IsBuiltinRig);
+                Assert.NotSame(BuiltinTuning.Depth, window.Session.Depth);
+                long revision = editor.Revision;
+                editor.Undo();
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Null(editor.Document.RigSchemas);
+                Assert.True(window.Session.IsBuiltinRig);
+                Assert.Same(BuiltinTuning.Depth, window.Session.Depth);
+                editor.Redo();
+                Assert.False(window.Session.IsBuiltinRig);
+                Assert.Equal(Path.GetFullPath(rig), Path.GetFullPath(window.Session.RigPath!));
+                Assert.NotSame(BuiltinTuning.Depth, window.Session.Depth);
             }
             finally
             {
