@@ -87,7 +87,9 @@ public static class ScenePreview
             return true;
         }
 
-        return rig.NodeIds.TryGetValue(o.Rig, out ICollection<string>? nodes)
+        // 채널이 없으면 공유할 것도 없다 — 리그가 다르면 안 맞는 것으로 본다.
+        return motion.Channels.Count > 0
+            && rig.NodeIds.TryGetValue(o.Rig, out ICollection<string>? nodes)
             && motion.Channels.All(c => nodes.Contains(c.Node));
     }
 
