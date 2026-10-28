@@ -6,7 +6,7 @@
       "rigKind": "character",
       "groups": [
         { "id": "placement", "label": "자리", "mode": "absolute", "note": "슬롯이 무대 어디에 있나 — place가 잡은 자리 기준. 배치 커맨드(move_by·rotate_by·scale_by)와 같은 노드라 뒤의 것이 앞의 것을 완주시킨다" },
-        { "id": "depth",     "label": "깊이", "mode": "absolute", "note": "얼마나 멀리 있나 — level 하나를 DepthScale로 굽는다(발 고정). DepthY는 건드리지 않는다" },
+        { "id": "depth",     "label": "깊이", "mode": "absolute", "note": "얼마나 멀리 있나 — level 하나를 DepthScale 배율과 DepthY 위치(얼굴 제자리, 발은 멀수록 위로)로 굽는다. 모션 뒤의 size가 둘을 다시 푼다" },
         { "id": "acting",    "label": "연기", "mode": "relative", "note": "그 자리에서 무엇을 하나 — 슬롯 아래 로컬. 휴지 자세가 항등이라 absolute로 읽어도 같다" }
       ],
       "controllers": [
@@ -14,7 +14,7 @@
         { "id": "slotLean", "group": "placement", "label": "슬롯 기울기", "node": "CharSlot_SwayPivot",             "kind": "euler",    "axes": ["z"],      "unit": "deg" },
         { "id": "stance",   "group": "placement", "label": "자세 배율",   "node": "CharSlot_Scale",                 "kind": "scale",    "axes": ["x", "y"], "unit": "x",   "note": "연기 진폭까지 커진다" },
 
-        { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",            "kind": "scale",    "axes": ["x", "y"], "unit": "level", "bake": "depthLevel", "note": "level 0(far)…20(close)을 depth.json 커브로 배율에 굽는다" },
+        { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",            "kind": "scale",    "axes": ["x", "y"], "unit": "level", "bake": "depthLevel", "bakeY": "CharSlot_DepthY", "note": "level 0(far)…20(close)을 depth.json 커브로 배율에, 그 배율에서 −bust높이×(배율−1)을 DepthY에 굽는다(런타임 size의 focus 보존과 같은 값)" },
 
         { "id": "body",     "group": "acting",    "label": "몸",         "node": "CharacterPortrait_Track_Move",   "kind": "position", "axes": ["x", "y"], "unit": "px",  "manipulator": true,
           "aliases": [ { "node": "CharacterPortrait_Track_Move_X", "axis": "x" }, { "node": "CharacterPortrait_Track_Move_Y", "axis": "y" } ] },

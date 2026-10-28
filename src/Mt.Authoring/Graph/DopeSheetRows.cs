@@ -110,6 +110,11 @@ public static class DopeSheetRows
             return $"{c.Group.Label} · {c.Label}";
         }
 
+        if (c.DepthYNode == node)
+        {
+            return $"{c.Group.Label} · {c.Label} Y";
+        }
+
         Axis axis = c.Aliases.First(a => a.Node == node).Axis;
         return $"{c.Group.Label} · {c.AttributeLabel(axis)}";
     }

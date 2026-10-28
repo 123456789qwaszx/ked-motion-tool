@@ -76,6 +76,30 @@ public sealed class DepthTuningFile
     public bool TryScaleOf(float level, out float depthScale) => Level.TryResolve(level, out _, out depthScale);
 
     /// <summary>
+    /// level → (DepthY, DepthScale). Y는 런타임 <c>size</c>의 focus 보존(<see cref="SetDepthStageReduction"/>)이 정지 자세에서
+    /// 남기는 값 <c>−focusY × (배율 − 1)</c>이다 — yCurve는 보존에 상쇄되므로 쓰지 않는다. 얼굴(focus 점)은 제자리,
+    /// 발은 멀수록 위로(사람 시야의 "먼 것은 위에"). <paramref name="focusY"/>는 보존할 focus 점의 높이(bust 기본 820).
+    /// </summary>
+    public bool TryDepthOf(float level, float focusY, out float depthY, out float depthScale)
+    {
+        if (!TryScaleOf(level, out depthScale))
+        {
+            depthY = 0f;
+            return false;
+        }
+
+        depthY = -focusY * (depthScale - 1f);
+        return true;
+    }
+
+    /// <summary>깊이 Y 굽기가 보존하는 focus 프리셋 — 런타임 size 브리지의 기본값과 같다.</summary>
+    public const string PreservedFocus = "bust";
+
+    /// <summary>깊이 Y 굽기가 보존하는 focus 점의 높이 — focus 표의 bust 기본 오프셋(캐릭터별 오프셋 없이, 어느 캐릭터에도 같게). 표가 없으면 0(Y를 안 움직인다).</summary>
+    public static float FocusHeightOf(FocusTuningFile? focus)
+        => focus is null ? 0f : FocusOffsetMath.Resolve(focus.Body, "", PreservedFocus, Vec2.Zero).Y;
+
+    /// <summary>
     /// DepthScale → level — 깊이 컨트롤러가 포즈의 배율을 슬라이더 값으로 되돌릴 때. 커브가 단조라는 가정으로
     /// [MinLevel, MaxLevel]을 이분한다. 범위 밖 배율은 끝으로 잘린다.
     /// </summary>

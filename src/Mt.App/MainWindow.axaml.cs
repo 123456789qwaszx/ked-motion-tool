@@ -1145,7 +1145,7 @@ public partial class MainWindow : Window
                     if (c.Bake == ControllerBake.DepthLevel)
                     {
                         slider = new Slider { Minimum = DepthTuningFile.MinLevel, Maximum = DepthTuningFile.MaxLevel, Width = 110, Margin = new Avalonia.Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, IsEnabled = false };
-                        ToolTip.SetTip(slider, "깊이 level — 0 far · 10 back · 14 mid · 16 front · 20 close. 놓으면 DepthScale에 굽는다(발 고정)");
+                        ToolTip.SetTip(slider, "깊이 level — 0 far · 10 back · 14 mid · 16 front · 20 close. 놓으면 DepthScale 배율과 DepthY(얼굴 제자리, 발은 멀수록 위로)에 굽는다");
                     }
 
                     string unit = c.Unit.Length == 0 ? "" : $" ({c.Unit})";
@@ -1225,7 +1225,9 @@ public partial class MainWindow : Window
 
     /// <summary>컨트롤러 성분으로 읽히는 커브들 — 깊이는 주 노드의 X·Y 둘, 나머지는 주 노드 + 별칭.</summary>
     private static IEnumerable<CurveRef> ControllerCurves(Controller c, Axis axis)
-        => c.Bake == ControllerBake.DepthLevel ? c.Axes.Select(c.Primary) : c.CurvesOf(axis);
+        => c.Bake == ControllerBake.DepthLevel
+            ? c.Axes.Select(c.Primary).Concat(c.DepthYCurve is { } y ? new[] { y } : Array.Empty<CurveRef>())
+            : c.CurvesOf(axis);
 
     /// <summary>
     /// 컨트롤러 성분의 지금 값 — 주 노드와 별칭의 합(배율은 곱). 깊이는 배율을 level로 되돌린 값. 포즈가 없으면 null.
@@ -1308,13 +1310,22 @@ public partial class MainWindow : Window
                 DepthTuningFile depth = _session.Depth ?? BuiltinTuning.Depth;
                 float level = Math.Clamp(target, DepthTuningFile.MinLevel, DepthTuningFile.MaxLevel);
 
-                if (!depth.TryScaleOf(level, out float scale))
+                if (!depth.TryDepthOf(level, DepthTuningFile.FocusHeightOf(_session.Focus), out float depthY, out float scale))
                 {
                     return;
                 }
 
-                EnsurePreviewModeForGroup(motion, c);
-                _viewport.SetComponents(c.Node, c.Kind, c.Axes.Select(a => (a, scale)).ToList());
+                // 배율 X·Y와 깊이 Y(얼굴 제자리·발은 멀수록 위로)가 한 손잡이 — 되돌리기 하나.
+                _session.Editor.Batch(MotionChangeKind.Keys, () =>
+                {
+                    EnsurePreviewModeForGroup(motion, c);
+                    _viewport.SetComponents(c.Node, c.Kind, c.Axes.Select(a => (a, scale)).ToList());
+
+                    if (c.DepthYCurve is { } y)
+                    {
+                        _viewport.SetComponents(y.Node, y.Kind, new[] { (y.Axis, depthY) });
+                    }
+                });
                 return;
             }
 
@@ -1348,7 +1359,15 @@ public partial class MainWindow : Window
 
             if (c.Bake == ControllerBake.DepthLevel)
             {
-                _viewport.KeyComponents(c.Node, c.Kind, c.Axes);
+                _session.Editor.Batch(MotionChangeKind.Keys, () =>
+                {
+                    _viewport.KeyComponents(c.Node, c.Kind, c.Axes);
+
+                    if (c.DepthYCurve is { } y)
+                    {
+                        _viewport.KeyComponents(y.Node, y.Kind, new[] { y.Axis });
+                    }
+                });
                 return;
             }
 
@@ -2244,6 +2263,11 @@ public partial class MainWindow : Window
                     foreach (ControllerAlias alias in c.Aliases)
                     {
                         itemsByNode.TryAdd(alias.Node, item);
+                    }
+
+                    if (c.DepthYNode is { } depthYNode)
+                    {
+                        itemsByNode.TryAdd(depthYNode, item);
                     }
 
                     if (ReferenceEquals(c, selectedController))

@@ -1298,6 +1298,7 @@ public sealed class MotionEditor
     }
 
     private int _batchDepth;
+    private bool _batchChanged;
 
     /// <summary>
     /// 여러 명령을 되돌리기 한 번으로 묶는다(프리셋 추가처럼 모션·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
@@ -1315,6 +1316,7 @@ public sealed class MotionEditor
 
         string snapshot = MotionDocumentJson.Write(Document);
         _batchDepth++;
+        _batchChanged = false;
 
         try
         {
@@ -1328,6 +1330,11 @@ public sealed class MotionEditor
         finally
         {
             _batchDepth--;
+        }
+
+        if (!_batchChanged)
+        {
+            return; // 아무 명령도 안 지났다(키 없는 포즈만) — 기록에 남기지 않는다
         }
 
         _undo.Add(snapshot);
@@ -1345,6 +1352,7 @@ public sealed class MotionEditor
     {
         if (_batchDepth > 0)
         {
+            _batchChanged = true;
             change(); // 묶음이 기록·알림을 맡는다
             return;
         }

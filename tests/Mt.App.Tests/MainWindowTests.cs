@@ -340,6 +340,14 @@ public class MainWindowTests
                 Assert.Equal(2.2, depth.X!.Keys.Single().V, 3);
                 Assert.Equal(2.2, depth.Y!.Keys.Single().V, 3);
                 Assert.Equal("20", window.ControllerValueText("depth", Axis.X));
+                // 같은 손잡이가 DepthY도 굽는다 — 얼굴(bust 820) 제자리: −820 × (2.2 − 1) = −984. 되돌리기 하나.
+                Assert.Equal(-984.0, step.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
+                window.Session.Editor.Undo();
+                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
+                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                window.Session.Editor.Redo();
+                step = window.Session.Editor.Document.Find("step")!;
+                Assert.Equal(-984.0, step.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
 
                 // 숙임 15 → CharacterPortrait_SwayPivot euler Z 키(absolute 미리보기라 값 그대로).
                 window.SetControllerValue("bow", Axis.Z, "15");
@@ -356,6 +364,7 @@ public class MainWindowTests
                 MotionAsset place = window.Session.Editor.Document.Find("step_place")!;
                 Assert.Equal(MotionChannelMode.Absolute, place.PreviewMode);
                 Assert.NotNull(place.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                Assert.NotNull(place.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)); // 깊이 Y도 깊이 묶음
                 Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
                 Assert.NotNull(window.Session.Editor.Document.Find("step")!.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler));
                 Assert.DoesNotContain(window.ProblemsShown, p => !p.Blocking);

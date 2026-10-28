@@ -59,6 +59,14 @@ public class ControllersFileTests
         Assert.Equal("bow", rig.DefaultFor(MotionChannelKind.Euler)!.Id);
         Assert.Equal("squash", rig.DefaultFor(MotionChannelKind.Scale)!.Id);
         Assert.Equal(ControllerBake.DepthLevel, rig.Find("depth")!.Bake);
+
+        // 깊이 손잡이는 DepthY도 맡는다 — 커브·노드·라벨이 깊이로 풀린다.
+        Assert.Equal("CharSlot_DepthY", rig.Find("depth")!.DepthYNode);
+        Assert.True(rig.TryResolve(new CurveRef("CharSlot_DepthY", MotionChannelKind.Position, Axis.Y), out Controller depth, out Axis depthAxis));
+        Assert.Equal("depth", depth.Id);
+        Assert.Equal(Axis.Y, depthAxis);
+        Assert.Equal("depth", rig.OfNode("CharSlot_DepthY")!.Id);
+        Assert.Equal("깊이 · 깊이 Y", DopeSheetRows.NodeLabel("CharSlot_DepthY", rig));
     }
 
     [Fact]
@@ -75,6 +83,18 @@ public class ControllersFileTests
 
         Assert.True(depth.TryScaleOf(DepthLevelLabels.Mid, out float mid));
         Assert.Equal(1.708f, mid, 2); // 게임 프리팹 Stage00 Mid의 DepthScale과 같다(PLAN-scene §7.7)
+
+        // 깊이 Y = −bust × (배율 − 1): 런타임 size의 focus 보존이 정지 자세에서 남기는 값(yCurve는 상쇄된다). Mid = 프리팹의 −580.56.
+        float bust = DepthTuningFile.FocusHeightOf(BuiltinTuning.Focus);
+        Assert.Equal(820f, bust, 2);
+        Assert.True(depth.TryDepthOf(DepthLevelLabels.Mid, bust, out float midY, out float midScale));
+        Assert.Equal(-580.56f, midY, 1);
+        Assert.Equal(mid, midScale, 4);
+        Assert.True(depth.TryDepthOf(DepthLevelLabels.Far, bust, out float farY, out _));
+        Assert.True(farY > 100f, "멀면 발이 위로(+)"); // 0.86 배율 → +114.8
+        Assert.True(depth.TryDepthOf(DepthLevelLabels.Close, bust, out float closeY, out _));
+        Assert.Equal(-984f, closeY, 1);
+        Assert.Equal(0f, DepthTuningFile.FocusHeightOf(null));
         Assert.True(depth.TryLevelOf(0f, out float clampedLow) && clampedLow < 0.01f, "범위 밖은 끝으로");
         Assert.True(depth.TryLevelOf(9f, out float clampedHigh) && clampedHigh > 19.99f);
     }
@@ -91,6 +111,10 @@ public class ControllersFileTests
             { "schema": "controllers/1", "rigs": [ { "rigKind": "character", "groups": [ { "id": "acting", "mode": "relative" } ],
               "controllers": [ { "id": "a", "group": "nope", "node": "N", "kind": "position", "axes": ["x"] } ] } ] }
             """)); // 모르는 묶음
+        Assert.Throws<JsonException>(() => ControllersFile.Parse("""
+            { "schema": "controllers/1", "rigs": [ { "rigKind": "character", "groups": [ { "id": "acting", "mode": "relative" } ],
+              "controllers": [ { "id": "a", "group": "acting", "node": "N", "kind": "position", "axes": ["y"], "bakeY": "M" } ] } ] }
+            """)); // bakeY는 depthLevel 굽기에만
 
         ControllerRig rig = ControllersFile.Parse("""
             { "schema": "controllers/1", "rigs": [ { "rigKind": "character", "groups": [ { "id": "acting", "mode": "relative" } ],

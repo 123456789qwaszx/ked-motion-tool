@@ -29,8 +29,9 @@ public sealed class Controller
 {
     public Controller(
         string id, ControllerGroup group, string label, string node, MotionChannelKind kind, IReadOnlyList<Axis> axes,
-        string unit, IReadOnlyList<ControllerAlias> aliases, ControllerBake bake, bool manipulator, string? note)
+        string unit, IReadOnlyList<ControllerAlias> aliases, ControllerBake bake, bool manipulator, string? note, string? depthYNode = null)
     {
+        DepthYNode = depthYNode;
         Id = id;
         Group = group;
         Label = label;
@@ -66,6 +67,15 @@ public sealed class Controller
 
     /// <summary>W/E/R 매니퓰레이터가 그 종류의 기본 손잡이로 고르는 컨트롤러인가.</summary>
     public bool Manipulator { get; }
+
+    /// <summary>
+    /// depthLevel 굽기가 배율과 함께 쓰는 위치 노드(<c>bakeY</c>, 보통 <c>CharSlot_DepthY</c>) — level의 배율에서
+    /// <c>−bust높이 × (배율 − 1)</c>로 Y를 구워 얼굴은 제자리, 발은 멀수록 위로(런타임 size의 focus 보존과 같은 값). 없으면 배율만.
+    /// </summary>
+    public string? DepthYNode { get; }
+
+    /// <summary>깊이 Y 커브(위치 Y) — <see cref="DepthYNode"/>가 있을 때만.</summary>
+    public CurveRef? DepthYCurve => DepthYNode is null ? null : new CurveRef(DepthYNode, MotionChannelKind.Position, Axis.Y);
 
     public string? Note { get; }
 
@@ -117,6 +127,11 @@ public sealed class ControllerRig
             {
                 _byCurve.TryAdd((alias.Node, c.Kind, alias.Axis), (c, alias.Axis));
             }
+
+            if (c.DepthYCurve is { } depthY)
+            {
+                _byCurve.TryAdd((depthY.Node, depthY.Kind, depthY.Axis), (c, Axis.Y));
+            }
         }
     }
 
@@ -151,7 +166,9 @@ public sealed class ControllerRig
 
     /// <summary>노드가 속한 컨트롤러(주 노드 또는 별칭) — 노드 이름만 아는 자리(도프 시트 노드 행)용.</summary>
     public Controller? OfNode(string node)
-        => Controllers.FirstOrDefault(c => c.Node == node) ?? Controllers.FirstOrDefault(c => c.Aliases.Any(a => a.Node == node));
+        => Controllers.FirstOrDefault(c => c.Node == node)
+            ?? Controllers.FirstOrDefault(c => c.Aliases.Any(a => a.Node == node))
+            ?? Controllers.FirstOrDefault(c => c.DepthYNode == node);
 
     /// <summary>W/E/R의 기본 손잡이 — manipulator 표시가 있는 그 종류의 컨트롤러. 없으면 그 종류의 첫 컨트롤러.</summary>
     public Controller? DefaultFor(MotionChannelKind kind)
@@ -176,6 +193,11 @@ public sealed class ControllerRig
                 {
                     problems.Add($"컨트롤러 '{c.Label}'({c.Id})의 별칭 노드 '{alias.Node}'가 리그 '{RigKind}'에 없다");
                 }
+            }
+
+            if (c.DepthYNode is { } depthY && !rigNodeIds.Contains(depthY))
+            {
+                problems.Add($"컨트롤러 '{c.Label}'({c.Id})의 깊이 Y 노드 '{depthY}'가 리그 '{RigKind}'에 없다");
             }
         }
 
@@ -353,9 +375,16 @@ public sealed class ControllersFile
                     throw new JsonException($"컨트롤러 '{c.Id}': depthLevel은 scale 노드에만 굽는다.");
                 }
 
+                string? depthYNode = string.IsNullOrWhiteSpace(c.BakeY) ? null : c.BakeY.Trim();
+
+                if (depthYNode is not null && bake != ControllerBake.DepthLevel)
+                {
+                    throw new JsonException($"컨트롤러 '{c.Id}': bakeY는 depthLevel 굽기에만 둔다.");
+                }
+
                 controllers.Add(new Controller(
                     c.Id, group, string.IsNullOrEmpty(c.Label) ? c.Id : c.Label, c.Node, kind, axes,
-                    c.Unit ?? "", aliases, bake, c.Manipulator, c.Note));
+                    c.Unit ?? "", aliases, bake, c.Manipulator, c.Note, depthYNode));
             }
 
             rigs[rigDto.RigKind] = new ControllerRig(rigDto.RigKind, groups, controllers);
@@ -419,6 +448,7 @@ public sealed class ControllersFile
         public string? Unit { get; set; }
         public List<AliasDto>? Aliases { get; set; }
         public string? Bake { get; set; }
+        public string? BakeY { get; set; }
         public bool Manipulator { get; set; }
         public string? Note { get; set; }
     }

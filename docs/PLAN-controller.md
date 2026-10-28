@@ -12,7 +12,7 @@
 |---|---|---|
 | **쓰임** | 일상 연출은 커맨드(slide·fade·place·face·gesture…), 특별한 움직임만 `motion s1 <id>` | 툴은 **이름 붙은 재사용 클립**을 만든다. 수십만 자의 대본 사이에 반복해 쓰는 단순한 동작이 목적이고, 섬세한 연기는 목적이 아니다 |
 | **D1 mode** | `motions/2` 그대로 — 커맨드 인자 하나. 한 모션에 absolute·relative가 섞여야 하면 두 클립·두 커맨드로 나눈다 | 종이연극이라 그럴 일이 드물다 |
-| **D2 깊이** | level 하나를 **`CharSlot_DepthScale`에만** 굽는다(발 고정). `DepthY`는 안 건드린다 | `DepthY`는 런타임 `size`가 얼굴을 제자리에 두려고 발을 옮기는 값이라 캐릭터의 focus 높이에 따라 달라진다 — 구우면 그 캐릭터 전용이 된다. `DepthScale`은 bottom pivot이라 발이 땅에 붙은 채 커지고 작아지며 어느 캐릭터에도 같다. 모션 뒤의 `size`가 둘을 다시 푼다 |
+| **D2 깊이** (고침) | level 하나를 **`CharSlot_DepthScale` 배율과 `CharSlot_DepthY` 위치 둘에** 굽는다. Y는 `−bust높이 × (배율 − 1)` | 처음엔 배율만 구웠는데(발 고정) 써 보니 발이 못 박힌 채 크기만 바뀌어 어색했다(소유자, 같은 날). 런타임 `size`의 focus 보존을 정지 자세에서 풀면 yCurve는 상쇄되고 이 식만 남는다(Mid = −820×0.708 = −580.56, 프리팹과 같다). bust 기본 높이(820)만 쓰므로 어느 캐릭터에도 같은 값이고, 얼굴은 제자리·발은 멀수록 위로 간다(사람 시야의 "먼 것은 위에"). 모션 뒤의 `size`가 둘을 다시 푼다. 시야각(원근 소실점) 개념은 보류 |
 | **D3 슬롯 축** | 모션이 배치 커맨드와 같은 노드를 겹쳐 써도 된다. 스키마는 안 늘린다 | 뒤의 것이 앞의 것을 완주시키는 규약 위에서 연출가가 책임진다 |
 | **D4 표의 집** | 리거의 지식 → 덤프 옆 `presets/controllers.json`(툴 내장본 포함). 익스포터는 손 안 댐 | |
 | **Track_Focus** | place 커맨드(`PlaceCharacterFocusCommandCharR`)의 것. 모션은 건드리지 않는다(코어 규칙) | 화면 지점에 캐릭터의 지점을 정확히 두는 강제 커맨드 |
@@ -32,7 +32,7 @@
 | 노드 | 뜻 | 주인(커맨드) | 컨트롤러 |
 |---|---|---|---|
 | `Track_Focus` | 얼굴(focus 점)이 화면 지점에 오도록 **푼 값**. 깊이보다 위라 화면 절대 좌표가 깨지지 않는다 | `place` 계열 | **금지**(코어 규칙) |
-| `DepthY` | 깊이에 따른 Y 오프셋(발 위치) | `size`/깊이 프리셋 | ✗ (D2) |
+| `DepthY` | 깊이에 따른 Y 오프셋(발 위치) | `size`/깊이 프리셋 | **깊이**(배율에서 구운 Y, D2) |
 | `DepthScale` | 깊이 배율. 아래 전부에 곱해져 이동량·몸짓 진폭까지 줄인다 = 원근 [bottom pivot] | `size`/깊이 프리셋 | **깊이** |
 | `Track_Idle` | idle 흔들림 전용 자리(지금은 쓰지 않음) | — | ✗ |
 | `Track` | 자유 이동(`move_by`)·등퇴장(`slide_in/out`) | 커맨드 | **자리 X·Y** |
@@ -68,7 +68,7 @@
 | 그룹 | 뜻 | 컨트롤러(노드) | 재생 mode | 값의 기준 |
 |---|---|---|---|---|
 | **자리** (placement) | 슬롯이 무대 어디에 있나 | 자리 X·Y(`CharSlot_Track`) · 슬롯 기울기(`CharSlot_SwayPivot` Z) · 자세 배율(`CharSlot_Scale` X·Y) | **absolute** | place가 잡은 자리 기준의 px·도·배. `DepthScale`이 위라 far에서는 같은 400이 화면에서 작게 간다 |
-| **깊이** (depth) | 얼마나 멀리 있나 | 깊이 level 하나 → `CharSlot_DepthScale` X·Y로 굽는다 | **absolute** | level 0(far) … 20(close), 배율은 `depth.json` 커브(mid 14 = 1.708) |
+| **깊이** (depth) | 얼마나 멀리 있나 | 깊이 level 하나 → `CharSlot_DepthScale` X·Y 배율 + `CharSlot_DepthY` Y(−820×(배율−1))로 굽는다 | **absolute** | level 0(far) … 20(close), 배율은 `depth.json` 커브(mid 14 = 1.708 · Y −580.56) |
 | **연기** (acting) | 그 자리에서 무엇을 하나 | 몸 X·Y · 기울기 · 숙임 · 떨림 X·Y · 크기 X·Y · 방향 | **relative**(휴지 자세가 항등이라 absolute여도 같다) | 슬롯 아래 로컬 — 슬롯이 (200,300)이면 몸 X −100은 화면 (100,300) |
 
 ### 2.1 종이연극의 동작 → 컨트롤러
@@ -90,7 +90,7 @@
 ### 2.2 툴에서의 모양
 
 - **채널 박스**는 세 섹션(자리 회색 · 깊이 슬라이더 · 연기 파랑)이고 **오브젝트 하나를 통째로** 보인다. 노드 고르기가 없다.
-  값 입력 = 지금의 길(Auto Key/키 있는 시각이면 키, 아니면 키 없는 포즈 → S). 깊이는 level → 배율을 구워 X·Y 둘에 같이 쓴다.
+  값 입력 = 지금의 길(Auto Key/키 있는 시각이면 키, 아니면 키 없는 포즈 → S). 깊이는 level → 배율을 구워 X·Y 둘에, 그 배율에서 Y를 구워 `DepthY`에 같이 쓴다(되돌리기 하나).
 - **별칭**: 옛 모션(`nod`는 `Track_Move_Y`)이 "몸 Y"로 보인다. 표시는 주 노드 + 별칭의 합(배율은 곱)이고, 키는 **있는 채널**에,
   없으면 주 노드에 놓는다.
 - **미리보기 mode**: 자리·깊이 채널이 하나라도 있는 모션을 relative로 두면 노란 경고("자리가 누적된다 — absolute로").
@@ -117,7 +117,7 @@
       { "id": "place",    "group": "placement", "label": "자리",       "node": "CharSlot_Track",                  "kind": "position", "axes": ["x","y"], "unit": "px" },
       { "id": "slotLean", "group": "placement", "label": "슬롯 기울기", "node": "CharSlot_SwayPivot",              "kind": "euler",    "axes": ["z"],     "unit": "deg" },
       { "id": "stance",   "group": "placement", "label": "자세 배율",   "node": "CharSlot_Scale",                  "kind": "scale",    "axes": ["x","y"], "unit": "x" },
-      { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",             "kind": "scale",    "axes": ["x","y"], "unit": "level", "bake": "depthLevel" },
+      { "id": "depth",    "group": "depth",     "label": "깊이",       "node": "CharSlot_DepthScale",             "kind": "scale",    "axes": ["x","y"], "unit": "level", "bake": "depthLevel", "bakeY": "CharSlot_DepthY" },
       { "id": "body",     "group": "acting",    "label": "몸",         "node": "CharacterPortrait_Track_Move",    "kind": "position", "axes": ["x","y"], "unit": "px",  "manipulator": true,
         "aliases": [ { "node": "CharacterPortrait_Track_Move_X", "axis": "x" }, { "node": "CharacterPortrait_Track_Move_Y", "axis": "y" } ] },
       { "id": "lean",     "group": "acting",    "label": "기울기",     "node": "CharacterPortrait_Rotation",      "kind": "euler",    "axes": ["z"],     "unit": "deg" },
@@ -135,6 +135,7 @@
 | `controllers[].node` `kind` `axes` | 키가 들어가는 노드·종류·성분. `kind`는 `position`\|`scale`\|`euler`, `z`는 `euler`에만(코어 규칙) |
 | `aliases[]` | 같은 손잡이로 읽히는 (노드, 성분). 주 노드가 별칭을 이긴다(`facing`의 `ActingScale_X`가 `squash`의 별칭이 아니다) |
 | `bake` | `depthLevel`: 값은 level, `depth.json` 커브로 배율을 구해 X·Y에 같이 쓴다(scale 노드에만) |
+| `bakeY` | `depthLevel`과 함께: 배율에서 `−bust높이 × (배율 − 1)`을 구워 이 위치 노드의 Y에 쓴다(보통 `CharSlot_DepthY`). 없으면 배율만 |
 | `manipulator` | W/E/R가 그 종류의 기본 손잡이로 고른다 |
 | `unit` `note` | 화면 표기 |
 
