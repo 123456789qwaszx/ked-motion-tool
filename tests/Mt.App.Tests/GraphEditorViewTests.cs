@@ -484,7 +484,8 @@ public class GraphEditorViewTests
             // 키를 골라도 선택 둘레 밖의 RMB 드래그는 팬이고 키는 그대로다.
             view.Select(new[] { new KeyRef(Y, 1) }, additive: false);
             GraphCamera panned = view.Camera;
-            Point far = InWindow(window, view, new Point(At(view, 2).X, GraphEditorView.PadTop + 10));
+            // 첫 팬으로 키 2는 화면 밖일 수 있다 — 플롯 안쪽, 선택 키(가운데)에서 먼 자리를 쓴다.
+            Point far = InWindow(window, view, new Point(GraphEditorView.PadLeft + 60, GraphEditorView.PadTop + 10));
             window.MouseDown(far, MouseButton.Right);
             window.MouseMove(new Point(far.X - 40, far.Y), RawInputModifiers.RightMouseButton);
             window.MouseUp(new Point(far.X - 40, far.Y), MouseButton.Right);
