@@ -310,7 +310,7 @@ public class SceneTests
     public void 부모가_돌고_커져_있어도_자식의_월드_각과_크기를_지킨다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.SetObjectPlacement(null, "s1", 0f, 0f, 30f, 1.5f, 2f); // 부모: 30°, ×1.5/×2
+        editor.SetObjectPlacement(null, "s1", 0f, 0f, 30f, 1.5f, 1.5f); // 부모: 30°, ×1.5 (비균등 배율 + 자식 회전은 전단이라 정확 보존이 없다)
         editor.AddSceneObject(null, "s2", "character", SceneLayers.Front);
         editor.SetObjectPlacement(null, "s2", 100f, 50f, 10f, 1f, 1f);
         SceneAsset scene = editor.Document.ActiveSceneAsset!;
@@ -329,7 +329,7 @@ public class SceneTests
         Placement kept = ScenePreview.PlacementKeepingWorld(RigFile, scene, "s2", "s1", "CharacterPortrait_Track_Move");
         Assert.Equal(-20f, kept.RotZ, 2); // 부모 30° 밑에서 월드 10°를 지키려면 로컬 −20°
         Assert.Equal(1f / 1.5f, kept.ScaleX, 3);
-        Assert.Equal(0.5f, kept.ScaleY, 3);
+        Assert.Equal(1f / 1.5f, kept.ScaleY, 3);
         editor.SetObjectParent(null, "s2", "s1", "CharacterPortrait_Track_Move", null, kept);
 
         (float angle2, float width2, Vec2 origin2) = Pose(ScenePreview.Build(RigFile, scene));

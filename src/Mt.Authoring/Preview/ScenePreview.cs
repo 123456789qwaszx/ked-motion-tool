@@ -195,10 +195,11 @@ public static class ScenePreview
         // 지키는 점 = 배치 위치가 움직이는 노드(CharSlot_Track, 없으면 루트)의 원점. 리그 루트는 배치로 움직이지 않는다.
         string positionKey = before.Contains(o.KeyOf(PlacementNodes.Position)) ? o.KeyOf(PlacementNodes.Position) : root;
         string rotationKey = before.Contains(o.KeyOf(PlacementNodes.Rotation)) ? o.KeyOf(PlacementNodes.Rotation) : root;
-        string scaleKey = before.Contains(o.KeyOf(PlacementNodes.Scale)) ? o.KeyOf(PlacementNodes.Scale) : root;
         Vec3 world = before.TransformPoint(positionKey, Vec3.Zero);
+        // 배율은 회전 노드의 부모 공간에서 잰다 — 자식 자신의 회전이 섞이지 않은 공간이라야 축별 배율이 바로 나온다.
+        // (부모 배율이 비균등이면서 자식이 돌아 있으면 정확한 보존은 전단이라 불가능하다 — 그때는 축별 근사.)
         float parentAngleBefore = WorldAngleOfParent(before, rotationKey);
-        (float sxBefore, float syBefore) = WorldScaleOfParent(before, scaleKey);
+        (float sxBefore, float syBefore) = WorldScaleOfParent(before, rotationKey);
 
         // 같은 씬을 새 부모로 흉내 낸다 — 문서는 건드리지 않는다.
         var trial = new SceneAsset { Name = scene.Name, Camera = scene.Camera };
@@ -233,7 +234,7 @@ public static class ScenePreview
 
         // 회전: 월드 각 = 부모 각 + 로컬 각 → 부모 각이 바뀐 만큼 로컬 각을 되돌린다. 배율: 월드 배율 = 부모 배율 × 로컬 배율.
         float parentAngleAfter = WorldAngleOfParent(after, rotationKey);
-        (float sxAfter, float syAfter) = WorldScaleOfParent(after, scaleKey);
+        (float sxAfter, float syAfter) = WorldScaleOfParent(after, rotationKey);
         float rotZ = current.RotZ + parentAngleBefore - parentAngleAfter;
         float scaleX = sxAfter > 1e-6f ? current.ScaleX * sxBefore / sxAfter : current.ScaleX;
         float scaleY = syAfter > 1e-6f ? current.ScaleY * syBefore / syAfter : current.ScaleY;
