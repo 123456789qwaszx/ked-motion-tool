@@ -944,4 +944,68 @@ public class MainWindowTests
             }
         });
     }
+
+    [Fact]
+    public void 값_칸은_Enter_한_번이_되돌리기_한_번이고_포커스가_떠나도_같은_편집을_다시_기록하지_않는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
+                var editor = window.Session.Editor;
+                var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+                editor.AddChannel("nod", y.Node, y.Kind);
+                editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
+                float ValueAt1() => y.Resolve(editor.Document.Find("nod")!)!.Keys[1].V;
+
+                window.Graph.Select(new[] { new KeyRef(y, 1) }, additive: false);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                TextBox box = window.KeyValueBox;
+                Assert.True(box.IsEnabled);
+
+                // 값 입력 → Enter: 되돌리기 한 칸. Enter 뒤 포커스는 칸 밖이라 이어지는 Ctrl+Z는 문서 되돌리기다.
+                long before = editor.Revision;
+                box.Focus();
+                box.Text = "7";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal(7f, ValueAt1());
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.False(box.IsFocused);
+
+                // 다른 패널 클릭(포커스 이동)으로는 같은 편집이 다시 기록되지 않는다.
+                box.Focus();
+                window.Graph.Focus();
+                Assert.Equal(before + 1, editor.Revision);
+
+                window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+                Assert.Equal(-18f, ValueAt1());
+                Assert.True(editor.CanRedo);
+
+                // 되돌린 뒤 같은 값을 확정하거나 포커스만 옮겨도 다시하기가 남는다.
+                window.Graph.Select(new[] { new KeyRef(y, 1) }, additive: false);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                box.Focus();
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                box.Focus();
+                window.Graph.Focus();
+                Assert.Equal(-18f, ValueAt1());
+                Assert.True(editor.CanRedo);
+
+                // 실제 새 편집은 다시하기를 지운다.
+                box.Focus();
+                box.Text = "+=2";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal(-16f, ValueAt1());
+                Assert.False(editor.CanRedo);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

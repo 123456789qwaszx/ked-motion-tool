@@ -3786,17 +3786,42 @@ public partial class MainWindow : Window
 
     private static string F(float v) => v.ToString("0.####", CultureInfo.InvariantCulture);
 
-    private static void OnCommit(TextBox box, Action<string> apply)
+    /// <summary>
+    /// 글 칸 확정 — Enter와 포커스 잃기. 한 번 확정한 글은 포커스가 떠날 때 다시 확정하지 않고, 들어와서 안 바꾸고 나가면 아무 일도 없다
+    /// (같은 편집이 두 번 기록되거나 다시하기가 지워지지 않게). Enter로 확정하면 포커스를 뷰포트로 옮긴다 — 그 뒤 Ctrl+Z는 문서 되돌리기다(마야 채널 박스).
+    /// </summary>
+    private void OnCommit(TextBox box, Action<string> apply)
     {
+        string? committed = null;
+
+        void Commit(bool enter)
+        {
+            string text = box.Text ?? "";
+
+            if (!enter && text == committed)
+            {
+                return;
+            }
+
+            committed = text;
+            apply(text);
+        }
+
+        box.GotFocus += (_, _) => committed = box.Text ?? "";
         box.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter && !box.AcceptsReturn)
             {
-                apply(box.Text ?? "");
+                Commit(enter: true);
                 e.Handled = true;
+
+                if (ReferenceEquals(TopLevel.GetTopLevel(box), this))
+                {
+                    _viewport.Focus();
+                }
             }
         };
-        box.LostFocus += (_, _) => apply(box.Text ?? "");
+        box.LostFocus += (_, _) => Commit(enter: false);
     }
 
     private static TextBlock Header(string text) => new()
