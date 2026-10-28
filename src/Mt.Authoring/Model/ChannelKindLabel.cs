@@ -1,3 +1,5 @@
+using Ked.Presentation.Core;
+
 namespace Mt.Authoring.Model;
 
 /// <summary>
