@@ -56,12 +56,13 @@ public static class ScenePreview
 
             RigSchemaLoader.AddRigTo(state.Nodes, dto, o.Prefix, attach!);
             state.RegisterSlot(o.Id);
-            ApplyPlacement(state.Nodes, o);
             PortraitLayout.ApplySizing(state.Nodes, aspectOf?.Invoke(o) ?? PortraitLayout.PlaceholderAspect, o.Prefix);
 
-            // 순서는 런타임과 같이 size(깊이) → place.
+            // 순서는 런타임 대본과 같이 slot → size(깊이) → place → 오프셋(move_by·rotate_by·scale_by).
+            // place는 커맨드 순간 한 번 풀리는 것이라 그 뒤의 오프셋을 모른다 — 오프셋을 먼저 넣으면 place가 그만큼 되감아 오프셋이 안 보인다(버그였다).
             ApplyDepth(state, o, depth, focus);
             ApplyPlace(state, o, focus);
+            ApplyPlacement(state.Nodes, o);
         }
 
         return state.Nodes;
